@@ -1,0 +1,5 @@
+node_modules
+dist/
+.DS_Store
+# Claude Code writes these when it loads the plugin from this folder (types for mods).
+/tsconfig.json

@@ -1,0 +1,15 @@
+{
+  "name": "kestrel",
+  "description": "Kestrel, the tool that shows what your AI coding agents spend.",
+  "owner": {
+    "name": "Widal, Inc.",
+    "email": "hello@widal.com"
+  },
+  "plugins": [
+    {
+      "name": "kestrel",
+      "source": "./",
+      "description": "Shows what your AI coding agents spend, and helps to spend less."
+    }
+  ]
+}

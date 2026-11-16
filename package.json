@@ -1,0 +1,27 @@
+{
+  "name": "@widal/kestrel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shows what your AI coding agents spend, and helps to spend less.",
+  "license": "MIT",
+  "author": "Widal, Inc. <hello@widal.com> (https://kestrel.widal.com)",
+  "homepage": "https://kestrel.widal.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Widal-Inc/kestrel.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Widal-Inc/kestrel/issues"
+  },
+  "type": "module",
+  "bin": {
+    "kestrel": "cli/kestrel.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test",
+    "build:desktop": "node scripts/build-desktop.mjs"
+  }
+}

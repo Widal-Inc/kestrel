@@ -1,0 +1,96 @@
+{
+  "manifest_version": "0.3",
+  "name": "kestrel",
+  "display_name": "Kestrel",
+  "version": "0.1.0",
+  "description": "Shows what your AI agents spend (Claude Code, Codex and Cowork on this computer), and how to use less of your plan.",
+  "long_description": "Kestrel reads the logs that Claude Code, Codex and Cowork keep on this computer, and answers questions about them in a chat: what your agents spent this week, by project and model, how much of your plan's limits is used, and where you can save.\n\nAsk for example: \"What did my agents spend this week, and where can I save?\"\n\nDollar figures are list prices per token. On a subscription, the plan's percent is what counts.\n\nKestrel cannot see chat on claude.ai, in the Claude app or on the phone, sessions in the cloud, or other computers.\n\nIt also lists the open findings of Kestrel's security checks, with where each one is, the controls it touches and its fix. Kestrel flags risks and certifies nothing.\n\nPrivacy: reads local agent logs, returns numbers only, sends nothing anywhere. It never returns the text of a session, and it never changes a setting.",
+  "author": {
+    "name": "Widal, Inc.",
+    "email": "hello@widal.com",
+    "url": "https://kestrel.widal.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Widal-Inc/kestrel"
+  },
+  "homepage": "https://kestrel.widal.com",
+  "documentation": "https://github.com/Widal-Inc/kestrel#readme",
+  "support": "https://github.com/Widal-Inc/kestrel/issues",
+  "license": "MIT",
+  "icon": "icon.png",
+  "server": {
+    "type": "node",
+    "entry_point": "cli/kestrel.mjs",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/cli/kestrel.mjs",
+        "mcp"
+      ],
+      "env": {}
+    }
+  },
+  "tools": [
+    {
+      "name": "what_kestrel_sees",
+      "description": "Which agent logs Kestrel finds on this computer (Claude Code, Codex, Cowork), how many and how new, and what it cannot see. Use it first when unsure what there is, or when another answer is empty."
+    },
+    {
+      "name": "spend_summary",
+      "description": "What the agents on this computer spent, by tool, project and model, at list prices, with the plan's limits where known. Use it for a question such as: what did my agents spend this week?"
+    },
+    {
+      "name": "plan_limits",
+      "description": "How the person pays, the plan's limits and how much of them is used, as far as Kestrel knows, and where each number comes from. Use it for questions about the plan, its limits or the percent used."
+    },
+    {
+      "name": "spend_advice",
+      "description": "Proposals to spend less, each with the reason and the expected saving, from a replay of the logs. Use it when the person asks where to save or how to use less of the plan."
+    },
+    {
+      "name": "compactions",
+      "description": "How often the context of Claude Code sessions was compacted (replaced by a summary), and how large it was before and after. Use it for questions about compaction or long sessions."
+    },
+    {
+      "name": "spend_by_model",
+      "description": "Spend by model, effort level and kind of work, such as reading, running commands or changing files. Use it for questions about which model or effort level costs the most."
+    },
+    {
+      "name": "whats_running",
+      "description": "Which agent sessions run on this computer now (Claude Code, Codex and Cowork), which of them wait for the person, and what to do next, with the ticket, context, cache and tokens of today of each session. Use it for questions such as: what are my agents doing right now?"
+    },
+    {
+      "name": "spend_by_ticket",
+      "description": "Tokens, cost at list prices and sessions per ticket, from the git branch that each call names (a branch such as user/abc-322-login gives ABC-322). Use it for questions such as: what did each ticket cost this week?"
+    },
+    {
+      "name": "spend_by_account",
+      "description": "The spend and the plan's limits of each account that the agents used, such as a work and a personal Claude account, Cowork and Codex, with tokens and cost at list prices. Use it for questions such as: which of my accounts used the most this week?"
+    },
+    {
+      "name": "security_check",
+      "description": "The open findings of Kestrel's security checks (the agents' settings, their actions, the code they changed, and cloud accounts checked on request), each with its kind, title, where it is, the controls of the frameworks that are on and the fix. Use it when the person asks about security risks or compliance, such as HIPAA or SOC 2."
+    }
+  ],
+  "keywords": [
+    "usage",
+    "tokens",
+    "cost",
+    "limits",
+    "Claude Code",
+    "Cowork",
+    "Codex",
+    "security",
+    "compliance"
+  ],
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "linux"
+    ],
+    "runtimes": {
+      "node": ">=22.0.0"
+    }
+  }
+}

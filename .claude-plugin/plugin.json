@@ -1,0 +1,22 @@
+{
+  "name": "kestrel",
+  "version": "0.1.0",
+  "description": "Shows what your AI coding agents spend, and helps to spend less.",
+  "author": {
+    "name": "Widal, Inc.",
+    "email": "hello@widal.com",
+    "url": "https://kestrel.widal.com"
+  },
+  "homepage": "https://kestrel.widal.com",
+  "repository": "https://github.com/Widal-Inc/kestrel",
+  "license": "MIT",
+  "keywords": [
+    "usage",
+    "tokens",
+    "cost",
+    "limits",
+    "status line",
+    "security"
+  ],
+  "icon": "./assets/kestrel-512.png"
+}

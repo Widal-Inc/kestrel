@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Kestrel">
+  <title>Kestrel</title>
+  <!-- A common kestrel hovering, seen from the front: long pointed wings up, tail fanned, head down. -->
+  <rect width="512" height="512" rx="112" fill="#BFDCE5"/>
+  <g transform="translate(256 262) scale(1.08) translate(-256 -268)">
+
+  <!-- Tail: grey, with the black band and the pale tip of a kestrel's tail. -->
+  <path d="M238 318 L202 428 Q256 452 310 428 L274 318 Z" fill="#7C8E9C"/>
+  <path d="M207 410 L202 428 Q256 452 310 428 L305 410 Q256 431 207 410 Z" fill="#161B1F"/>
+  <path d="M203 424 L202 428 Q256 452 310 428 L309 424 Q256 447 203 424 Z" fill="#FBF4E4"/>
+
+  <!-- Left wing. The inner part is chestnut, the outer part with the long feathers is dark. -->
+  <g id="wing">
+    <path d="M248 232 C222 200 190 172 150 150 L152 234 C162 241 172 247 184 252 L170 262 C196 280 222 290 248 294 Z" fill="#C2622C"/>
+    <path d="M150 150 C116 124 80 104 40 90 C62 128 88 158 118 184 L102 190 C118 208 134 222 152 234 Z" fill="#2A2320"/>
+    <g fill="#2A2320">
+      <ellipse cx="176" cy="196" rx="5" ry="3.4" transform="rotate(35 176 196)"/>
+      <ellipse cx="200" cy="214" rx="5" ry="3.4" transform="rotate(35 200 214)"/>
+      <ellipse cx="196" cy="240" rx="5" ry="3.4" transform="rotate(35 196 240)"/>
+      <ellipse cx="222" cy="238" rx="5" ry="3.4" transform="rotate(35 222 238)"/>
+      <ellipse cx="220" cy="264" rx="5" ry="3.4" transform="rotate(35 220 264)"/>
+    </g>
+  </g>
+  <use href="#wing" transform="translate(512 0) scale(-1 1)"/>
+
+  <!-- Feet: yellow, tucked under the body. -->
+  <rect x="240" y="334" width="10" height="20" rx="5" fill="#F5C542"/>
+  <rect x="262" y="334" width="10" height="20" rx="5" fill="#F5C542"/>
+
+  <!-- Body: cream, with the dark spots of the chest. -->
+  <ellipse cx="256" cy="282" rx="38" ry="62" fill="#FBF4E4"/>
+  <g fill="#7A4A2B">
+    <ellipse cx="242" cy="262" rx="3.6" ry="6"/>
+    <ellipse cx="256" cy="270" rx="3.6" ry="6"/>
+    <ellipse cx="270" cy="262" rx="3.6" ry="6"/>
+    <ellipse cx="248" cy="290" rx="3.6" ry="6"/>
+    <ellipse cx="264" cy="290" rx="3.6" ry="6"/>
+    <ellipse cx="256" cy="310" rx="3.6" ry="6"/>
+  </g>
+
+  <!-- Head: grey, with a dark brow, the dark stripe under each eye, and a hooked beak with a yellow base. -->
+  <ellipse cx="256" cy="210" rx="33" ry="30" fill="#7C8E9C"/>
+  <path d="M229 196 Q240 188 252 198 L250 202 Q240 195 231 201 Z" fill="#161B1F"/>
+  <path d="M283 196 Q272 188 260 198 L262 202 Q272 195 281 201 Z" fill="#161B1F"/>
+  <path d="M236 210 C235 222 237 231 242 237 C243 228 243 219 241 210 Z" fill="#161B1F"/>
+  <path d="M276 210 C277 222 275 231 270 237 C269 228 269 219 271 210 Z" fill="#161B1F"/>
+  <circle cx="240" cy="205" r="7" fill="#F5C542"/>
+  <circle cx="272" cy="205" r="7" fill="#F5C542"/>
+  <circle cx="240" cy="205" r="4.5" fill="#161B1F"/>
+  <circle cx="272" cy="205" r="4.5" fill="#161B1F"/>
+  <path d="M248 214 Q256 209 264 214 L261 221 Q256 218 251 221 Z" fill="#F5C542"/>
+  <path d="M251 220 Q256 217 261 220 Q261 231 256 238 Q251 231 251 220 Z" fill="#3A444C"/>
+  </g>
+</svg>
