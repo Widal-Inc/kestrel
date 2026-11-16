@@ -270,7 +270,9 @@ test('each tool answers on made-up logs, with numbers that can be checked, and n
 
   for (const days of [undefined, 1, 90]) {
     const summary = await ask('spend_summary', days === undefined ? undefined : { days })
-    assert.match(summary, new RegExp(`^Agent spend, last ${days ?? 7} days\\.`))
+    assert.match(summary, new RegExp(`^What the agents used, last ${days ?? 7} days, in dollars at list prices, so an estimate\\.`))
+    // Cowork runs on a Claude plan, so its dollars are API value. The others are not known to be paid either way.
+    assert.match(summary, /\nOn subscriptions: \$0\.21 of API value \(what the same use would cost by the token\)\n/)
     assert.match(summary, /Total\s+\$1\.23\s+4 model calls/)
     assert.match(summary, /Claude Code\s+\$0\.72\s+2 calls/)
     assert.match(summary, /Codex\s+\$0\.30\s+1 calls/)

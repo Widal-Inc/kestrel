@@ -57,8 +57,10 @@ function chain(list, calls, blocks) {
     head = 0
     liveTokens = 0
   }
-  const enter = (label, tokens, entry, r, index) => {
-    live.push({ label, tokens, entry, start: cum, enter: index, ses: r.ses, f: r.f, cwd: r.cwd, ts: r.ts, known: !!rates(r) })
+  // A block of a tool result also keeps its size in characters, the signature of its tool call
+  // and, for a shell command, the name of its program (see parse-claude.mjs).
+  const enter = (label, tokens, entry, r, index, more) => {
+    live.push({ label, tokens, entry, start: cum, enter: index, ses: r.ses, f: r.f, cwd: r.cwd, ts: r.ts, known: !!rates(r), acct: r.acct, s: r.s, ...more })
     liveTokens += tokens
   }
 
@@ -125,7 +127,12 @@ function chain(list, calls, blocks) {
         if (own > 0) enter(OWN, own, own * perToken, r, i)
         const chars = r.add.reduce((n, a) => n + a[1], 0)
         if (rest > 0) {
-          if (chars > 0) for (const [label, size] of r.add) enter(label, (rest * size) / chars, (rest * perToken * size) / chars, r, i)
+          if (chars > 0) {
+            for (const [label, size, sig, prog] of r.add) {
+              const more = sig === undefined ? { chars: size } : prog === undefined ? { chars: size, sig } : { chars: size, sig, prog }
+              enter(label, (rest * size) / chars, (rest * perToken * size) / chars, r, i, more)
+            }
+          }
           else enter('(other new context)', rest, rest * perToken, r, i)
         }
       }
@@ -280,6 +287,54 @@ export function repeatedToolCalls(calls) {
     for (const [k, n] of seen) if (n >= 4) repeats.push({ ses, tool: k.split(' ')[0], n, cwd: list[0].r.cwd })
   }
   return repeats
+}
+
+/**
+ * Repeated tool calls grouped per session and tool: one entry for each tool that ran 4 times or
+ * more with the same input in one session. `calls` are analyzed calls, `blocks` the blocks of the
+ * same analysis. Each entry is `{ ses, tool, n, inputs, cwd, cost, afterCompaction }`:
+ *
+ *   - `n`: the calls of that tool with an input that repeated 4 times or more, all together.
+ *   - `inputs`: how many inputs repeated that often.
+ *   - `cost`: what the results of the repeats cost, entering and carried on the later calls, at
+ *     each call's prices. The first result of each input is not counted: that one was needed.
+ *   - `afterCompaction`: an input of this tool ran again after its log's context was compacted.
+ *     A compaction drops what the agent read, so it often reads the same files again, and loads
+ *     the same deferred tools again.
+ */
+export function repeatedByTool(calls, blocks) {
+  const results = groupBy(blocks.filter((b) => b.sig !== undefined), (b) => `${b.ses} ${b.label} ${b.sig}`)
+  const out = []
+  for (const [ses, list] of groupBy(calls, (e) => e.r.ses)) {
+    const seen = new Map() // "<tool> <sig>" -> { n, contexts: Set of "<log> <context number>" }
+    const context = new Map() // the log -> how many compactions it had so far
+    for (const e of list) {
+      if (e.r.ac) context.set(e.r.f, (context.get(e.r.f) ?? 0) + 1)
+      for (const [name, sig] of e.r.tools ?? []) {
+        const k = `${name} ${sig}`
+        if (!seen.has(k)) seen.set(k, { name, sig, n: 0, contexts: new Set() })
+        const s = seen.get(k)
+        s.n++
+        s.contexts.add(`${e.r.f} ${context.get(e.r.f) ?? 0}`)
+      }
+    }
+    const byTool = new Map()
+    for (const s of seen.values()) {
+      if (s.n < 4) continue
+      if (!byTool.has(s.name)) byTool.set(s.name, { ses, tool: s.name, n: 0, inputs: 0, cwd: list[0].r.cwd, cost: 0, afterCompaction: false })
+      const g = byTool.get(s.name)
+      g.n += s.n
+      g.inputs++
+      // The same log in two contexts: the input ran again after a compaction.
+      const logs = [...s.contexts].map((c) => c.slice(0, c.lastIndexOf(' ')))
+      if (new Set(logs).size < logs.length) g.afterCompaction = true
+      const mine = (results.get(`${ses} ${s.name} ${s.sig}`) ?? []).filter((b) => b.known)
+      const first = Math.min(...mine.map((b) => b.ts))
+      g.cost += mine.filter((b) => b.ts > first).reduce((sum, b) => sum + b.entry + b.carry, 0)
+    }
+    out.push(...byTool.values())
+  }
+  return out
 }
 
 /**

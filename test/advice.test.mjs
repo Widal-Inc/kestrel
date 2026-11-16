@@ -811,7 +811,7 @@ test('the cache of parsed logs keeps the new numbers, and a cache from before th
   const cache = join(process.env.KESTREL_HOME, 'cache')
   for (const f of readdirSync(cache)) {
     const entry = JSON.parse(readFileSync(join(cache, f), 'utf8'))
-    assert.equal(entry.v, 11)
+    assert.equal(entry.v, 12)
     writeFileSync(join(cache, f), JSON.stringify({ ...entry, v: 8, records: [] }))
   }
   assert.deepEqual(await mine(), expected)
@@ -841,7 +841,7 @@ test('the measures of a group of calls: cost, tool errors, rounds of fixing, int
   const repeats = mainSession([...many(4, { tools: ['Grep'], input: { pattern: 'made-up' } }), ...many(3, { tools: ['Read'], input: { file: 'made-up' } })], 'loop-1')
   assert.deepEqual(repeatedToolCalls(analyze(repeats).calls), [{ ses: 'loop-1', tool: 'Grep', n: 4, cwd: '/work/repo' }])
   const text = findings(repeats, { days: 7 })
-  assert.match(text, /Grep ran 4 times with the same input in session loop-1 \(work\/repo\)\./)
+  assert.match(text, /^ {3}Grep ran 4 times with a repeated input \(1 input, each 4 times or more\) in work\/repo, about \$0\.00\. Likely cause: a loop, or a check that is repeated on purpose\.$/m)
   assert.doesNotMatch(text, /Read ran/)
 })
 
@@ -1043,7 +1043,7 @@ test('the measure command works for every applied change', () => {
   }
   const unknown = run('no-such-change')
   assert.equal(unknown.status, 1)
-  assert.match(unknown.stderr, /^kestrel: There is no change "no-such-change"\. The changes are: subagent-cache-1h, model-switch-cost, cold-start-warn, subagent-model, effort-default, keep-warm, compact-keep, autocompact-window, no-bypass, deny-secret-files, transcript-days\n$/)
+  assert.match(unknown.stderr, /^kestrel: There is no change "no-such-change"\. The changes are: subagent-cache-1h, model-switch-cost, cold-start-warn, subagent-model, effort-default, keep-warm, compact-keep, autocompact-window, bash-output-cap, no-bypass, deny-secret-files, transcript-days\n$/)
   // A change that was not applied.
   writeFileSync(join(env.KESTREL_HOME, 'actions.json'), JSON.stringify({ 'subagent-model': state }))
   assert.equal(run('effort-default').stdout, 'effort-default is not applied. Apply it with: kestrel apply effort-default\n')
@@ -1364,9 +1364,9 @@ test('the plain lines of the findings, the session, the branch and the live repo
   const control = /[\x00-\x09\x0b-\x1f\x7f-\x9f]/
 
   const found = findings(records, { days: 7 })
-  assert.match(found, /^ {3}Largest\. \d{4}-\d\d-\d\d \d\d:\d\d \[31mRED\]0;PWN\/proj \$0\.\d\d \(70k tokens\)\.$/m)
+  assert.match(found, /^ {3}Largest:\n {5}\d{4}-\d\d-\d\d \d\d:\d\d \[31mRED\]0;PWN\/proj \$0\.\d\d \(70k tokens\)$/m)
   assert.match(found, /^ {3}Fetch\[31mREDnext: 4 results, 16k tokens, \$0\.08 with carrying\. Largest single result 10k tokens\.$/m)
-  assert.match(found, /^ {3}Fetch\[31mREDnext ran 4 times with the same input in session ab\[5mcd \(\[31mRED\]0;PWN\/proj\)\.$/m)
+  assert.match(found, /^ {3}Fetch\[31mREDnext ran 4 times with a repeated input \(1 input, each 4 times or more\) in \[31mRED\]0;PWN\/proj, about \$0\.\d\d\. Likely cause: a loop, or a check that is repeated on purpose\.$/m)
   assert.doesNotMatch(found, control)
   // The name of the tool adds no line.
   assert.equal(found.split('\n').some((l) => l.startsWith('next')), false)

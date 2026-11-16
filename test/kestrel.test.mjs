@@ -76,7 +76,9 @@ test('a Claude Code message with several lines is one model call, with its tool 
   assert.equal(records[0].out, 300)
   assert.deepEqual(records[0].tools.map((t) => t[0]), ['Bash'])
   assert.deepEqual(records[0].add, [['(your messages)', 11]])
-  assert.deepEqual(records[1].add, [['Bash', 3600]]) // The hook's record is bookkeeping, not context.
+  // The hook's record is bookkeeping, not context. The result carries the signature of its call and
+  // the program of the shell command, never the command.
+  assert.deepEqual(records[1].add, [['Bash', 3600, records[0].tools[0][1], 'ls']])
   assert.equal(new ClaudeParser('/p/abc/subagents/workflows/wf1/agent-7.jsonl').session, 'abc')
 })
 

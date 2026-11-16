@@ -47,7 +47,9 @@
 // change. This parser reads only the fields it needs and skips what it does not know.
 import { createHash } from 'node:crypto'
 import { basename, dirname, isAbsolute, relative, sep } from 'node:path'
+import { resultEntry } from './parse-claude.mjs'
 import { coworkDir } from './paths.mjs'
+import { programOf } from './program.mjs'
 
 // The name of an account folder becomes a part of a key, so it is taken only when it is a plain name.
 const FOLDER = /^[A-Za-z0-9_-][A-Za-z0-9._-]{0,99}$/
@@ -106,7 +108,8 @@ export class CoworkParser {
     this.account = coworkAccount(file)
     this.records = []
     this.byId = new Map()
-    this.toolName = new Map()
+    this.toolName = new Map() // The name and the signature of each tool call, by its id.
+    this.programs = new Map() // The program of each shell command, by the id of its call.
     // What entered the context since the last call: of the main session (the key '') and of each subagent.
     this.pending = new Map()
     this.wrote = new Map() // How many characters each call wrote.
@@ -175,9 +178,11 @@ export class CoworkParser {
       // tool call, and its result, if one comes, counts as the result of an unknown tool.
       if (b?.type === 'tool_use' && typeof b.name === 'string' && b.name) {
         if (this.toolName.has(b.id)) continue
-        this.toolName.set(b.id, b.name)
         // The same tool with the same input has the same signature: this finds repeated calls.
         const sig = createHash('sha1').update(b.name).update(JSON.stringify(b.input ?? null)).digest('hex').slice(0, 8)
+        this.toolName.set(b.id, [b.name, sig])
+        // Of a shell command only the name of its program is kept, never the command (see program.mjs).
+        if (b.name === 'Bash') this.programs.set(b.id, programOf(b.input?.command))
         r.tools.push([b.name, sig])
       }
       this.wrote.set(r, this.wrote.get(r) + written(b))
@@ -199,7 +204,7 @@ export class CoworkParser {
       return
     }
     for (const b of Array.isArray(content) ? content : []) {
-      if (b?.type === 'tool_result') pending.push([this.toolName.get(b.tool_use_id) ?? '(unknown tool)', textSize(b.content)])
+      if (b?.type === 'tool_result') pending.push(resultEntry(this.toolName.get(b.tool_use_id), textSize(b.content), this.programs.get(b.tool_use_id)))
       else if (b?.type === 'text' && typeof b.text === 'string' && b.text) pending.push([typed, b.text.length])
     }
   }

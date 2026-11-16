@@ -74,6 +74,16 @@ function compactTokens({ tokens = '300000' }) {
   return Number(tokens)
 }
 
+/**
+ * The cap that "apply bash-output-cap" was asked to set: how many characters of a successful shell
+ * command's output Claude gets inline. Claude Code takes 4000 to 128000 (its documentation of the
+ * setting "bashOutputMaxChars").
+ */
+function capChars({ chars = '10000' }) {
+  if (!/^\d+$/.test(chars) || Number(chars) < 4000 || Number(chars) > 128_000) throw new Error('--chars is a whole number from 4000 to 128000.')
+  return Number(chars)
+}
+
 const sameValue = (a, b) => JSON.stringify(a) === JSON.stringify(b)
 /** A value of the settings in words, for a sentence: as it stands in the file, or "not set". */
 const inWords = (value) => (value === undefined ? 'not set' : JSON.stringify(value))
@@ -280,6 +290,20 @@ export const ACTIONS = {
     undo: (before, bin, notPutBack = []) => putSettingBack('autoCompactWindow', before?.tokens, before?.value, notPutBack),
     inPlace: (args, before) => read().autoCompactWindow === (args ? compactTokens(args) : before?.tokens),
     done: (args) => `Set "autoCompactWindow" to ${compactTokens(args)} in Claude Code's settings. Claude Code compacts a context on its own when it reaches that many tokens.`,
+  },
+  'bash-output-cap': {
+    what: 'Sets "bashOutputMaxChars" in Claude Code\'s settings: how many characters of a successful shell command\'s output Claude gets inline. The size is 10000, or the one that --chars names (4000 to 128000). Without the setting it is about 30,000. Longer output goes to a file, and Claude gets a preview of 2,000 characters and the file\'s path.',
+    note: 'It needs Claude Code 2.1.261 or later, and then Claude Code no longer reads BASH_MAX_OUTPUT_LENGTH. Claude reads the file when it needs the rest of an output, and each such read is a tool call. Check the effect with: kestrel measure bash-output-cap',
+    options: ['--chars'],
+    apply: (bin, args, earlier) => {
+      const chars = capChars(args)
+      const value = setSetting('bashOutputMaxChars', chars)
+      // Applied before with another size: keep the first value, so that undo still goes all the way back.
+      return earlier ? { ...earlier, chars } : { value, chars }
+    },
+    undo: (before, bin, notPutBack = []) => putSettingBack('bashOutputMaxChars', before?.chars, before?.value, notPutBack),
+    inPlace: (args, before) => read().bashOutputMaxChars === (args ? capChars(args) : before?.chars),
+    done: (args) => `Set "bashOutputMaxChars" to ${capChars(args)} in Claude Code's settings. Claude gets at most that many characters of a successful command's output inline.`,
   },
   // The fixes of the security checks. Each is shown with the finding it fixes (see rules.mjs).
   'no-bypass': {

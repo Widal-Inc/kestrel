@@ -128,7 +128,10 @@ test('"kestrel summary --json" and "kestrel advise --json" give today, the perio
   const summary = JSON.parse(s.stdout)
   assert.deepEqual(Object.keys(summary), ['days', 'period', 'today', 'byDay', 'byTool'])
   assert.equal(summary.days, 7)
-  assert.deepEqual(Object.keys(summary.today), ['cost', 'tokens', 'calls', 'sessions', 'unpriced'])
+  assert.deepEqual(Object.keys(summary.today), ['cost', 'tokens', 'calls', 'sessions', 'unpriced', 'paid'])
+  // The dollars split by how they are paid: by the token, on a subscription, or not known. Together they are the cost.
+  assert.deepEqual(Object.keys(summary.today.paid), ['token', 'subscription', 'unknown'])
+  assert.ok(Math.abs(summary.today.paid.token + summary.today.paid.subscription + summary.today.paid.unknown - summary.today.cost) < 1e-9)
   assert.deepEqual([summary.today.calls, summary.today.tokens, summary.today.sessions], [1, 303500, 1])
   assert.ok(summary.today.cost > 0)
   assert.deepEqual(summary.byTool.map((t) => t.tool), ['Claude Code'])

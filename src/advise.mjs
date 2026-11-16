@@ -42,15 +42,25 @@ const SHORT_SHARE = 0.8
 // A lower effort level is compared with only when the person has this many calls of their own at it.
 const OWN_CALLS = 200
 
+// The cap on a shell command's output that the proposal asks for, in characters. Claude Code
+// gives a failed command about 10,000 characters inline whatever the setting says, so a cap of
+// this size leaves failed commands as they are. "apply bash-output-cap" sets it unless another is named.
+const BASH_CAP = 10_000
+// What Claude gets instead of longer output: a preview of 2,000 characters and the path of the
+// file that holds the rest, about 200 characters more.
+const BASH_PREVIEW = 2_200
+
 /**
  * @param {object[]} records The model calls, as the parsers return them.
- * @param {{ownFile?: (kind: string) => string | undefined}} [options] `ownFile` gives the file of
- *   a kind of subagent when the person has one, for the proposals that name a kind.
- * @returns {{total: number, calls: number, list: object[]}} The proposals, largest saving first.
- *   A proposal whose `saving` is null has no amount yet.
+ * @param {{ownFile?: (kind: string) => string | undefined, analyzed?: {calls: object[], blocks: object[]}}} [options]
+ *   `ownFile` gives the file of a kind of subagent when the person has one, for the proposals that
+ *   name a kind. `analyzed` is what `analyze` gave for the same records, when the caller has it.
+ * @returns {{total: number, calls: number, list: object[], all: object[]}} The proposals, largest
+ *   saving first. A proposal whose `saving` is null has no amount yet. `list` holds those worth 1%
+ *   of the total or more, `all` every one, also those with a saving of 0 or less.
  */
-export function proposals(records, { ownFile = agentFile } = {}) {
-  const { calls, blocks } = analyze(records)
+export function proposals(records, { ownFile = agentFile, analyzed } = {}) {
+  const { calls, blocks } = analyzed ?? analyze(records)
   const t = totals(calls)
   // Claude Code's subagents only: the settings below do not reach the subagents of Cowork.
   const sub = calls.filter((e) => claudeCode(e) && e.r.agent && e.c.known)
@@ -250,6 +260,27 @@ export function proposals(records, { ownFile = agentFile } = {}) {
     risk: 'The amount assumes that the work goes on the same with a smaller context. Nobody has measured that. A summary loses detail, and work that misses the detail can take more calls. So measure the change after it is applied: kestrel measure autocompact-window',
     apply: true,
     args: `--tokens ${COMPACT_POINT}`,
+    // The same count for each of the three points, for "kestrel findings".
+    points: COMPACT_POINTS.map((point) => ({ tokens: point, saving: above(carrying, point) })),
+  })
+
+  // A cap on the output of shell commands. Claude Code gives Claude a successful command's output
+  // inline up to "bashOutputMaxChars" characters (about 30,000 without the setting). Longer output
+  // goes to a file, and Claude gets a preview and the file's path instead. The replay takes each
+  // result of the shell tool that is longer than the cap, and keeps only the preview's share of
+  // what it cost to enter and to carry. Only Claude Code's calls: it is a setting of Claude Code.
+  const longOutput = blocks.filter((b) => b.s === 'claude' && b.label === 'Bash' && b.known && b.chars > BASH_CAP)
+  const longCost = sum(longOutput, (b) => b.entry + b.carry)
+  list.push({
+    id: 'bash-output-cap',
+    title: `Cap the shell output that Claude reads inline at ${count(BASH_CAP)} characters`,
+    saving: sum(longOutput, (b) => (b.entry + b.carry) * (1 - BASH_PREVIEW / b.chars)),
+    chars: BASH_CAP,
+    evidence: `${count(new Set(longOutput.map((b) => `${b.f} ${b.ts} ${b.sig}`)).size)} results of shell commands were longer than ${count(BASH_CAP)} characters. Entering and carried on the later calls, they cost ${money(longCost)}. With the cap Claude gets a preview of 2,000 characters and the path of a file instead, and the replay keeps only that share.`,
+    how: `One setting in Claude Code: "bashOutputMaxChars": ${BASH_CAP}. Claude Code then gives Claude at most ${count(BASH_CAP)} characters of a successful command's output (about 30,000 without the setting). Longer output goes to a file, and Claude reads it when it needs the rest. It needs Claude Code 2.1.261 or later.`,
+    risk: 'Claude reads the file when it needs more of the output, and each read is a tool call with a result of its own. The replay does not count those reads, so the saving is the most it can be. A failed command keeps its excerpt of about 10,000 characters.',
+    apply: true,
+    args: `--chars ${BASH_CAP}`,
   })
 
   // A smaller start: every subagent begins with the system prompt, the tool definitions and the lists of skills and agents.
@@ -266,7 +297,7 @@ export function proposals(records, { ownFile = agentFile } = {}) {
 
   // A proposal shows only when its saving is above 0 and at least 1% of the total. One without an amount comes last.
   const shown = list.filter((p) => p.saving === null || (p.saving > 0 && p.saving >= 0.01 * t.total))
-  return { total: t.total, calls: calls.length, list: shown.sort((a, b) => (b.saving ?? 0) - (a.saving ?? 0)) }
+  return { total: t.total, calls: calls.length, list: shown.sort((a, b) => (b.saving ?? 0) - (a.saving ?? 0)), all: list }
 }
 
 /**
@@ -367,6 +398,7 @@ const MEASURED = {
   'subagent-model': ['Subagent calls', (e) => claudeCode(e) && !!e.r.agent],
   'effort-default': ['Main session calls', (e) => claudeCode(e) && !e.r.agent],
   'autocompact-window': ['Main session calls', (e) => claudeCode(e) && !e.r.agent],
+  'bash-output-cap': ['Calls of Claude Code', claudeCode],
 }
 
 /**

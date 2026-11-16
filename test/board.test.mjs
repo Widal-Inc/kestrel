@@ -282,6 +282,12 @@ test('a sync sends the calls, sessions, commits, findings, limits, accounts, set
     assert.match(byId.c1.tools[0][1], /^[0-9a-f]{8}$/)
     // The tool's result entered before the second call: its size, never its text.
     assert.deepEqual(byId.c2.added, [['Bash', `${MARKER} output`.length]])
+    // Kestrel keeps the program of a shell command on this computer: here the first word of the
+    // command is the marker. The board gets the tool and the size only, so the marker is not sent.
+    const { load } = await import('../src/store.mjs')
+    const kept = (await load({ since: 0 })).records.find((r) => r.id === 'c2').add[0]
+    assert.deepEqual(kept.slice(0, 2), ['Bash', `${MARKER} output`.length])
+    assert.equal(kept[3], MARKER)
     // The subagent's call is a session of its own, with its parent.
     assert.deepEqual([byId.c4.session, byId.c4.subagent, byId.c4.parent, byId.c4.account], ['s1:agent-x1', true, 's1', `claude:${ACCOUNT}`])
     // A folder that is no git repository: no repository, no branch, no ticket.

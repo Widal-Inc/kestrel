@@ -1,7 +1,11 @@
 // The reports: what was spent, what the money paid for, and what could be avoided.
 import { labelOf, readAccounts } from './accounts.mjs'
-import { KIND_NAMES, READING, analyze, compactionsOf, effortOf, kindOf, median, repeatedToolCalls, simpleOnStrong, totals } from './analyze.mjs'
+import { proposals } from './advise.mjs'
+import { KIND_NAMES, READING, analyze, compactionsOf, effortOf, kindOf, median, repeatedByTool, simpleOnStrong, totals } from './analyze.mjs'
+import { storedLimits } from './billing.mjs'
+import { config } from './config.mjs'
 import { clock, count, day, model, money, pct, plain, project, table, tok, when } from './format.mjs'
+import { paidLines, paidSplit, payer, planKeyOf, plansLines, weekRates, weekShare } from './plans.mjs'
 import { rates } from './prices.mjs'
 import { ticketOf } from './ticket.mjs'
 
@@ -42,11 +46,29 @@ function unknownNote(calls) {
   return `\nNo price is known for ${models}: ${count(unknown.length)} calls, ${tok(sum(unknown, tokensOf))} tokens, not in the dollar figures.\nAdd prices in ~/.kestrel/prices.json.\n`
 }
 
-export function summary(records, { days }) {
+/** The account of a call: its key, or "unknown". */
+const accountOf = (e) => (typeof e.r.acct === 'string' ? e.r.acct : 'unknown')
+
+/**
+ * What the reports need to word their dollars: how each account pays, and the files behind that.
+ * `state`, `stored` and `cfg` stand in for accounts.json, limits.json and the settings.
+ */
+function paying({ state = readAccounts(), stored = storedLimits(), cfg = config() } = {}) {
+  return { state, stored, cfg, pay: payer({ state, stored, cfg }) }
+}
+
+/**
+ * The dollars of a list of analyzed calls split by how they are paid (see plans.mjs). Calls of a
+ * model without a price are not in it.
+ */
+const splitOf = (calls, pay) => paidSplit(calls.filter((e) => e.c.known), { key: accountOf, cost: (e) => e.c.total, pay })
+
+export function summary(records, { days, now = Date.now() }) {
   const { calls } = analyze(records)
   if (!calls.length) return `No model calls in the last ${days} days.`
   const t = totals(calls)
-  const out = [`Agent spend, last ${days} days. List prices, so an estimate. On a subscription this is what the same use would cost by the token.`, '']
+  const p = paying()
+  const out = [`What the agents used, last ${days} days, in dollars at list prices, so an estimate.`, ...paidLines(splitOf(calls, p.pay)), '']
   const rows = [['Total', money(t.total), `${count(t.calls)} model calls`]]
   for (const [s, list] of group(calls, (e) => e.r.s)) {
     const st = totals(list)
@@ -54,7 +76,11 @@ export function summary(records, { days }) {
   }
   out.push(table(rows, [1]))
   if (calls.some((e) => e.r.s === 'cowork')) out.push(COWORK_NOTE)
-  out.push(unknownNote(calls), 'What the money paid for', paidFor(t), '')
+  out.push(unknownNote(calls))
+  // The plans of the period: what each subscription's use was worth next to its price.
+  const plans = plansLines(calls.filter((e) => e.c.known), { key: accountOf, cost: (e) => e.c.total, days, now, state: p.state, stored: p.stored, cfg: p.cfg })
+  if (plans.length) out.push(...plans, '')
+  out.push('What the dollars paid for', paidFor(t), '')
 
   const section = (title, key, label, top = 8) => {
     const g = [...group(calls, key)].map(([k, list]) => ({ k, t: totals(list), list })).sort((a, b) => b.t.total - a.t.total || b.list.length - a.list.length)
@@ -62,11 +88,7 @@ export function summary(records, { days }) {
   }
   // A person can use more than one account. With more than one in the period, each gets its row,
   // with the person's own label or the organisation's name (see accounts.mjs).
-  const accountOf = (e) => (typeof e.r.acct === 'string' ? e.r.acct : 'unknown')
-  if (new Set(calls.map(accountOf)).size > 1) {
-    const state = readAccounts()
-    section('By account', accountOf, (k) => labelOf(k, state))
-  }
+  if (new Set(calls.map(accountOf)).size > 1) section('By account', accountOf, (k) => labelOf(k, p.state))
   section('By day', (e) => day(e.r.ts), (k) => k, 14)
   section('By project', (e) => project(e.r.cwd), (k) => k)
   section('By model', (e) => e.r.m, model)
@@ -78,13 +100,16 @@ export function summary(records, { days }) {
  * The spend of the period and of today as data ("kestrel summary --json"), for the pane in Claude
  * Code: dollars at list prices, tokens, calls and sessions, then the same per day (newest first)
  * and per tool. `now` says which local day is today. `unpriced` counts the calls of a model
- * without a price, which are not in the dollars.
+ * without a price, which are not in the dollars. `paid` splits the dollars by how they are paid:
+ * `token` is spend, `subscription` is API value, and `unknown` is of accounts whose way to pay
+ * Kestrel does not know (see plans.mjs).
  */
 export function summaryData(records, { days, now = Date.now() }) {
   const { calls } = analyze(records)
+  const { pay } = paying()
   const part = (list) => {
     const t = totals(list)
-    return { cost: t.total, tokens: sum(list, tokensOf), calls: list.length, sessions: new Set(list.map((e) => e.r.ses).filter(Boolean)).size, unpriced: t.unknown }
+    return { cost: t.total, tokens: sum(list, tokensOf), calls: list.length, sessions: new Set(list.map((e) => e.r.ses).filter(Boolean)).size, unpriced: t.unknown, paid: splitOf(list, pay) }
   }
   const today = day(now)
   return {
@@ -196,11 +221,15 @@ export function session(records, { id }) {
   // line and not a table, so the id is printed without control characters.
   const out = [`Session ${plain(ses.slice(0, 8))}  ${project(last.r.cwd)}  (${sourceName[last.r.s] ?? last.r.s})`]
   out.push(`${when(list[0].r.ts)} to ${when(list.at(-1).r.ts)}, ${count(list.length)} model calls, ${new Set(list.filter((e) => e.r.agent).map((e) => e.r.f)).size} subagent runs`)
-  out.push(`Cost     ${money(t.total)}`)
+  // The dollars of a session on a subscription are API value, and by the token they are spend.
+  const how = paying().pay(accountOf(last))
+  out.push(how === 'subscription' ? `API value  ${money(t.total)}, what the same use would cost by the token. You pay your plan's price.`
+    : how === 'token' ? `Spend    ${money(t.total)}, paid by the token, at list prices`
+    : `Cost     ${money(t.total)} at list prices`)
   out.push(`Context  half of the calls under ${tok(at(0.5))} tokens, 9 in 10 under ${tok(at(0.9))}, largest ${tok(ctx.at(-1) ?? 0)}, summarized ${main.filter((e) => e.r.ac).length} times`)
   const rt = rates(last.r)
   if (rt) out.push(`Next call  about ${money(last.ctx * rt.read)} to read the context from the cache, ${money(last.ctx * rt.w1)} if the cache is gone`)
-  out.push(unknownNote(list), 'What the money paid for', paidFor(t), '')
+  out.push(unknownNote(list), 'What the dollars paid for', paidFor(t), '')
 
   const misses = list.filter((e) => e.miss)
   if (misses.length) {
@@ -293,7 +322,7 @@ export function branch(records, { days, name, inRepo = () => true }) {
   const out = [`Branch ${plain(name)}, last ${days} days`, `Cost     ${money(t.total)} at list prices, ${count(list.length)} model calls in ${sessions} sessions, ${span}`]
   const folders = [...group(list, (e) => project(e.r.cwd))].map(([k, l]) => `${k} ${money(totals(l).total)}`)
   if (folders.length > 1) out.push(`Folders  ${folders.join(', ')}. A branch with the same name in another repository is counted together with this one.`)
-  out.push(unknownNote(list), 'What the money paid for', paidFor(t), '')
+  out.push(unknownNote(list), 'What the dollars paid for', paidFor(t), '')
   out.push('A line for the pull request:', `Model spend on this branch: ${money(t.total)} at list prices (${count(list.length)} model calls in ${sessions} sessions, ${span}). Measured with Kestrel.`)
   out.push('', 'Not counted: work on this branch from another machine, sessions older than the agents keep their logs, and calls a session made in folders outside this repository.')
   out.push('A session that started on this branch and later worked on something else in the same repository is still counted here.')
@@ -323,65 +352,138 @@ export function callsReport(records, { id, n }) {
   return table([CALL_HEAD, ...found[1].slice(-n).map(callLine)], CALL_RIGHT)
 }
 
-export function findings(records, { days }) {
+// Context above this many tokens is a finding of its own. The fix names the same size.
+const CAP = 200_000
+// The programs of shell commands that "kestrel findings" names, the most tokens first.
+const TOP_PROGRAMS = 5
+const DAY = 86400e3
+
+/** The likely cause of a group of repeated tool calls, in plain words (see repeatedByTool in analyze.mjs). */
+function repeatCause(x) {
+  if (x.afterCompaction && x.tool === 'Read') return 'files read again after a compaction'
+  if (x.afterCompaction && x.tool === 'ToolSearch') return 'deferred tools loaded again after a compaction'
+  if (x.afterCompaction) return 'the same call made again after a compaction'
+  return 'a loop, or a check that is repeated on purpose'
+}
+
+/**
+ * Where the dollars went and what can be done, largest first. Each finding ends with the command
+ * that fixes it, with the saving that the replay of "kestrel advise" finds for the same calls.
+ * `since` is the start of the calls that were read: the share of a weekly limit is worked out only
+ * for a week that began after it (see weekRates in plans.mjs).
+ */
+export function findings(records, { days, now = Date.now(), since = now - days * DAY }) {
   const { calls, blocks } = analyze(records)
   const t = totals(calls)
   if (!t.total) return `No priced model calls in the last ${days} days.`
-  const out = [`Where the money went and what can be done, last ${days} days. Total spend ${money(t.total)} at list prices.`, 'The amounts overlap, so they do not add up. Not all of an amount can be saved.', '']
+  const p = paying()
+  const priced = calls.filter((e) => e.c.known)
+  const out = [`Where the dollars went and what can be done, last ${days} days. Total ${money(t.total)} at list prices.`, ...paidLines(splitOf(calls, p.pay)), 'The amounts overlap, so they do not add up. Not all of an amount can be saved.', '']
   const found = []
+
+  // The share of a weekly limit that an amount stands for, on a subscription with a reading of its week.
+  const rates = weekRates(priced, { key: accountOf, ts: (e) => e.r.ts, cost: (e) => e.c.total, now, since, state: p.state, stored: p.stored, cfg: p.cfg })
+  const shareLine = (list, key, amount) => {
+    if (!rates.size) return []
+    const byPlan = new Map()
+    for (const x of list) {
+      const k = key(x) ?? 'unknown'
+      if (p.pay(k) !== 'subscription') continue
+      byPlan.set(planKeyOf(k), (byPlan.get(planKeyOf(k)) ?? 0) + amount(x))
+    }
+    const words = weekShare(byPlan, rates)
+    return words ? [`That is ${words}.`] : []
+  }
+  let shared = false
+  const withShare = (lines) => {
+    if (lines.length) shared = true
+    return lines
+  }
+
+  // The replay of "kestrel advise" for the same calls, for the saving that goes with each fix.
+  const replay = proposals(records, { ownFile: () => undefined, analyzed: { calls, blocks } })
+  const proposal = (id) => replay.all.find((x) => x.id === id)
+  const less = (saving) => (saving > 0 ? `the replay of these ${days} days: ${money(saving)} less` : 'the replay of these days finds no saving')
 
   const misses = calls.filter((e) => e.miss)
   if (t.waste > 0) {
-    const causes = [...group(misses, (e) => e.miss)].map(([k, l]) => `${k}: ${l.length} times, ${money(sum(l, (e) => e.waste))}`).join('; ')
-    const worst = misses.sort((a, b) => b.waste - a.waste).slice(0, 3).map((e) => `${when(e.r.ts)} ${project(e.r.cwd)} ${money(e.waste)} (${tok(e.ctx)} tokens)`).join('; ')
+    const causes = [...group(misses, (e) => e.miss)].map(([k, l]) => `${k}: ${count(l.length)} ${l.length === 1 ? 'time' : 'times'}, ${money(sum(l, (e) => e.waste))}`)
+    const worst = [...misses].sort((a, b) => b.waste - a.waste).slice(0, 3).map((e) => `${when(e.r.ts)} ${project(e.r.cwd)} ${money(e.waste)} (${tok(e.ctx)} tokens)`)
     const sub = misses.filter((e) => e.r.agent)
+    // Keep-warm acts on a main session that waits: a cache lost after more than 5 minutes idle.
+    const idle = misses.filter((e) => !e.r.agent && e.gap > 300e3)
     const cheaper = misses.filter((e) => e.keepAlive != null && e.keepAlive < e.waste)
-    const lines = []
-    if (sub.length) lines.push(`${count(sub.length)} of them were in subagents, ${money(sum(sub, (e) => e.waste))}. A subagent's cache lasts 5 minutes, so a command or a wait that runs longer loses it.`)
+    const lines = ['Causes:', ...causes.map((c) => `  ${c}`), 'Largest:', ...worst.map((w) => `  ${w}`)]
+    if (sub.length) lines.push(`${count(sub.length)} of them ${sub.length === 1 ? 'was' : 'were'} in subagents, ${money(sum(sub, (e) => e.waste))}. A subagent's cache lasts 5 minutes, so a command or a wait that runs longer loses it.`)
     if (cheaper.length) lines.push(`Keeping the cache alive through ${count(cheaper.length)} of the gaps (one read of the context every 4 minutes, for gaps up to 2 hours) would have cost about ${money(sum(cheaper, (e) => e.keepAlive))} instead of ${money(sum(cheaper, (e) => e.waste))}.`)
-    found.push([t.waste, `The cache was lost ${misses.length} times`, [
-      `Causes. ${causes}.`,
-      `Largest. ${worst}.`,
-      ...lines,
+    lines.push(...withShare(shareLine(misses, accountOf, (e) => e.waste)))
+    lines.push(
       'A provider keeps your context in its cache for a short time (5 minutes or 1 hour). After a longer gap it is gone, and the whole context is written again at the high price.',
       'A gap is a break of yours, or a command that runs longer than the cache lasts, such as a long test run or a wait for CI.',
       'Before a long break, summarize the context (/compact) or finish the task. After a break, start a new session if the old context is not needed.',
-    ]])
+    )
+    if (sub.length) lines.push(`Fix for the subagents: kestrel apply subagent-cache-1h (${less(proposal('subagent-cache-1h')?.saving)}). It gives subagents a 1 hour cache.`)
+    if (idle.length) lines.push('Fix for the main sessions: kestrel apply keep-warm, an experiment. It wakes an idle session with one short turn shortly before its cache ends, for up to 3 hours without you.')
+    found.push([t.waste, `The cache was lost ${count(misses.length)} times`, lines])
   }
 
-  const CAP = 200_000
-  const above = sum(calls, (e) => (e.carried > CAP ? (e.carriedCost * (e.carried - CAP)) / e.carried : 0))
+  const aboveOf = (e) => (e.carried > CAP ? (e.carriedCost * (e.carried - CAP)) / e.carried : 0)
+  const above = sum(calls, aboveOf)
   if (above > 0) {
-    found.push([above, `Carrying context above ${tok(CAP)} tokens`, [
+    const lines = [
       `${count(calls.filter((e) => e.carried > CAP).length)} calls carried more than ${tok(CAP)} tokens. The part above that cost ${money(above)}.`,
+      ...withShare(shareLine(calls, accountOf, aboveOf)),
       'Every call pays again for everything in the context. Summarize earlier, or use one session per task.',
-    ]])
+    ]
+    // The replay counts Claude Code's calls only: the size is a setting of Claude Code.
+    const atCap = proposal('autocompact-window')?.points?.find((x) => x.tokens === CAP)?.saving
+    if (atCap > 0) lines.push(`Fix: kestrel apply autocompact-window --tokens ${CAP} (${less(atCap)}). Claude Code then compacts a context on its own at ${tok(CAP)} tokens.`)
+    found.push([above, `Carrying context above ${tok(CAP)} tokens`, lines])
   }
 
-  const tools = [...group(blocks.filter((b) => !b.label.startsWith('(')), (b) => b.label)]
-    .map(([label, l]) => ({ label, n: l.length, cost: sum(l, (b) => b.entry + b.carry), tokens: sum(l, (b) => b.tokens), max: l.reduce((n, b) => Math.max(n, b.tokens), 0) }))
+  const ofTools = blocks.filter((b) => !b.label.startsWith('('))
+  const tools = [...group(ofTools, (b) => b.label)]
+    .map(([label, l]) => ({ label, l, n: l.length, cost: sum(l, (b) => b.entry + b.carry), tokens: sum(l, (b) => b.tokens), max: l.reduce((n, b) => Math.max(n, b.tokens), 0) }))
     .sort((a, b) => b.cost - a.cost)
   if (tools.length) {
     const top = tools.slice(0, 5)
-    found.push([sum(top, (x) => x.cost), 'Tool results in the context', [
-      ...top.map((x) => `${plain(x.label)}: ${count(x.n)} results, ${tok(x.tokens)} tokens, ${money(x.cost)} with carrying. Largest single result ${tok(x.max)} tokens.`),
-      'A large result is paid for on every later call. Read parts of files, filter command output, and give large reads to a subagent that returns a summary.',
-    ]])
+    const lines = []
+    for (const x of top) {
+      lines.push(`${plain(x.label)}: ${count(x.n)} ${x.n === 1 ? 'result' : 'results'}, ${tok(x.tokens)} tokens, ${money(x.cost)} with carrying. Largest single result ${tok(x.max)} tokens.`)
+      // Shell commands by the name of their program: only the first word of each command is kept.
+      if (x.label !== 'Bash') continue
+      const programs = [...group(x.l, (b) => b.prog ?? '(not known)')]
+        .map(([name, l]) => ({ name, n: l.length, tokens: sum(l, (b) => b.tokens), cost: sum(l, (b) => b.entry + b.carry) }))
+        .sort((a, b) => b.tokens - a.tokens)
+      if (programs.length > 1 || programs[0]?.name !== '(not known)') {
+        lines.push('  By program, the most tokens first:', ...programs.slice(0, TOP_PROGRAMS).map((g) => `    ${plain(g.name)}: ${count(g.n)} ${g.n === 1 ? 'result' : 'results'}, ${tok(g.tokens)} tokens, ${money(g.cost)}`))
+      }
+    }
+    lines.push(...withShare(shareLine(top.flatMap((x) => x.l), (b) => b.acct, (b) => b.entry + b.carry)))
+    lines.push('A large result is paid for on every later call. Read parts of files, filter command output, and give large reads to a subagent that returns a summary.')
+    const cap = proposal('bash-output-cap')
+    if (cap?.saving > 0) lines.push(`Fix: kestrel apply bash-output-cap (${less(cap.saving)}). Claude then gets at most ${count(cap.chars)} characters of a command's output inline, and a preview and a file for longer output.`)
+    found.push([sum(top, (x) => x.cost), 'Tool results in the context', lines])
   }
 
-  const repeats = repeatedToolCalls(calls)
+  const repeats = repeatedByTool(calls, blocks).sort((a, b) => b.cost - a.cost || b.n - a.n)
   if (repeats.length) {
-    repeats.sort((a, b) => b.n - a.n)
-    found.push([0, 'The same tool call, with the same input, many times', [
-      ...repeats.slice(0, 5).map((x) => `${plain(x.tool)} ran ${x.n} times with the same input in session ${plain(x.ses.slice(0, 8))} (${project(x.cwd)}).`),
-      'This can be a loop, or a check that is repeated on purpose. The cost is not estimated here.',
-    ]])
+    const cost = sum(repeats, (x) => x.cost)
+    const lines = repeats.slice(0, 5).map((x) => `${plain(x.tool)} ran ${count(x.n)} times with a repeated input (${count(x.inputs)} ${x.inputs === 1 ? 'input' : 'inputs'}, each 4 times or more) in ${project(x.cwd)}, about ${money(x.cost)}. Likely cause: ${repeatCause(x)}.`)
+    lines.push('The cost is that of the repeated results: entering, and carried on the later calls. The first result of each input is not counted.')
+    lines.push(repeats.some((x) => x.afterCompaction)
+      ? 'Fix: kestrel apply compact-keep. At each compaction it tells the summary what to keep, such as the files that were changed. No replay can say how much that saves.'
+      : 'Fix: by hand. Look for a loop in that session, or a check that runs more often than it needs to.')
+    found.push([cost, 'The same tool call, with the same input, many times', lines])
   }
 
   const sub = calls.filter((e) => e.r.agent)
   if (sub.length) {
     const st = totals(sub)
-    found.push([0, 'Subagents', [`Subagents made ${count(sub.length)} of ${count(calls.length)} calls and cost ${money(st.total)}, ${pct(st.total, t.total)} of the total. This is a figure to know, not waste by itself.`]])
+    const lines = [`Subagents made ${count(sub.length)} of ${count(calls.length)} calls and cost ${money(st.total)}, ${pct(st.total, t.total)} of the total. This is a figure to know, not waste by itself.`]
+    const cheaper = proposal('subagent-model')
+    if (cheaper?.saving > 0) lines.push(`Fix: kestrel apply subagent-model (${less(cheaper.saving)}). Subagents then run on Claude Sonnet 5.5. Compare the work before and after with: kestrel measure subagent-model`)
+    found.push([0, 'Subagents', lines])
   }
 
   found.sort((a, b) => b[0] - a[0])
@@ -390,7 +492,11 @@ export function findings(records, { days }) {
     for (const l of lines) out.push(`   ${l}`)
     out.push('')
   })
-  return out.join('\n')
+  if (shared) {
+    const per = [...rates.values()].map((r) => `${money(r.perPct)} of API value per 1% for ${r.label}`).join(', ')
+    out.push(`The share of a weekly limit is an estimate. Anthropic does not publish how the limit counts tokens. Kestrel divides this week's API value of the account by the percent of the week used so far: ${per}.`)
+  }
+  return out.join('\n').trimEnd()
 }
 
 // A compaction came in the middle of work when its session made a model call this short before it.

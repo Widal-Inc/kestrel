@@ -113,9 +113,12 @@ test('an answer written as several lines counts once', () => {
 test('what entered the context between two calls is kept by its label and size, and a repeated message counts once', () => {
   const [m1, m2, a1, m3] = parse(TURN).records
   assert.deepEqual(m1.add, [['(your messages)', 14]])
-  assert.deepEqual(m2.add, [['Bash', 3600]])
+  // A tool result also carries the signature of its call, and for a shell command its program.
+  assert.deepEqual(m2.add.map((a) => a.slice(0, 2)), [['Bash', 3600]])
+  assert.deepEqual(m2.add[0].slice(2), [m1.tools[0][1], 'ls'])
+  assert.match(m2.add[0][2], /^[0-9a-f]{8}$/)
   assert.deepEqual(a1.add, [['(messages to the subagent)', 17]])
-  assert.deepEqual(m3.add, [['Task', 100]])
+  assert.deepEqual(m3.add.map((a) => a.slice(0, 2)), [['Task', 100]])
 })
 
 test("a subagent's call is told apart from the main session's, and has a context of its own", () => {
@@ -139,7 +142,7 @@ test('a made-up answer, a line of an unknown type and a broken line are skipped,
   assert.equal(records.some((r) => r.m === '<synthetic>' || r.id === 'm9' || r.id === 'later-1'), false)
   // The lines of unknown types changed nothing: not what entered the context, not the working
   // folder, not the app's cost figure, and not how the output of the turn is shared.
-  assert.deepEqual(records.at(-1).add, [['Task', 100]])
+  assert.deepEqual(records.at(-1).add.map((a) => a.slice(0, 2)), [['Task', 100]])
   assert.deepEqual(records.map((r) => r.cwd), Array(4).fill('/sessions/calm-river'))
   assert.equal(meta.costState.total, 0.51)
   assert.deepEqual(records.map((r) => r.out), [602, 303, 41, 102])
@@ -351,7 +354,8 @@ test('a tool whose name is not text is not kept as a tool call, and its result c
     answer('next', at(1, 8), [{ type: 'text', text: 'done' }]),
   ])
   assert.deepEqual(records.map((r) => r.tools.map((t) => t[0])), [['Read'], []])
-  assert.deepEqual(records[1].add, [['(unknown tool)', 14], ['Read', 14]])
+  assert.deepEqual(records[1].add.map((a) => a.slice(0, 2)), [['(unknown tool)', 14], ['Read', 14]])
+  assert.equal(records[1].add[0].length, 2) // A result whose call is not known has no signature.
   // So every name that a report prints is text.
   for (const report of [summary(records, { days: 7 }), findings(records, { days: 7 }), models(records, { days: 30 }), session(records, {})]) {
     assert.doesNotMatch(report, /\[object Object\]|undefined|NaN/)
@@ -400,7 +404,7 @@ test('a model or a tool that is named "__proto__" or "constructor" in a Cowork l
   assert.equal({}.inputTokens, undefined)
   assert.deepEqual(records.map((r) => r.m), [...ODD_NAMES, OPUS])
   assert.deepEqual(records.map((r) => r.tools.map((t) => t[0])), [...ODD_NAMES.map((name) => [name]), []])
-  assert.deepEqual(records.at(-1).add, ODD_NAMES.map((name, i) => [name, 100 + i]))
+  assert.deepEqual(records.at(-1).add.map((a) => a.slice(0, 2)), ODD_NAMES.map((name, i) => [name, 100 + i]))
   // Each model got the output of its own row of the result line.
   assert.deepEqual(records.map((r) => r.out), [100, 100, 100, 100, 50])
   // The app's figures are kept per name, each as a key of its own.
@@ -447,7 +451,7 @@ test('the readers of Claude Code and Codex take "__proto__" and "constructor" as
   claude.feed(JSON.stringify({ type: 'cost-state', totalCostUSD: 0.4, modelUsage: Object.fromEntries(ODD_NAMES.map((name) => [name, counts])) }))
   const fromClaude = claude.result()
   assert.deepEqual(fromClaude.records.map((r) => [r.m, r.tools[0][0], r.ef]), ODD_NAMES.map((name) => [name, name, name]))
-  assert.deepEqual(fromClaude.records.slice(1).map((r) => r.add), ODD_NAMES.slice(0, -1).map((name) => [[name, 10]]))
+  assert.deepEqual(fromClaude.records.slice(1).map((r) => r.add.map((a) => a.slice(0, 2))), ODD_NAMES.slice(0, -1).map((name) => [[name, 10]]))
   assert.deepEqual(Object.keys(fromClaude.meta.costState.models), ODD_NAMES)
   assert.deepEqual(fromClaude.meta.costState.models.__proto__, counts)
 

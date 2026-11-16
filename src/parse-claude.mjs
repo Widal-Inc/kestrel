@@ -7,6 +7,9 @@
 // own in <session>/subagents/. Next to it is a small file, agent-<id>.meta.json, that names the
 // kind of the subagent.
 //
+// Of a shell command (the tool Bash) the name of its program is kept with its result, such as
+// "npm" or "git", and nothing else of the command (see program.mjs).
+//
 // Two signs of how the work went are kept as a count and a flag, never as text. A tool result that
 // failed has "is_error": true. When the person interrupts the agent, Claude Code writes a "user"
 // line whose text is a fixed marker.
@@ -32,6 +35,7 @@
 import { createHash } from 'node:crypto'
 import { closeSync, openSync, readFileSync, readSync, statSync } from 'node:fs'
 import { basename } from 'node:path'
+import { programOf } from './program.mjs'
 
 // Lines of other types are never parsed. Some are very large.
 const WANTED = ['"type":"assistant"', '"type":"user"', '"type":"system"', '"type":"attachment"', '"type":"cost-state"', '"type":"session-owner"']
@@ -70,6 +74,17 @@ const textSize = (content) => {
     else if (b?.type === 'tool_result') n += textSize(b.content)
   }
   return n
+}
+
+/**
+ * What a tool result adds to the context: `[tool, characters, signature, program]`. The signature
+ * is that of the tool call (see below), so that the result of a repeated call can be found. The
+ * program is there for a shell command only. A result whose call is not known is
+ * `['(unknown tool)', characters]`.
+ */
+export function resultEntry(use, size, program) {
+  if (!use) return ['(unknown tool)', size]
+  return program === undefined ? [use[0], size, use[1]] : [use[0], size, use[1], program]
 }
 
 /** The meta file next to a subagent's log: agent-<id>.meta.json for agent-<id>.jsonl. */
@@ -174,6 +189,7 @@ export class ClaudeParser {
     this.records = []
     this.byId = new Map()
     this.toolUse = new Map()
+    this.programs = new Map()
     this.pending = []
     this.errors = 0
     this.interrupted = false
@@ -252,6 +268,8 @@ export class ClaudeParser {
       const sig = createHash('sha1').update(b.name).update(JSON.stringify(b.input ?? null)).digest('hex').slice(0, 8)
       const use = [b.name, sig]
       this.toolUse.set(b.id, use)
+      // Of a shell command only the name of its program is kept, never the command (see program.mjs).
+      if (b.name === 'Bash') this.programs.set(b.id, programOf(b.input?.command))
       r.tools.push(use)
     }
   }
@@ -270,7 +288,7 @@ export class ClaudeParser {
     for (const b of Array.isArray(content) ? content : []) {
       if (b?.type === 'tool_result') {
         const use = this.toolUse.get(b.tool_use_id)
-        this.pending.push([use?.[0] ?? '(unknown tool)', textSize(b.content)])
+        this.pending.push(resultEntry(use, textSize(b.content), this.programs.get(b.tool_use_id)))
         if (b.is_error === true) {
           this.errors++
           // The tool call is marked too: a third item, 1, after its name and signature.
