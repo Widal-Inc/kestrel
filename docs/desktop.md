@@ -40,7 +40,7 @@ The app may ask you once to allow Kestrel's tools. Kestrel's tools only read, so
 
 **The first answer can take a while.** The first time, Kestrel reads the logs of the last 90 days. With thousands of logs that takes minutes. If Claude says that Kestrel is still reading, ask again in a minute. Later answers are quick, because Kestrel keeps what it read.
 
-**Dollars are list prices.** They say what the same use would cost when every token is paid for. On a subscription (Pro, Max or Ultra) you do not pay that. There the plan's percent is what counts. The Claude app shows it under **Settings**, **Usage**.
+**Dollars are list prices.** When you pay by the token they are your spend. On a subscription (Pro, Max or Ultra, a Team seat, a ChatGPT plan) they are API value: what the same use would cost when every token is paid for. You do not pay that, and the answers set it next to your plan's price. There the plan's percent is what counts. The Claude app shows it under **Settings**, **Usage**.
 
 ## What Kestrel sees, and what it never sees or does
 

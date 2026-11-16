@@ -20,7 +20,7 @@ The screenshots use made-up data: invented projects and two weeks of invented se
 
 ![kestrel top: the open sessions of Claude Code and Codex](docs/images/top.png)
 
-**What the money paid for** (`kestrel summary`). Spend by account, day, project and model, and the share that paid for carrying context and for lost caches.
+**What the dollars paid for** (`kestrel summary`). The dollars by account, day, project and model: spend for an account that pays by the token, API value for one on a subscription. The plans with their price, and the share that paid for carrying context and for lost caches. (The picture shows an earlier version of this report.)
 
 ![kestrel summary: the spend of the last 7 days](docs/images/summary.png)
 
@@ -54,9 +54,10 @@ Kestrel needs Node 22 or newer. The setup says so when your Node is older.
 
 **What the plugin brings.**
 
-- **Eight commands.** `/kestrel:setup`, `/kestrel:report` (the spend of the last 7 days, as `kestrel summary` shows it), `/kestrel:compactions`, `/kestrel:advise`, `/kestrel:status`, `/kestrel:hud` followed by what you want to change in the status line, and `/kestrel:open` and `/kestrel:settings`, which open the Kestrel pane. The first five show the tool's output as it is.
+- **Ten commands.** `/kestrel:setup`, `/kestrel:report` (the last 7 days, as `kestrel summary` shows it), `/kestrel:findings` (as `kestrel findings` shows it), `/kestrel:session` (the latest session, as `kestrel session` shows it), `/kestrel:compactions`, `/kestrel:advise`, `/kestrel:status`, `/kestrel:hud` followed by what you want to change in the status line, and `/kestrel:open` and `/kestrel:settings`, which open the Kestrel pane. The first seven show the tool's output as it is.
+- **A command typed with `!`.** In Claude Code, `!kestrel findings` runs the command in the session's shell at once, and shows its output as it is. It needs the command on your PATH, which the setup puts there. Any report works this way, for example `!kestrel summary --days 30`.
 - **A pane.** The Kestrel pane beside the chat, with the sessions that run now, the spend, the settings as checkboxes and the open security findings. See "The Kestrel pane".
-- **A skill.** When you ask what your agents spend, where the tokens go or how to spend less, Claude runs the report that fits and passes on the numbers. Claude never opens a session log itself: the tool reads the logs and prints only numbers.
+- **A skill.** When you ask what your agents spend, where the tokens go or how to spend less, Claude runs the report that fits and passes on the numbers. A prompt that is only a command, such as `kestrel findings`, makes Claude run that command and show its output as it is. Claude never opens a session log itself: the tool reads the logs and prints only numbers.
 - **Seven hooks.** Three are hooks that you can also add with `kestrel apply`: the text a summary has to keep at a compaction, the warning when a prompt goes to a session whose cache has ended, and the cost of a change of model. Three start the security checks and ask before a push while a high risk is open. The seventh keeps the copy in `~/.kestrel/app/` at the plugin's version. See "The plugin's hooks".
 
 The commands, the skill, the hooks and the pane work before the setup too. Only the warning for a sent prompt needs the status line, which saves when each cache ends.
@@ -112,7 +113,7 @@ Where no pane can show, the same commands print text instead. `/kestrel:settings
 | Tab | What it shows | What each button does |
 |---|---|---|
 | `1: Now` | The sessions on this computer, as `kestrel top` shows them. They are read again every 5 seconds while the pane is open. | Each row is a button. It opens the details of that session: project, tool, ticket, state, context, cache with the minutes left, tokens today, agents that run, the task (only while names are on), and for Claude Code the command that resumes it, `claude --resume <id>`. `b: Back` goes back to the list. |
-| `2: Spend` | Today and the last 7 days, at list prices. The spend per account, when `kestrel accounts` is there. The top 3 proposals of `kestrel advise`. | `Apply <name>` asks once more: "Apply <name>? It changes Claude Code's settings, with a backup." Then `y: Yes, apply` runs `kestrel apply <name>`, and `n: No` does nothing. An applied change has `Undo <name>`, which runs `kestrel undo <name>`. `r: Read again` reads the tab again. |
+| `2: Spend` | Today and the last 7 days, at list prices: spend for what is paid by the token, API value for what runs on a subscription, both apart when they mix. The dollars of each account and the price of its plan, when `kestrel accounts` is there. The top 3 proposals of `kestrel advise`. | `Apply <name>` asks once more: "Apply <name>? It changes Claude Code's settings, with a backup." Then `y: Yes, apply` runs `kestrel apply <name>`, and `n: No` does nothing. An applied change has `Undo <name>`, which runs `kestrel undo <name>`. `r: Read again` reads the tab again. |
 | `3: Settings` | Every setting of `kestrel settings` in its group: the status line, the hints, the security frameworks and the checks (see "Settings" below). | A row with `[x]` or `[ ]` turns its setting on or off, through `kestrel settings set`. The layout of the status line moves to its other value. A value with more than two choices is a list to pick from. `Healthcare set`, `Life sciences set` and `Fintech set` switch their frameworks on. `[ ] For this project` makes the frameworks those of the session's folder. A field for each account takes a new label, through `kestrel accounts label`. `u: Undo the last change` runs `kestrel settings undo`. |
 | `4: Security` | At the top: the frameworks that are on, the open findings by severity, and the sentence that Kestrel checks technical controls and does not certify anything. Then one row per open finding, the most severe first: its severity, title, where it is, and the controls of the frameworks that are on. They come from `kestrel check --json`, for the session's folder. | A row opens the finding's detail: all its fields, its fix command, and when it was first and last seen. `f: Fix` is there when Kestrel can make the fix. It asks once: "Apply <name>? It changes Claude Code's settings, with a backup." Then `y` runs `kestrel apply <name>`, and the fix gets `Undo <name>`. `h: Hand to the agent` asks once: "Send this finding to Claude in this session? It uses tokens." Then `y` sends one prompt in the session (see below). `b: Back` goes back to the list. `r: Run checks for this folder` runs `kestrel check --run` and reads the findings again. |
 
@@ -339,9 +340,9 @@ The code works for 15 minutes. Ctrl-C stops the waiting. The address has to star
 - **The model calls:** for each call its time, session, agent (Claude Code, Codex or Cowork), model and effort level, the tokens of each kind, the cost at list prices, the folder, the GitHub repository (`owner/name` of the folder's git remote `origin`), the git branch and its ticket, the account, whether it came from a subagent and its parent session, the names of the tools with 8 characters of a hash of their input, the sizes of what entered the context, and the counts of failed tool results and interrupts.
 - **The sessions,** with their folder, repository, branch and ticket. For the sessions that are open now: whether they work, wait for you or are idle. While the names of tasks and agents are on (`kestrel hud names on`, the default), also the names of their tasks, and the kind and short description of each agent that runs. With names off, none of these.
 - **The commits** made while a session worked in a repository, from your local git: the commit's id and time, and the session. Only your own commits: when git knows your email (`user.email`), a commit with another committer email came with a pull and is left out. That email is read on your computer only, and never sent.
-- **The security findings** (the whole list), the plan's limits of each account, the accounts (their key, label, how they pay and their plan), the settings as `kestrel settings --json` gives them, and the proposals as `kestrel advise --json` gives them (at most every 6 hours, because the replay takes time).
+- **The security findings** (the whole list), the plan's limits of each account, the accounts (their key, label, how they pay, their plan, and the price of their plan a month: the one you set, else a public price that Kestrel knows, else none), the settings as `kestrel settings --json` gives them, and the proposals as `kestrel advise --json` gives them (at most every 6 hours, because the replay takes time).
 
-**What is never sent.** The text of a prompt, an answer, a tool result or a file. Kestrel never keeps that text, so it has none to send. Folders are sent with `~` for your home folder, so your user name on the computer is not sent. No email address and no person's name is sent.
+**What is never sent.** The text of a prompt, an answer, a tool result or a file. Kestrel never keeps that text, so it has none to send. The name of the program of a shell command, which Kestrel keeps for `kestrel findings`, is not sent either. Folders are sent with `~` for your home folder, so your user name on the computer is not sent. No email address and no person's name is sent.
 
 **The token.** The board gives this computer a token that starts with `kbm_`. It is the one secret Kestrel keeps. It is in `~/.kestrel/board.json`, which only you can read (mode 600), and Kestrel never prints it in full (`kestrel board status` shows `kbm_…` and its last 4 characters). The board keeps only a hash of it.
 
@@ -411,7 +412,34 @@ The tool finds out how you pay. It takes the first of these that holds:
 
 `kestrel plan` shows the answer and the reason. Right after the install no session has shown its limits yet, so it can say "not sure" to a subscriber. `kestrel plan auto` takes back what you set by hand.
 
-**The reports always show dollars.** `kestrel summary`, `kestrel findings` and the other reports price every call at list prices: the public price per token of each model. On a subscription those dollars say what the same use would cost by the token, not what you pay. They still show which work is large and which is small. A limit that you set with `kestrel limit` is in those dollars too.
+**The reports always show dollars, and say what they are.** `kestrel summary`, `kestrel findings` and the other reports price every call at list prices: the public price per token of each model. They still show which work is large and which is small. What the dollars mean depends on the account of each call:
+
+- **Spend.** For an account that pays by the token (an API key, a cloud provider), the dollars are what you pay. The reports call them spend.
+- **API value.** For an account on a subscription (Claude Pro, Max or Ultra, a Team or Enterprise seat, a ChatGPT plan for Codex), you pay the plan's price instead. The reports call the same dollars API value: what the same use would cost by the token.
+- **Both.** When a period has calls of both kinds, the reports show them apart, for example:
+
+```
+Paid by the token: $12.50 (spend, at list prices)
+On subscriptions: $412 of API value (what the same use would cost by the token)
+```
+
+- **Not known.** An account whose way to pay Kestrel cannot tell shows its dollars "at list prices". `kestrel plan subscription` or `kestrel plan usage` tells it for such accounts.
+
+How an account pays comes from the same signs as above, per account: a reading of its plan's limits, what Claude Code's file `.claude.json` says about it, a Codex plan type, the key `api` (an API key) or `cloud` (a cloud provider). `kestrel summary`, `kestrel findings`, `kestrel accounts`, `kestrel session`, the pane and the desktop extension all use these words. A limit that you set with `kestrel limit` is in dollars at list prices.
+
+**The price of a plan.** For each subscription in the period, `kestrel summary` and `kestrel accounts` show a block "Plans": the plan's limits now, then the API value of the period next to the plan's price for the same number of days (the price a month, times the days, divided by 30):
+
+```
+Plans
+  Acme (claude:1a2b3c4d): Claude Max, $100 a month (the plan's public price)
+    Limits now: week 41% used, 52% of the week gone; 5 hour limit 33% used, 60% of its time gone
+    API value in 7 days: $412. The plan's price for 7 days: $23.33. That is 17.7 times the plan's price.
+```
+
+- Kestrel knows the price of these plans: Claude Pro $20, Claude Max $100 and Claude Ultra $200 a month, and ChatGPT Plus $20 and ChatGPT Free $0 for Codex. Team and Enterprise seats and other plans have no price there.
+- `kestrel accounts price claude:1a2b3c4d 100` sets the price of an account's plan, in dollars a month (0 to 100,000, such as 100 or 19.99). A price you set wins over the one Kestrel knows. `kestrel accounts price claude:1a2b3c4d --clear` takes it away. It is kept with the account in `~/.kestrel/accounts.json`.
+- A plan without a price says so, with the command that sets one: `Price not set: kestrel accounts price claude:1a2b3c4d <dollars>`.
+- A Cowork account runs on the plan of the Claude account with the same id, so both count as one plan, with one price.
 
 ## The status line
 
@@ -584,21 +612,37 @@ A person can use more than one account: a work and a personal Claude account, tw
 `kestrel accounts` shows one row per account that was used in the last 7 days, the newest first:
 
 ```
-Accounts, last 7 days, the newest first. Tokens, cost and sessions are of the 7 days. Cost is at list prices: on a subscription it is what the same use would cost by the token.
+Accounts, last 7 days, the newest first. Tokens, dollars and sessions are of the 7 days. Dollars are at list prices: spend for an account that pays by the token, API value for one on a subscription (what the same use would cost by the token).
 
-  account                            tool         kind and plan              plan's limits               tokens today  cost today  tokens   cost  sessions  last seen
-  Widal, Inc.                        Claude Code  subscription, team_tier_1  week 41%; 5h 33%                    4.1M       $1.96     13M  $5.00         2  2026-11-14 10:20
+  account                            tool         kind and plan              plan's limits               tokens today  dollars today  tokens  dollars  dollars are  sessions  last seen
+  Acme                               Claude Code  subscription, team_tier_1  week 41%; 5h 33%                    4.1M          $1.96     13M   $61.20  API value           2  2026-11-14 10:20
     claude:1a2b3c4d (signed in now)
-  codex:plus                         Codex        subscription, plus                                             410k       $0.67    410k  $0.67         1  2026-11-14 08:20
-  Personal                           Claude Code  subscription               week 12% (read 2 days ago)             0       $0.00    824k  $0.40         1  2026-11-12 09:20
+  api                                Claude Code  usage                                                             0          $0.00    2.1M   $12.50  spend               1  2026-11-13 16:05
+  codex:plus                         Codex        subscription, plus                                             410k          $0.67    410k    $0.67  API value           1  2026-11-14 08:20
+  Personal                           Claude Code  subscription, claude_max   week 12% (read 2 days ago)             0          $0.00    824k    $4.40  API value           1  2026-11-12 09:20
     claude:9f8e7d6c
 
+Paid by the token: $12.50 (spend, at list prices)
+On subscriptions: $66.27 of API value (what the same use would cost by the token)
+
+Plans
+  Acme (claude:1a2b3c4d): team_tier_1
+    Limits now: week 41% used, 43% of the week gone; 5 hour limit 33% used, 60% of its time gone
+    API value in 7 days: $61.20. Price not set: kestrel accounts price claude:1a2b3c4d <dollars>
+  Personal (claude:9f8e7d6c): Claude Max, $100 a month (the plan's public price)
+    Limits now: week 12% used (read 2 days ago), 57% of the week gone
+    API value in 7 days: $4.40. The plan's price for 7 days: $23.33. That is 0.2 times the plan's price.
+  codex:plus: ChatGPT Plus, $20 a month (the plan's public price)
+    API value in 7 days: $0.67. The plan's price for 7 days: $4.67. That is 0.1 times the plan's price.
+
 Give an account your own name with: kestrel accounts label <key> "<label>"
+Set the price of an account's plan with: kestrel accounts price <key> <dollars a month>
 ```
 
-- Each row has the account's name with its short key below it, the tool, how it pays and its plan, the plan's limits with the pace (in the words of the status line), the tokens and the cost of today and of the period, the sessions, and when it was last used. The account that is signed in now in Claude Code says so.
+- Each row has the account's name with its short key below it, the tool, how it pays and its plan, the plan's limits with the pace (in the words of the status line), the tokens and the dollars of today and of the period, what those dollars are (spend, API value, or list prices when Kestrel does not know how the account pays), the sessions, and when it was last used. The account that is signed in now in Claude Code says so.
+- Below the table: the dollars of the period apart by how they are paid, and the block "Plans" (see "How you pay decides what you see").
 - With one account, the table has one row, and a line says that Kestrel found one account.
-- `kestrel accounts --days 30` looks further back. `kestrel accounts --json` gives the same as one JSON object.
+- `kestrel accounts --days 30` looks further back. `kestrel accounts --json` gives the same as one JSON object. Each account in it has `dollars` (`"API value"`, `"spend"` or `"list prices"`) and `price` (`{ "monthly": 100, "source": "table" }`, with `"set"` for a price you set, or `null`).
 - `kestrel summary` has a part "By account" when more than one account was used in the period.
 - In the Claude desktop app, ask "Which of my accounts used the most this week?" (see [docs/desktop.md](docs/desktop.md)).
 
@@ -613,8 +657,9 @@ Give an account your own name with: kestrel accounts label <key> "<label>"
 
 - An account shows with your own label, else with the name of its organisation, else with its short key: the tool and the first 8 characters of its id, such as `claude:1a2b3c4d`.
 - Kestrel learns the name of the account that is signed in now from Claude Code's file `~/.claude.json`, or `.claude.json` in another config folder. `kestrel refresh-today`, `kestrel accounts` and `kestrel status` read it. The status line never does, because the file can be large. An account that is not signed in now keeps the name from the last time it was.
+- `kestrel accounts price claude:1a2b3c4d 100` sets the price of the account's plan a month, and `--clear` takes it away (see "How you pay decides what you see").
 - `kestrel accounts label claude:1a2b3c4d "Work"` gives an account your own name, up to 60 characters. The start of the id is enough: `kestrel accounts label 1a2b3c4d "Work"`. `kestrel accounts label 1a2b3c4d --clear` takes the label away. A key that fits no account, or more than one, gives one sentence that lists the accounts.
-- What Kestrel keeps about each account is in `~/.kestrel/accounts.json`: the organisation's name and id, the billing type, the seat tier and the type of the organisation, when the account was first and last used, and your label.
+- What Kestrel keeps about each account is in `~/.kestrel/accounts.json`: the organisation's name and id, the billing type, the seat tier and the type of the organisation, when the account was first and last used, your label, and the price of the plan when you set one.
 
 **The plan's limits of each account.**
 
@@ -793,18 +838,18 @@ The limit uses the cost figure that the status line saves, so the status line ha
 
 | Command | What it shows |
 |---|---|
-| `kestrel summary` | Spend of the last 7 days by day, project and model, and what the money paid for. With more than one account, also by account. |
-| `kestrel session` | The latest session: lost caches, what filled the context, the most expensive single pieces. Add the first characters of a session's id for another session. |
+| `kestrel summary` | The dollars of the last 7 days by day, project and model, and what they paid for: spend by the token, API value on a subscription. The block "Plans" with each plan's price. With more than one account, also by account. |
+| `kestrel session` | The latest session: its spend or API value, lost caches, what filled the context, the most expensive single pieces. Add the first characters of a session's id for another session. |
 | `kestrel calls -n 30` | One line per model call of that session: context size, new tokens, share read from the cache, output, cost, what entered |
 | `kestrel live` | The same lines for the Claude Code sessions that are running, as the calls happen. Stop it with Ctrl-C. |
-| `kestrel findings` | Where the money went and what can be done, largest first |
+| `kestrel findings` | Where the dollars went and what can be done, largest first, each with the command that fixes it (see below) |
 | `kestrel branches` | Spend per project folder and git branch |
 | `kestrel branch` | The branch that is checked out in this folder, with a line for the pull request. Run it in a git repository, or add the name of a branch. |
 | `kestrel models` | Spend of the last 30 days by model, effort level and kind of work |
 | `kestrel compactions` | The compactions of the last 30 days: how many, and the context before and after |
 | `kestrel advise` | Changes that would have saved money, from a replay of the last 30 days, largest first |
 | `kestrel measure subagent-cache-1h` | Before and after a change that was applied |
-| `kestrel accounts` | The spend and the plan's limits of each account in the last 7 days (see "More than one account"). `--json` gives the same as JSON. |
+| `kestrel accounts` | The dollars, the plan's limits and the plan's price of each account in the last 7 days (see "More than one account"). `--json` gives the same as JSON. `kestrel accounts price <key> <dollars>` sets a plan's price. |
 | `kestrel status` | What is installed, how you pay, the limits, the last reading of the plan's limits of each account, the changes that are applied, and how many logs were found |
 | `kestrel help` | Every command |
 | `kestrel` | The bird of Kestrel with the version, and every command below it. Without colours (`NO_COLOR`, output that is not a terminal, or `TERM=dumb`) only the name and the version. |
@@ -814,6 +859,48 @@ The limit uses the cost figure that the status line saves, so the status line ha
 | `kestrel board login https://kestrel.widal.com` | Links this computer to your team's Kestrel board. `kestrel board status`, `kestrel board sync` and `kestrel board logout` go with it (see "The Kestrel board"). |
 
 The reports take `--days` and a number of days, for example `kestrel findings --days 30`.
+
+**What `kestrel findings` shows.** Each finding has its amount, the facts behind it, one item per line, and ends with the command that fixes it. Where `kestrel advise` has a replay for that change, the line gives the replay's saving for the same days. With made-up data:
+
+```
+Where the dollars went and what can be done, last 7 days. Total $412 at list prices.
+On subscriptions: $412 of API value. That is what the same use would cost by the token. You pay your plan's price, not this.
+The amounts overlap, so they do not add up. Not all of an amount can be saved.
+
+1. Tool results in the context: $124, 30% of the total
+   Bash: 8,878 results, 41M tokens, $70.10 with carrying. Largest single result 9.8k tokens.
+     By program, the most tokens first:
+       npm: 2,104 results, 15M tokens, $25.60
+       git: 3,340 results, 9.1M tokens, $15.40
+       pytest: 610 results, 7.0M tokens, $11.90
+   Read: 1,816 results, 18M tokens, $31.20 with carrying. Largest single result 25k tokens.
+   That is about 6.1% of your weekly limit (estimate from this week's use).
+   A large result is paid for on every later call. Read parts of files, filter command output, and give large reads to a subagent that returns a summary.
+   Fix: kestrel apply bash-output-cap (the replay of these 7 days: $21.40 less). Claude then gets at most 10,000 characters of a command's output inline, and a preview and a file for longer output.
+
+2. The cache was lost 87 times: $37.10, 9% of the total
+   Causes:
+     idle for over 5 minutes: 61 times, $24.30
+     the start of the prompt changed: 26 times, $12.80
+   Largest:
+     2026-11-12 14:02 work/shop-web $2.40 (310k tokens)
+     2026-11-13 09:47 work/shop-web $1.90 (245k tokens)
+   56 of them were in subagents, $19.80. A subagent's cache lasts 5 minutes, so a command or a wait that runs longer loses it.
+   That is about 1.8% of your weekly limit (estimate from this week's use).
+   Fix for the subagents: kestrel apply subagent-cache-1h (the replay of these 7 days: $14.20 less). It gives subagents a 1 hour cache.
+   Fix for the main sessions: kestrel apply keep-warm, an experiment. It wakes an idle session with one short turn shortly before its cache ends, for up to 3 hours without you.
+
+3. The same tool call, with the same input, many times: $8.30, 2% of the total
+   Read ran 46 times with a repeated input (9 inputs, each 4 times or more) in work/shop-web, about $3.20. Likely cause: files read again after a compaction.
+   ToolSearch ran 12 times with a repeated input (2 inputs, each 4 times or more) in work/shop-web, about $0.40. Likely cause: deferred tools loaded again after a compaction.
+   Fix: kestrel apply compact-keep. At each compaction it tells the summary what to keep, such as the files that were changed. No replay can say how much that saves.
+```
+
+(Shortened: the real report also explains each cause, and has the findings about context above 200k tokens and about subagents, with `kestrel apply autocompact-window --tokens 200000` and `kestrel apply subagent-model`.)
+
+- **The programs of shell commands.** The results of the shell tool are split by the program that each command ran: only the first word of the command, reduced to its base name (`/usr/bin/git` gives `git`), with letters, digits, dot, dash and underscore only, and at most 24 characters. Words in front that set a variable (`NODE_ENV=test npm test`) are skipped and never kept. Any other first word counts as `(other)`. Kestrel keeps this name, and nothing else of the command, in its cache (see "Privacy"). It is not sent to a Kestrel board.
+- **Repeated tool calls** are one line per session and tool: how often the tool ran with an input that repeated 4 times or more, the folder, and an estimate of the cost: the tokens of the repeated results, entering and carried on the later calls, at each call's prices. The first result of each input is not counted. The likely cause is a compaction when the same input ran again after the session's context was compacted: files read again, or deferred tools loaded again.
+- **A share of the weekly limit.** On a subscription with a reading of its week that is at least 5% used, the findings about lost caches, context and tool results say how much of a weekly limit their amount is. It is an estimate: Anthropic does not publish how the limit counts tokens. Kestrel divides the API value of the account's calls since the week began by the percent used so far, and takes each dollar of API value to use the same share. The report ends with the dollars per 1% that it used.
 
 ## What works where
 
@@ -847,6 +934,7 @@ Claude Code's settings are in `~/.claude/settings.json`. The tool changes that f
 | `kestrel apply keep-warm` | Adds one hook after each answer (`hooks.Stop`). The hook may wait in the background for up to 1 hour. It also turns keep-warm on in this tool's own settings. | `kestrel undo keep-warm` |
 | `kestrel apply compact-keep` | Adds one hook before a compaction (`hooks.PreCompact`). The text that the hook prints is kept in this tool's own settings. | `kestrel undo compact-keep` |
 | `kestrel apply autocompact-window` | Sets `"autoCompactWindow"` to 300000. With `--tokens` and a number it sets another size. | `kestrel undo autocompact-window` |
+| `kestrel apply bash-output-cap` | Sets `"bashOutputMaxChars"` to 10000: how many characters of a successful shell command's output Claude gets inline (about 30,000 without it). Longer output goes to a file, and Claude gets a preview of 2,000 characters and the file's path. With `--chars` and a number (4000 to 128000) it sets another size. It needs Claude Code 2.1.261 or later. | `kestrel undo bash-output-cap` |
 | `kestrel apply no-bypass` | Sets `permissions.disableBypassPermissionsMode` to `"disable"`, and takes out `skipDangerousModePermissionPrompt` | `kestrel undo no-bypass` |
 | `kestrel apply deny-secret-files` | Adds five deny rules to `permissions.deny`: `Read(./.env)`, `Read(./.env.*)`, `Read(**/*.pem)`, `Read(**/id_rsa*)`, `Read(**/.aws/credentials)`. The other rules stay. | `kestrel undo deny-secret-files` takes out only the rules it added |
 | `kestrel apply transcript-days` | Sets `"cleanupPeriodDays"` and `"desktopSessionCleanupPeriodDays"` to 7. With `--days` and a number (1 to 365) it sets other days. | `kestrel undo transcript-days` |
@@ -857,7 +945,7 @@ Claude Code's settings are in `~/.claude/settings.json`. The tool changes that f
 - **A file is replaced as a whole.** The new text is written to a new file, which then takes the place of the old one. A crash in the middle leaves the old file. A settings file that is not a JSON object, or whose `env` or `hooks` is not in the shape Claude Code writes, is not changed: the command fails and says why.
 - **One thing is left behind.** After the last hook is taken out, an empty `"hooks": {}` can stay in the file. It does nothing.
 - **The command in the settings.** Every hook that a command adds calls `~/.kestrel/bin/kestrel`, a link in the tool's own folder. No other program can be there. A command that adds a hook makes the link when it is missing.
-- **Uninstall.** `kestrel uninstall` takes out the status line, every hook of this tool, the link `~/.kestrel/bin/kestrel` and the link to the command on the PATH, also the link under the tool's old name. After a setup from the plugin it also removes the copy in `~/.kestrel/app/`. A link on the PATH that belongs to another program stays. The plugin itself stays installed: take it out with `/plugin uninstall kestrel@kestrel`. A setting that a change set stays: the cache of subagents, the model of subagents, the starting effort and the size for the automatic compaction. Take those back first, with `undo`.
+- **Uninstall.** `kestrel uninstall` takes out the status line, every hook of this tool, the link `~/.kestrel/bin/kestrel` and the link to the command on the PATH, also the link under the tool's old name. After a setup from the plugin it also removes the copy in `~/.kestrel/app/`. A link on the PATH that belongs to another program stays. The plugin itself stays installed: take it out with `/plugin uninstall kestrel@kestrel`. A setting that a change set stays: the cache of subagents, the model of subagents, the starting effort, the size for the automatic compaction and the cap on shell output. Take those back first, with `undo`.
 
 `kestrel plan`, `kestrel nudge`, `kestrel hint`, `kestrel compact-keep`, `kestrel hooks` and `kestrel settings` change nothing in Claude Code. Their settings are in `~/.kestrel/config.json`. `kestrel settings set` with `--project` writes the frameworks into the repository you name (see "Settings"). The plugin's hooks change nothing in Claude Code's settings either: Claude Code reads them from the plugin. Everything else the tool writes is in `~/.kestrel/` too: one small file per session, the newest reading of the limits of each account, the names and labels of the accounts, the parsed logs, the record of keep-warm, the security findings (`findings.json`), the times the checks last started (`checks/`), the backups, and on a computer linked to a Kestrel board the link with its token (`board.json`, mode 600), the time of the last background start (`board.start`) and the lock of a running sync (`board.lock`).
 
@@ -873,7 +961,9 @@ Claude Code's settings are in `~/.claude/settings.json`. The tool changes that f
 
 - Exact: the tokens and the cost of each call, and the split between carrying, new context and output.
 - Estimate: how the new tokens of one call are split between the pieces that entered at that call. It is done by their size in characters.
-- Estimate: all dollar figures are list prices. On a subscription they say what the same use would cost by the token, not what you pay.
+- Estimate: all dollar figures are list prices. By the token they are what you pay (spend). On a subscription they are API value: what the same use would cost by the token, not what you pay.
+- Estimate: the share of a weekly limit in `kestrel findings`. Anthropic does not publish how the limit counts tokens. Kestrel takes each dollar of API value to use the same share of it.
+- Estimate: the replay of a cap on shell output keeps the preview's share of each result over the cap. It does not count the reads of the file that Claude may make for the rest, so its saving is the most it can be.
 - Estimate: in a Cowork log the output of a turn is exact, and its split between the calls of the turn is not. In a check against 5,714 calls the split was off by 19% of the output on average.
 - Assumption: two prices. Fast mode is taken to double the cache prices too. The price of a cache read above 100,000 prompt tokens on Claude Haiku 5.5 is taken from the same ratio as its other prices.
 
@@ -904,6 +994,8 @@ Not tested:
 - **It is not known whether Claude Code still gives the end of a cache once the cache is gone.** The tool keeps the last end it was given.
 - **The accounts were checked on one Mac only, on 14 Nov 2026.** The line that names the account was in the logs of Claude Code 2.1.317 and later, and in no log of 2.1.314 and before. The ids that Amazon Bedrock and Vertex AI give an answer come from those providers' formats: no such log was on that Mac. A second config folder of Claude Code, and a Codex plan type other than `free` and `prolite`, were tested with made-up logs only.
 - **Whether a write to the 1 hour cache counts more against a subscription's limits is not documented.**
+- **The price of Claude Ultra comes from its organisation type `claude_ultra`.** Kestrel has not seen that name in a real `.claude.json`. The names `claude_pro` and `claude_max` follow the same pattern as `claude_team`, which was seen. If a plan shows without its price, set it with `kestrel accounts price`.
+- **The cap on shell output was not checked live.** `kestrel apply bash-output-cap` sets `bashOutputMaxChars` as Claude Code's documentation names it (settings reference and tools reference, read on 16 Nov 2026). No live session has shown that Claude Code then cuts the output.
 - **The Kestrel board link was tested with a stand-in board only,** a small web server in the tests that answers as the board's design says. It has not sent to a real board yet. The background start from the status line and the hooks was tested with made-up input.
 - **The security checks were tested with made-up settings, logs and repositories only.** The gate's question before a push was seen in Claude Code on 14 Nov 2026, in a throwaway repository. The scanners Checkov, Trivy and KICS were tested with stand-ins that print the JSON of their documentation. gitleaks was run once on a made-up file in a temp folder, to see its JSON.
 
@@ -941,6 +1033,7 @@ Not built:
 - **Everything stays on the machine,** except what you ask for with `kestrel cloud-check`, and what a computer that you linked to a Kestrel board sends to that board. The programs the tool starts are `git`, for local questions about branches, remotes and commits, the program that shows a notification (`osascript` on macOS, `notify-send` on Linux), the program that opens the browser at `kestrel board login` (`open` or `xdg-open`), and its own command: `kestrel settings` asks `kestrel accounts` for the accounts, the pane runs Kestrel's commands, and the status line and the hooks start `kestrel refresh-today`, the security checks and the board's sync in the background.
 - **Two parts of Kestrel use the network, and only these two.** The cloud checks, only when you run them: `kestrel cloud-check` starts `aws`, `prowler`, `vercel` or `gh`, which talk to their providers with your sign-in. With `VERCEL_TOKEN` set, Kestrel itself calls api.vercel.com with that token. What a cloud check saves holds no secret, no value of a variable and no text about a resource (see "Cloud checks"). And the Kestrel board, only after you linked the computer with `kestrel board login`: Kestrel then sends what it records to that board's address, on its own, and to no other address. It never sends the text of prompts, answers, tool results or files. See "The Kestrel board" for the full list, and `kestrel board logout` to stop it.
 - **From a log the tool takes counts, sizes, flags and names:** the tokens of each call, the length of each piece of text, the flags for an error and an interrupt, the names of tools and models, the folder and the git branch. The text of a prompt, an answer or a tool result is never kept, stored or printed. Of the input of a tool call only a short code is kept (8 characters of a hash), to find the same call again.
+- **Of a shell command Kestrel keeps the name of its program.** It is the first word of the command, reduced to its base name (`npm`, `git`, `pytest`), with letters, digits, dot, dash and underscore only, and at most 24 characters. Words in front that set a variable are skipped, so their values are never kept. No argument and no other part of the command is kept. The name is in Kestrel's cache of parsed logs (`~/.kestrel/cache/`), and `kestrel findings` prints it. It is not sent to a Kestrel board.
 - **One rule for the start of a shell command.** For the hint to compact, the tool may look at the start of a shell command in the log, only to see whether it is `git commit`, `git push`, `gh pr create` or `gh pr merge`. It compares the first words and keeps only "a task ended at this time". It never keeps, prints or stores the command or any other text. Of a task list it reads the status of each task, and nothing of what a task says.
 - **A notification holds the short name of a folder, a time, and a number of tokens or dollars.**
 - **The hooks use nothing of your prompt or of the model's answer.** Claude Code hands a hook more than it needs. The hooks take the id of the session. The hook before a change of model also takes the two model names, the size of the context and Claude Code's cost estimate. The hook before a compaction reads nothing of what it is handed.
@@ -958,7 +1051,7 @@ Not built:
 | `package.json` | The name of the package and the version. `kestrel --version` prints the version. |
 | `src/app.mjs` | The folder of the tool's own files, the version, and the copy in `~/.kestrel/app/` after a setup from the plugin |
 | `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` | The plugin's manifest, and the marketplace with this one plugin. The manifest carries the version of `package.json`. |
-| `commands/`, `skills/kestrel/SKILL.md`, `hooks/hooks.json` | The plugin's eight commands, its skill and its four hooks. `hooks/hooks.json` also names the mod. |
+| `commands/`, `skills/kestrel/SKILL.md`, `hooks/hooks.json` | The plugin's ten commands, its skill and its four hooks. `hooks/hooks.json` also names the mod. |
 | `hooks/pane.mjs` | The mod that draws the Kestrel pane in Claude Code |
 | `src/settings.mjs` | Every setting in one place, and `kestrel settings` |
 | `src/security.mjs` | The security checks as a whole: their hooks, the gate before a push, and `kestrel check` |
@@ -979,7 +1072,9 @@ Not built:
 | `src/report.mjs` | The reports |
 | `src/billing.mjs` | How you pay, and the newest reading of the plan's limits of each account |
 | `src/accounts.mjs` | The accounts: their names from `.claude.json`, the labels, and `~/.kestrel/accounts.json` |
-| `src/accounts-report.mjs` | `kestrel accounts`: the spend and the limits of each account, as a table or as JSON |
+| `src/accounts-report.mjs` | `kestrel accounts`: the dollars and the limits of each account, as a table or as JSON |
+| `src/plans.mjs` | How each account pays, the prices of plans, the words spend and API value, the block "Plans", and the share of a weekly limit |
+| `src/program.mjs` | The name of the program that a shell command runs |
 | `src/claude-code.mjs` | The status line and the hooks |
 | `src/hud.mjs` | The status line in lines: the bars, the four lines, the tasks and agents from the end of a log, and `kestrel hud` |
 | `src/top.mjs` | `kestrel top`: every agent session on this computer |
