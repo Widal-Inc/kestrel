@@ -30,10 +30,14 @@ Run one of these with the Bash tool:
 
 The reports take `--days` and a number of days, for example `--days 30`.
 
+## A prompt that is only a Kestrel command
+
+When the person's whole prompt is `kestrel` and a command, such as `kestrel findings`, `kestrel session` or `kestrel summary --days 30`, run exactly that command with the Bash tool, with the tool in the plugin's folder as in the table above. Then show its output to the person exactly as it is, in one code block. Add no summary and no comment. This holds for the reports. For a command that changes something, follow "Changes are the person's choice" below.
+
 ## Pass on the numbers
 
 - Give the numbers that answer the question: the totals, the largest items, and what the report says can be done.
-- Say that the dollar figures are list prices. On a subscription they say what the same use would cost by the token, not what the person pays.
+- Say what the dollars are, as the report says. For an account that pays by the token they are spend. On a subscription they are API value: what the same use would cost by the token, not what the person pays. The block "Plans" sets the API value next to the plan's price.
 - Do not guess numbers that the report does not print.
 
 ## The lines of the status line

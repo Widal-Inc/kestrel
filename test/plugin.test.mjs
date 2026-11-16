@@ -161,7 +161,7 @@ const TOOL = 'node "${CLAUDE_PLUGIN_ROOT}/cli/kestrel.mjs"'
 // The commands of the plugin, and the words each one gives the tool. "open" and "settings" open the
 // Kestrel pane where a mod can draw it. The mod answers them then, and these words run only where
 // no pane can show (see pane.test.mjs).
-const COMMANDS = { advise: 'advise', compactions: 'compactions', open: 'top --once --no-names', report: 'summary', settings: 'settings', setup: 'install', status: 'status' }
+const COMMANDS = { advise: 'advise', compactions: 'compactions', findings: 'findings', open: 'top --once --no-names', report: 'summary', session: 'session', settings: 'settings', setup: 'install', status: 'status' }
 
 test('the plugin\'s manifest and marketplace are valid, name files that exist, and carry the version of package.json', () => {
   const plugin = json('.claude-plugin', 'plugin.json')

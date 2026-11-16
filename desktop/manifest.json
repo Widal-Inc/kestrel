@@ -4,7 +4,7 @@
   "display_name": "Kestrel",
   "version": "0.1.0",
   "description": "Shows what your AI agents spend (Claude Code, Codex and Cowork on this computer), and how to use less of your plan.",
-  "long_description": "Kestrel reads the logs that Claude Code, Codex and Cowork keep on this computer, and answers questions about them in a chat: what your agents spent this week, by project and model, how much of your plan's limits is used, and where you can save.\n\nAsk for example: \"What did my agents spend this week, and where can I save?\"\n\nDollar figures are list prices per token. On a subscription, the plan's percent is what counts.\n\nKestrel cannot see chat on claude.ai, in the Claude app or on the phone, sessions in the cloud, or other computers.\n\nIt also lists the open findings of Kestrel's security checks, with where each one is, the controls it touches and its fix. Kestrel flags risks and certifies nothing.\n\nPrivacy: reads local agent logs, returns numbers only, sends nothing anywhere. It never returns the text of a session, and it never changes a setting.",
+  "long_description": "Kestrel reads the logs that Claude Code, Codex and Cowork keep on this computer, and answers questions about them in a chat: what your agents spent this week, by project and model, how much of your plan's limits is used, and where you can save.\n\nAsk for example: \"What did my agents spend this week, and where can I save?\"\n\nDollar figures are list prices per token. When you pay by the token they are spend. On a subscription they are API value: what the same use would cost by the token, next to your plan's price. There the plan's percent is what counts.\n\nKestrel cannot see chat on claude.ai, in the Claude app or on the phone, sessions in the cloud, or other computers.\n\nIt also lists the open findings of Kestrel's security checks, with where each one is, the controls it touches and its fix. Kestrel flags risks and certifies nothing.\n\nPrivacy: reads local agent logs, returns numbers only, sends nothing anywhere. It never returns the text of a session, and it never changes a setting.",
   "author": {
     "name": "Widal, Inc.",
     "email": "hello@widal.com",
@@ -38,7 +38,7 @@
     },
     {
       "name": "spend_summary",
-      "description": "What the agents on this computer spent, by tool, project and model, at list prices, with the plan's limits where known. Use it for a question such as: what did my agents spend this week?"
+      "description": "What the agents on this computer used, by tool, project and model, in dollars at list prices: spend when paid by the token, API value on a subscription, with each plan's price and limits where known. Use it for a question such as: what did my agents spend this week?"
     },
     {
       "name": "plan_limits",
@@ -66,7 +66,7 @@
     },
     {
       "name": "spend_by_account",
-      "description": "The spend and the plan's limits of each account that the agents used, such as a work and a personal Claude account, Cowork and Codex, with tokens and cost at list prices. Use it for questions such as: which of my accounts used the most this week?"
+      "description": "The dollars and the plan's limits of each account that the agents used, such as a work and a personal Claude account, Cowork and Codex: tokens, spend or API value at list prices, and each plan's price. Use it for questions such as: which of my accounts used the most this week?"
     },
     {
       "name": "security_check",

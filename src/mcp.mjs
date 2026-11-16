@@ -78,7 +78,7 @@ const FRESH = 60e3
 const KEEP_LIST = 3600e3
 
 const CAPABILITIES = { tools: { listChanged: false } }
-const INSTRUCTIONS = "Kestrel answers what the AI agents on this computer spent and which of their sessions run now (Claude Code, Codex and Cowork), from their local logs, with numbers only. Use what_kestrel_sees first when unsure what there is. Dollar figures are list prices. On a subscription, the plan's percent is what counts. security_check gives the open findings of Kestrel's security checks; Kestrel flags risks; it does not make a company compliant or certify it."
+const INSTRUCTIONS = "Kestrel answers what the AI agents on this computer spent and which of their sessions run now (Claude Code, Codex and Cowork), from their local logs, with numbers only. Use what_kestrel_sees first when unsure what there is. Dollar figures are list prices: spend for an account that pays by the token, and API value on a subscription (what the same use would cost by the token, not what the person pays). On a subscription the plan's percent and its price are what count. security_check gives the open findings of Kestrel's security checks; Kestrel flags risks; it does not make a company compliant or certify it."
 
 const SOURCES = [['claude', 'Claude Code'], ['codex', 'Codex'], ['cowork', 'Cowork']]
 const CANNOT_SEE = [
@@ -106,7 +106,7 @@ const PLAN_SOURCES = [
   'Chat, Cowork and Claude Code share one plan, so the percent counts all three.',
   "The Claude app shows the percent under Settings, Usage. When the two differ, the app is right: Kestrel's reading can be old.",
   "Kestrel does not read Codex's plan or its limits.",
-  "Dollar figures in Kestrel's other answers are list prices per token. On a subscription they say what the same use would cost by the token, not what you pay.",
+  "Dollar figures in Kestrel's other answers are list prices per token. For an account that pays by the token they are spend. On a subscription they are API value: what the same use would cost by the token, not what you pay.",
 ]
 
 const isObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -220,7 +220,7 @@ const TOOLS = [
     name: 'spend_summary',
     title: 'Spend summary',
     days: 7,
-    description: "What the agents on this computer spent, by tool, project and model, at list prices, with the plan's limits where known. Use it for a question such as: what did my agents spend this week?",
+    description: "What the agents on this computer used, by tool, project and model, in dollars at list prices: spend when paid by the token, API value on a subscription, with each plan's price and limits where known. Use it for a question such as: what did my agents spend this week?",
     answer: ({ data, days, now, files }) => {
       const records = within(data.records, days, now)
       return [summary(records, { days }), olderNote(records, days, now, files), '', 'The plan', planText(now, false), '', 'For ways to spend less, ask spend_advice.']
@@ -296,7 +296,7 @@ const TOOLS = [
     name: 'spend_by_account',
     title: 'Spend by account',
     days: 7,
-    description: "The spend and the plan's limits of each account that the agents used, such as a work and a personal Claude account, Cowork and Codex, with tokens and cost at list prices. Use it for questions such as: which of my accounts used the most this week?",
+    description: "The dollars and the plan's limits of each account that the agents used, such as a work and a personal Claude account, Cowork and Codex: tokens, spend or API value at list prices, and each plan's price. Use it for questions such as: which of my accounts used the most this week?",
     // The text of "kestrel accounts". It learns the name of the account signed in now, as the command does.
     answer: ({ data, days, now, files }) => {
       const records = within(data.records, days, now)

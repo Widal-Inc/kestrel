@@ -48,8 +48,8 @@ Kestrel's tools are named `what_kestrel_sees`, `spend_summary`, `plan_limits`, `
 
 ### How to give the answer
 
-- Give the numbers plainly and rounded, with the period they cover. For example: "In the last 7 days your agents spent about [total] at list prices: [amount] in Claude Code and [amount] in Cowork." Fill in the numbers that the tool gave.
-- Say that dollar figures are list prices: what the same use would cost when every token is paid for. On a subscription (Pro, Max or Ultra) the person does not pay that. There the plan's percent is what counts. `plan_limits` gives the percent when Kestrel knows it, and the Claude app shows it under Settings, Usage.
+- Give the numbers plainly and rounded, with the period they cover. For example: "In the last 7 days your agents used about [total] at list prices: [amount] in Claude Code and [amount] in Cowork." Fill in the numbers that the tool gave.
+- Use the tool's words for the dollars. When the person pays by the token they are spend. On a subscription (Pro, Max or Ultra, a Team seat, a ChatGPT plan) they are API value: what the same use would cost when every token is paid for. The person does not pay that, and the block "Plans" sets it next to the plan's price. There the plan's percent is what counts. `plan_limits` gives the percent when Kestrel knows it, and the Claude app shows it under Settings, Usage.
 - Name the largest one or two parts (a project, a model), not every row.
 - If the person asked how to save, end with the one or two proposals from `spend_advice` that save the most, each with its reason and its expected saving. Keep the words of the risk.
 - A proposal can name a command such as `kestrel apply effort-default`. Say that the person runs it in a terminal, if they want the change. Kestrel in the desktop app never changes a setting.
