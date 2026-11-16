@@ -6,7 +6,7 @@ You do not need a terminal, Node or Claude Code for this. You need the Claude de
 
 ## Install
 
-1. Get the file `kestrel.mcpb`.
+1. Download [`kestrel.mcpb`](https://github.com/Widal-Inc/kestrel/releases/latest/download/kestrel.mcpb) from the newest release on GitHub.
 2. Open the Claude desktop app, and open **Settings**, then **Extensions**. (In newer versions of the app: **Settings**, then **Desktop app**, then **Manage** next to Extensions.)
 3. Drag `kestrel.mcpb` onto that page, and choose **Install**.
 

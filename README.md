@@ -37,6 +37,12 @@ Kestrel needs Node 22 or newer. The setup says so when your Node is older.
 
 The commands, the skill, the hooks and the pane work before the setup too. Only the warning for a sent prompt needs the status line, which saves when each cache ends.
 
+## Install in the Claude desktop app
+
+The desktop extension answers questions about your agents' spend in a chat in the Claude desktop app. It needs no terminal and no Claude Code. Download [`kestrel.mcpb`](https://github.com/Widal-Inc/kestrel/releases/latest/download/kestrel.mcpb) from the newest release, and drag it onto **Settings**, **Extensions** in the app. See [docs/desktop.md](docs/desktop.md).
+
+The extension is also listed in the official MCP Registry as `io.github.Widal-Inc/kestrel`.
+
 ## In the Claude desktop app
 
 - **The Code tab** is Claude Code. It reads the same `~/.claude/settings.json` and runs the same hooks. So what `kestrel install` and `kestrel apply` set works there too.
