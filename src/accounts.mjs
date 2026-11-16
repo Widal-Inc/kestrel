@@ -11,6 +11,7 @@
 //       org: "Widal, Inc.",          the organisation's name, from Claude Code's file .claude.json
 //       orgId: "<organisation id>",
 //       billingType, seatTier, organizationType,   as Claude Code names them
+//       maxTier: "5x" | "20x",       the size of a Max plan, from the rate limit tier that Claude Code names (see plans.mjs)
 //       firstSeen, lastSeen,         the times of the first and the last model call Kestrel saw, in milliseconds
 //       label: "Work",               the person's own label, when they set one
 //       price: 100,                  the price of the plan in dollars a month, when the person set one (see plans.mjs)
@@ -52,6 +53,21 @@ const time = (v) => (Number.isFinite(v) ? v : undefined)
 /** The highest price a month that "kestrel accounts price" takes, in dollars. */
 export const PRICE_MAX = 100_000
 const price = (v) => (Number.isFinite(v) && v >= 0 && v <= PRICE_MAX ? v : undefined)
+const tier = (v) => (v === '5x' || v === '20x' ? v : undefined)
+
+/**
+ * The size of a Max plan, from the rate limit tiers that .claude.json names, such as
+ * "default_claude_max_5x" or "default_claude_max_20x": "5x", "20x", or undefined. The tier of the
+ * person comes first, then that of the organisation. Only this short word is kept, never the tier
+ * itself.
+ */
+export function maxTierOf(userTier, orgTier) {
+  for (const t of [userTier, orgTier]) {
+    const m = typeof t === 'string' ? /(?:^|_)max_(5|20)x$/.exec(t) : null
+    if (m) return `${m[1]}x`
+  }
+  return undefined
+}
 const text = (v, max) => {
   const t = typeof v === 'string' ? plain(v).trim() : ''
   return t && t.length <= max ? t : undefined
@@ -62,7 +78,7 @@ function cleanEntry(e) {
   if (!isObject(e)) return {}
   const out = {
     org: text(e.org, 100), orgId: typeof e.orgId === 'string' && ID.test(e.orgId) ? e.orgId : undefined,
-    billingType: word(e.billingType), seatTier: word(e.seatTier), organizationType: word(e.organizationType),
+    billingType: word(e.billingType), seatTier: word(e.seatTier), organizationType: word(e.organizationType), maxTier: tier(e.maxTier),
     firstSeen: time(e.firstSeen), lastSeen: time(e.lastSeen), label: text(e.label, LABEL_MAX), price: price(e.price),
   }
   return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined))
@@ -92,7 +108,7 @@ function saveAccounts(state) {
 
 /**
  * What a .claude.json says about the account signed in: `{ key, orgId, org, billingType,
- * seatTier, organizationType }`, or undefined when no account is signed in or the file cannot be
+ * seatTier, organizationType, maxTier }`, or undefined when no account is signed in or the file cannot be
  * read. The email address, the full name and the display name are read only to see that the
  * organisation's name does not hold one of them, and are not given back.
  */
@@ -105,6 +121,7 @@ export function signedInAccount(file) {
   const info = {
     key: `claude:${o.accountUuid}`, orgId: typeof o.organizationUuid === 'string' && ID.test(o.organizationUuid) ? o.organizationUuid : undefined,
     org, billingType: word(o.billingType), seatTier: word(o.seatTier), organizationType: word(o.organizationType),
+    maxTier: maxTierOf(o.userRateLimitTier, o.organizationRateLimitTier),
   }
   return Object.fromEntries(Object.entries(info).filter(([, v]) => v !== undefined))
 }

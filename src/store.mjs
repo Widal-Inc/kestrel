@@ -15,7 +15,7 @@ import { CoworkParser } from './parse-cowork.mjs'
 import { claudeDirs, codexDir, coworkDir, home, realPath } from './paths.mjs'
 
 // Raise this when a parser changes what it writes: older cache files are then parsed again.
-const CACHE_VERSION = 12
+const CACHE_VERSION = 13
 
 function logsBelow(dir) {
   try {

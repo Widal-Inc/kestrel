@@ -77,14 +77,18 @@ const textSize = (content) => {
 }
 
 /**
- * What a tool result adds to the context: `[tool, characters, signature, program]`. The signature
- * is that of the tool call (see below), so that the result of a repeated call can be found. The
- * program is there for a shell command only. A result whose call is not known is
- * `['(unknown tool)', characters]`.
+ * What a tool result adds to the context: `[tool, characters, signature, program, failed]`. The
+ * signature is that of the tool call (see below), so that the result of a repeated call can be
+ * found. The program is there for a shell command only, else null when `failed` follows. `failed`
+ * is 1 for a result that Claude Code marked as an error, and is left out otherwise. A result
+ * whose call is not known is `['(unknown tool)', characters]`.
  */
-export function resultEntry(use, size, program) {
+export function resultEntry(use, size, program, failed = false) {
   if (!use) return ['(unknown tool)', size]
-  return program === undefined ? [use[0], size, use[1]] : [use[0], size, use[1], program]
+  const entry = [use[0], size, use[1]]
+  if (program !== undefined || failed) entry.push(program ?? null)
+  if (failed) entry.push(1)
+  return entry
 }
 
 /** The meta file next to a subagent's log: agent-<id>.meta.json for agent-<id>.jsonl. */
@@ -288,7 +292,7 @@ export class ClaudeParser {
     for (const b of Array.isArray(content) ? content : []) {
       if (b?.type === 'tool_result') {
         const use = this.toolUse.get(b.tool_use_id)
-        this.pending.push(resultEntry(use, textSize(b.content), this.programs.get(b.tool_use_id)))
+        this.pending.push(resultEntry(use, textSize(b.content), this.programs.get(b.tool_use_id), b.is_error === true))
         if (b.is_error === true) {
           this.errors++
           // The tool call is marked too: a third item, 1, after its name and signature.

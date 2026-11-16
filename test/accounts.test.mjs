@@ -245,7 +245,7 @@ test('accounts.json learns the name of the account signed in now, keeps it after
   assert.equal(await refreshToday({ now: NOON }), true)
   let saved = accountsJson(m)
   assert.deepEqual(saved.accounts[`claude:${A}`], {
-    org: 'Widal, Inc.', orgId: ORG_A, billingType: 'stripe_subscription', seatTier: 'team_tier_1', organizationType: 'claude_team',
+    org: 'Widal, Inc.', orgId: ORG_A, billingType: 'stripe_subscription', seatTier: 'team_tier_1', organizationType: 'claude_team', maxTier: '5x',
     firstSeen: NOON - 3 * HOUR, lastSeen: NOON - 2 * HOUR,
   })
   // The account in the second config folder is known from its logs, with its organisation id.

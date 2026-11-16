@@ -328,11 +328,14 @@ test('each account sent to the board has the price of its plan: the person\'s ow
   const B = 'bbbbbbbb-2222-4222-8222-222222222222'
   const C = 'cccccccc-3333-4333-8333-333333333333'
   mkdirSync(c.kestrel, { recursive: true })
-  // A: Claude Max, with no price of the person's own. B: a Team seat, priced by the person. C: a
-  // Team seat without a price. Cowork with A's id shares A's plan. Codex on ChatGPT Plus.
+  // A: Claude Max (tier 5x), with no price of the person's own. B: a Team seat, priced by the
+  // person. C: a Team seat without a price. D: Claude Ultra (Max tier 20x). E: the Max type
+  // without a tier, which could be Max or Ultra. Cowork with A's id shares A's plan. Codex on ChatGPT Plus.
   writeFileSync(join(c.kestrel, 'accounts.json'), JSON.stringify({
     accounts: {
-      [`claude:${ACCOUNT}`]: { organizationType: 'claude_max', billingType: 'stripe_subscription' },
+      [`claude:${ACCOUNT}`]: { organizationType: 'claude_max', billingType: 'stripe_subscription', maxTier: '5x' },
+      'claude:dddddddd-4444-4444-8444-444444444444': { organizationType: 'claude_max', maxTier: '20x' },
+      'claude:eeeeeeee-5555-4555-8555-555555555555': { organizationType: 'claude_max' },
       [`claude:${B}`]: { organizationType: 'claude_team', seatTier: 'team_tier_1', price: 30 },
       [`claude:${C}`]: { organizationType: 'claude_team', seatTier: 'team_tier_1' },
       [`cowork:${ACCOUNT}`]: {},
@@ -350,6 +353,8 @@ test('each account sent to the board has the price of its plan: the person\'s ow
     assert.deepEqual(byKey[`cowork:${ACCOUNT}`].price, { monthly: 100, source: 'table' })
     assert.deepEqual(byKey[`claude:${B}`].price, { monthly: 30, source: 'set' })
     assert.equal(byKey[`claude:${C}`].price, null)
+    assert.deepEqual(byKey['claude:dddddddd-4444-4444-8444-444444444444'].price, { monthly: 200, source: 'table' })
+    assert.equal(byKey['claude:eeeeeeee-5555-4555-8555-555555555555'].price, null)
     assert.deepEqual(byKey['codex:plus'].price, { monthly: 20, source: 'table' })
     assert.equal(byKey.api.price, null)
     for (const a of Object.values(byKey)) assert.deepEqual(Object.keys(a), ['key', 'label', 'billing', 'tier', 'price'])

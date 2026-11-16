@@ -303,7 +303,17 @@ export const ACTIONS = {
     },
     undo: (before, bin, notPutBack = []) => putSettingBack('bashOutputMaxChars', before?.chars, before?.value, notPutBack),
     inPlace: (args, before) => read().bashOutputMaxChars === (args ? capChars(args) : before?.chars),
-    done: (args) => `Set "bashOutputMaxChars" to ${capChars(args)} in Claude Code's settings. Claude gets at most that many characters of a successful command's output inline.`,
+    done: (args, before) => {
+      const lines = [`Set "bashOutputMaxChars" to ${capChars(args)} in Claude Code's settings. Claude gets at most that many characters of a successful command's output inline.`]
+      // A value the person had set: say what it was, and how to get it back.
+      if (before?.value !== undefined) lines.push(`It was ${inWords(before.value)} before. kestrel undo bash-output-cap puts that back.`)
+      // Claude Code does not read BASH_MAX_OUTPUT_LENGTH while the setting is there. Only a number is printed.
+      const env = read().env?.BASH_MAX_OUTPUT_LENGTH
+      const shown = (v) => (/^\d{1,9}$/.test(String(v)) ? ` to ${v}` : '')
+      if (env !== undefined) lines.push(`BASH_MAX_OUTPUT_LENGTH is set${shown(env)} in the "env" of Claude Code's settings. Claude Code ignores it while "bashOutputMaxChars" is set.`)
+      else if (process.env.BASH_MAX_OUTPUT_LENGTH) lines.push(`BASH_MAX_OUTPUT_LENGTH is set${shown(process.env.BASH_MAX_OUTPUT_LENGTH)} in your environment. Claude Code ignores it while "bashOutputMaxChars" is set.`)
+      return lines.join('\n')
+    },
   },
   // The fixes of the security checks. Each is shown with the finding it fixes (see rules.mjs).
   'no-bypass': {
@@ -434,7 +444,7 @@ export function apply(id, bin, now = Date.now(), args = []) {
   if (!state[id]) state[id] = { at: now, before }
   else if (action.options) state[id].before = before
   save(state)
-  return [action.done?.(asked) ?? action.what, action.note, `Take it back with: kestrel undo ${id}`]
+  return [action.done?.(asked, before) ?? action.what, action.note, `Take it back with: kestrel undo ${id}`]
 }
 
 /** Takes an applied action back. Returns the lines to print. */

@@ -17,6 +17,8 @@ process.env.CODEX_HOME = join(dir, 'codex')
 process.env.KESTREL_COWORK_DIR = join(dir, 'cowork')
 mkdirSync(process.env.CLAUDE_CONFIG_DIR, { recursive: true })
 mkdirSync(process.env.KESTREL_HOME, { recursive: true })
+// A variable of the person who runs the tests would change what "apply bash-output-cap" says.
+delete process.env.BASH_MAX_OUTPUT_LENGTH
 
 const { ClaudeParser } = await import('../src/parse-claude.mjs')
 const { analyze, repeatedByTool } = await import('../src/analyze.mjs')
@@ -45,7 +47,7 @@ function logLines(steps, { owner = true, cwd = '/work/shop-web', model = 'claude
   const lines = owner ? [JSON.stringify({ type: 'session-owner', accountUuid: ACCOUNT, organizationUuid: 'oaoaoaoa-1111-4111-8111-111111111111' })] : []
   let ts = from
   let ctx = 50000
-  for (const { tools = [], gap = 10e3, lost = false, compact = false, carried } of steps) {
+  for (const { tools = [], gap = 10e3, lost = false, compact = false, carried, failed = false } of steps) {
     ts += gap
     if (compact) {
       lines.push(JSON.stringify({ type: 'system', subtype: 'compact_boundary', timestamp: new Date(ts - 1000).toISOString(), cwd, compactMetadata: { trigger: 'auto', preTokens: ctx, postTokens: 20000, durationMs: 1000 } }))
@@ -57,7 +59,7 @@ function logLines(steps, { owner = true, cwd = '/work/shop-web', model = 'claude
     const usage = { input_tokens: 10, cache_creation_input_tokens: write, cache_read_input_tokens: lost ? 0 : ctx, output_tokens: 100, cache_creation: sub ? { ephemeral_5m_input_tokens: write, ephemeral_1h_input_tokens: 0 } : { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: write } }
     const content = tools.map(([name, input], i) => ({ type: 'tool_use', id: `${id}-${i}`, name, input }))
     lines.push(JSON.stringify({ type: 'assistant', timestamp: new Date(ts).toISOString(), cwd, message: { id, model, role: 'assistant', content, usage } }))
-    if (tools.length) lines.push(JSON.stringify({ type: 'user', message: { role: 'user', content: tools.map(([, , size = 4000], i) => ({ type: 'tool_result', tool_use_id: `${id}-${i}`, content: 'x'.repeat(size) })) } }))
+    if (tools.length) lines.push(JSON.stringify({ type: 'user', message: { role: 'user', content: tools.map(([, , size = 4000], i) => ({ type: 'tool_result', tool_use_id: `${id}-${i}`, content: 'x'.repeat(size), ...(failed && { is_error: true }) })) } }))
     ctx += lost ? 0 : 3000
   }
   return lines
@@ -96,10 +98,33 @@ test('the program of a shell command is the base name of its first word, and not
   assert.equal(programOf('   pytest -k login'), 'pytest')
   assert.equal(programOf('"./build.sh" --fast'), 'build.sh')
   assert.equal(programOf('docker-compose up'), 'docker-compose')
-  assert.equal(programOf('cd /work/shop-web && npm test'), 'cd')
+  // A change of folder in front of the command is skipped: the program is the next command's first word.
+  assert.equal(programOf('cd /work/shop-web && npm test'), 'npm')
+  assert.equal(programOf('cd /work/shop-web; pytest -k login'), 'pytest')
+  assert.equal(programOf('cd "/work/my shop" && cd src && git status'), 'git')
+  assert.equal(programOf('cd /work/shop-web || exit 1'), 'cd')
+  assert.equal(programOf('cd /work/shop-web && PGPASSWORD=\'a b\' psql'), '(other)')
+  assert.equal(programOf('cd /work/shop-web && AKIAIOSFODNN7EXAMPLE'), '(other)')
   // Words that set a variable come first and are never kept: their value can be a secret.
   assert.equal(programOf('NODE_ENV=test API_TOKEN=abc123 npm run build'), 'npm')
   assert.equal(programOf('API_TOKEN=abc123'), '(other)')
+  // A value in quotes can hold spaces, so the word after a space can be a part of it, not the
+  // program: such a command gives no name, and no word of the value is kept.
+  assert.equal(programOf("PGPASSWORD='correct horse battery' psql -h db"), '(other)')
+  assert.equal(programOf('API_KEY="alpha bravo charlie" npm run deploy'), '(other)')
+  assert.equal(programOf("GIT_AUTHOR_NAME='Jane Q Doe' git commit"), '(other)')
+  assert.equal(programOf('TOKEN="abc" npm test'), '(other)')
+  assert.equal(programOf('NAME=Jane\\ Doe git commit'), '(other)')
+  assert.equal(programOf('STAMP=$(date +%s) make release'), '(other)')
+  assert.equal(programOf('STAMP=`date +%s` make release'), '(other)')
+  assert.equal(programOf('"./my script.sh" --fast'), '(other)')
+  // A word that looks like a key or a token is not kept.
+  for (const secret of ['AKIAIOSFODNN7EXAMPLE', 'ghp_abcdefghij0123456789', 'sk-abc123', 'xoxb-1234-5678', 'deadbeef00112233', 'ABCDEFGH12345678', 'aB3dE5fG7hI9jK1lM3']) assert.equal(programOf(`${secret} --help`), '(other)', secret)
+  for (const name of ['x86_64-linux-gnu-gcc', 'google-chrome-stable', 'python3.12', 'terraform', 'kubectl']) assert.equal(programOf(`${name} --version`), name, name)
+  // A home folder names a person: its last part is not kept. A program below it is.
+  assert.equal(programOf('/Users/someone'), '(other)')
+  assert.equal(programOf('/home/someone/ --flag'), '(other)')
+  assert.equal(programOf('/Users/someone/bin/deploy.sh now'), 'deploy.sh')
   // A first word with other characters, or longer than 24, gives no name.
   assert.equal(programOf('$(cat token.txt) --flag'), '(other)')
   assert.equal(programOf('a'.repeat(24)), 'a'.repeat(24))
@@ -139,7 +164,7 @@ test('a cap on the output of shell commands: the replay keeps the preview\'s sha
   assert.ok(cap.saving > 0)
   assert.equal(cap.args, '--chars 10000')
   assert.match(cap.how, /"bashOutputMaxChars": 10000/)
-  assert.match(cap.evidence, /^2 results of shell commands were longer than 10,000 characters\./)
+  assert.match(cap.evidence, /^2 results of shell commands that worked were longer than 10,000 characters\. Entering and carried on the later calls, they cost /)
   const text = findings(calls, { days: 7 })
   const lines = finding(text, 'Tool results in the context')
   assert.equal(lines.at(-1), `   Fix: kestrel apply bash-output-cap (the replay of these 7 days: ${money(cap.saving)} less). Claude then gets at most 10,000 characters of a command's output inline, and a preview and a file for longer output.`)
@@ -147,6 +172,54 @@ test('a cap on the output of shell commands: the replay keeps the preview\'s sha
   const asCowork = calls.map((r) => ({ ...r, s: 'cowork', id: `cw-${r.id}` }))
   assert.equal(proposals(asCowork, { ownFile: () => undefined }).all.find((x) => x.id === 'bash-output-cap').saving, 0)
   assert.doesNotMatch(findings(asCowork, { days: 7 }), /bash-output-cap/)
+})
+
+test('the replay of the cap leaves out failed commands, and its risk says that the cap also sets what a failed command shows', () => {
+  const long = { tools: [['Bash', { command: 'npm test' }, 20000]] }
+  const failing = { tools: [['Bash', { command: 'npm test -- --ci' }, 30000]], failed: true }
+  const calls = records([long, failing, failing, {}, {}])
+  // The parser keeps the flag of a failed result, and nothing of its text.
+  const entries = calls.flatMap((r) => r.add).filter((a) => a[0] === 'Bash')
+  assert.deepEqual(entries.map((a) => [a[1], a[3], a[4]]), [[20000, 'npm', undefined], [30000, 'npm', 1], [30000, 'npm', 1]])
+  const { blocks } = analyze(calls)
+  assert.deepEqual(blocks.filter((b) => b.label === 'Bash').map((b) => b.failed === true), [false, true, true])
+  const cap = proposals(calls, { ownFile: () => undefined }).all.find((x) => x.id === 'bash-output-cap')
+  const worked = blocks.filter((b) => b.label === 'Bash' && !b.failed)
+  near(cap.saving, sum(worked, (b) => (b.entry + b.carry) * (1 - 2200 / 20000)))
+  assert.match(cap.evidence, /^1 result of a shell command that worked was longer than 10,000 characters\. Entering and carried on the later calls, it cost /)
+  assert.match(cap.risk, /The setting also sets the window of output that Claude Code reads back, and the excerpt of a failed command is cut from that window: with a smaller cap, a long error can show less of its output\.$/)
+  assert.doesNotMatch(cap.risk, /keeps its excerpt/)
+  // For one day, the fix says "this day".
+  assert.match(findings(calls, { days: 1, now: START + 3600e3 }), /Fix: kestrel apply bash-output-cap \(the replay of this day: \$\d+\.\d\d less\)/)
+})
+
+test('"apply bash-output-cap" says what value it replaced, and that Claude Code ignores BASH_MAX_OUTPUT_LENGTH while the setting is on', () => {
+  const settings = join(process.env.CLAUDE_CONFIG_DIR, 'settings.json')
+  const first = (said) => said[0].split('\n')
+  writeFileSync(settings, JSON.stringify({ bashOutputMaxChars: 50000, env: { BASH_MAX_OUTPUT_LENGTH: '100000' } }))
+  assert.deepEqual(first(apply('bash-output-cap', '/bin/kestrel', START)), [
+    'Set "bashOutputMaxChars" to 10000 in Claude Code\'s settings. Claude gets at most that many characters of a successful command\'s output inline.',
+    'It was 50000 before. kestrel undo bash-output-cap puts that back.',
+    'BASH_MAX_OUTPUT_LENGTH is set to 100000 in the "env" of Claude Code\'s settings. Claude Code ignores it while "bashOutputMaxChars" is set.',
+  ])
+  // Applied again with another size: the value from before is still the one that undo puts back.
+  assert.equal(first(apply('bash-output-cap', '/bin/kestrel', START, ['--chars', '20000']))[1], 'It was 50000 before. kestrel undo bash-output-cap puts that back.')
+  undo('bash-output-cap', '/bin/kestrel')
+  assert.deepEqual(JSON.parse(readFileSync(settings, 'utf8')), { bashOutputMaxChars: 50000, env: { BASH_MAX_OUTPUT_LENGTH: '100000' } })
+  // Set in the environment of this program: said too. A value that is not a number is not printed.
+  writeFileSync(settings, JSON.stringify({}))
+  const before = process.env.BASH_MAX_OUTPUT_LENGTH
+  process.env.BASH_MAX_OUTPUT_LENGTH = 'not a number'
+  try {
+    assert.deepEqual(first(apply('bash-output-cap', '/bin/kestrel', START)).slice(1), ['BASH_MAX_OUTPUT_LENGTH is set in your environment. Claude Code ignores it while "bashOutputMaxChars" is set.'])
+  } finally {
+    if (before === undefined) delete process.env.BASH_MAX_OUTPUT_LENGTH
+    else process.env.BASH_MAX_OUTPUT_LENGTH = before
+  }
+  undo('bash-output-cap', '/bin/kestrel')
+  // Nothing set before and no variable: one sentence only.
+  assert.equal(first(apply('bash-output-cap', '/bin/kestrel', START)).length, 1)
+  undo('bash-output-cap', '/bin/kestrel')
 })
 
 test('"apply bash-output-cap" sets bashOutputMaxChars, takes --chars from 4000 to 128000, and undo puts back what was there', () => {
@@ -243,7 +316,7 @@ test('each finding ends with the command that fixes it, with the saving of advis
 
 test('on a subscription the dollars are API value, by the token they are spend, and a period that mixes them shows them apart', () => {
   // The Claude account is on Claude Max. Another session ran with an API key.
-  files({ accounts: { accounts: { [`claude:${ACCOUNT}`]: { org: 'Acme', organizationType: 'claude_max' } }, signedIn: {} } })
+  files({ accounts: { accounts: { [`claude:${ACCOUNT}`]: { org: 'Acme', organizationType: 'claude_max', maxTier: '5x' } }, signedIn: {} } })
   try {
     const onPlan = records([{}, {}, {}], { file: '/logs/plan-1.jsonl' })
     const byToken = records([{}, {}], { file: '/logs/token-1.jsonl', owner: false }).map((r) => ({ ...r, acct: 'api' }))
@@ -256,7 +329,8 @@ test('on a subscription the dollars are API value, by the token they are spend, 
     assert.ok(text.includes(`\nPaid by the token: ${money(spend)} (spend, at list prices)\nOn subscriptions: ${money(value)} of API value (what the same use would cost by the token)\n`), text)
     // The plans block: the account, its plan and price, then the API value next to the price for the same days.
     const forDays = (100 * 7) / 30
-    assert.ok(text.includes(`\nPlans\n  Acme (claude:aaaaaaaa): Claude Max, $100 a month (the plan's public price)\n    API value in 7 days: ${money(value)}. The plan's price for 7 days: ${money(forDays)}. That is ${(value / forDays).toFixed(1)} times the plan's price.\n`), text)
+    assert.ok(text.includes(`\nPlans\n  Acme (claude:aaaaaaaa): Claude Max, $100 a month (the plan's public price)\n    API value in 7 days: ${money(value)}. The plan's price for 7 days: ${money(forDays)}. That is less than 0.1 times the plan's price.\n`), text)
+    assert.ok(value / forDays < 0.05) // A small share is not printed as 0.0 times.
     assert.doesNotMatch(text, /Agent spend/)
     // Only on a subscription: no "spend" at all.
     const planOnly = summary(onPlan, { days: 7, now })
@@ -271,6 +345,37 @@ test('on a subscription the dollars are API value, by the token they are spend, 
     assert.match(session(byToken, {}).split('\n')[2], /^Spend {4}\$\d+\.\d\d, paid by the token, at list prices$/)
     // The findings say the same at their top.
     assert.ok(findings(all, { days: 7, now }).split('\n').slice(1, 3).join('\n') === `Paid by the token: ${money(spend)} (spend, at list prices)\nOn subscriptions: ${money(value)} of API value (what the same use would cost by the token)`)
+  } finally {
+    files()
+  }
+})
+
+test('the Max type is priced by its tier: 5x is Claude Max at $100, 20x is Claude Ultra at $200, and no tier gets no price', async () => {
+  const { maxTierOf } = await import('../src/accounts.mjs')
+  const { planName, planPrice } = await import('../src/plans.mjs')
+  // The tier comes from the person's rate limit tier first, then the organisation's.
+  assert.equal(maxTierOf('default_claude_max_5x', undefined), '5x')
+  assert.equal(maxTierOf(undefined, 'default_claude_max_20x'), '20x')
+  assert.equal(maxTierOf('default_claude_max_20x', 'default_claude_max_5x'), '20x')
+  for (const none of [undefined, 'default_raven', 'default_claude_pro', 'max_10x', 5]) assert.equal(maxTierOf(none, undefined), undefined, String(none))
+  const state = (fields) => ({ accounts: new Map([[`claude:${ACCOUNT}`, fields]]), signedIn: new Map() })
+  const key = `claude:${ACCOUNT}`
+  assert.deepEqual([planName(key, state({ organizationType: 'claude_max', maxTier: '5x' })), planPrice(key, state({ organizationType: 'claude_max', maxTier: '5x' }))], ['Claude Max', { monthly: 100, source: 'table' }])
+  assert.deepEqual([planName(key, state({ organizationType: 'claude_max', maxTier: '20x' })), planPrice(key, state({ organizationType: 'claude_max', maxTier: '20x' }))], ['Claude Ultra', { monthly: 200, source: 'table' }])
+  assert.deepEqual([planName(key, state({ organizationType: 'claude_max' })), planPrice(key, state({ organizationType: 'claude_max' }))], ['Claude Max or Ultra', null])
+  assert.deepEqual([planName(key, state({ organizationType: 'claude_pro' })), planPrice(key, state({ organizationType: 'claude_pro' }))], ['Claude Pro', { monthly: 20, source: 'table' }])
+  // A guess from before, "claude_ultra", has no price: Claude Code names Ultra "claude_max" with the tier 20x.
+  assert.equal(planPrice(key, state({ organizationType: 'claude_ultra' })), null)
+  // A Team seat with a Max tier is not priced as Max.
+  assert.equal(planPrice(key, state({ organizationType: 'claude_team', seatTier: 'team_tier_1', maxTier: '5x' })), null)
+
+  // In the block of plans, for one day: the words are singular.
+  files({ accounts: { accounts: { [key]: { org: 'Acme', organizationType: 'claude_max' } }, signedIn: {} } })
+  try {
+    const text = summary(records([{}, {}]), { days: 1, now: START + DAY })
+    assert.match(text, /\n {2}Acme \(claude:aaaaaaaa\): Claude Max or Ultra\n {4}API value in 1 day: \$\d+\.\d\d\. Price not set: kestrel accounts price claude:aaaaaaaa <dollars>\n/)
+    files({ accounts: { accounts: { [key]: { org: 'Acme', organizationType: 'claude_max', maxTier: '20x' } }, signedIn: {} } })
+    assert.match(summary(records([{}, {}]), { days: 1, now: START + DAY }), /\n {4}API value in 1 day: \$\d+\.\d\d\. The plan's price for 1 day: \$6\.67\. That is less than 0\.1 times the plan's price\.\n/)
   } finally {
     files()
   }
@@ -311,7 +416,7 @@ test('findings give a share of the weekly limit for cache losses, context and to
     assert.ok(finding(text, 'The cache was lost').includes(`   That is about ${share(waste)}% of your weekly limit (estimate from this week's use).`), text)
     assert.ok(finding(text, 'Carrying context above').some((l) => /^ {3}That is about [\d.]+% of your weekly limit \(estimate from this week's use\)\.$/.test(l)))
     assert.ok(finding(text, 'Tool results in the context').some((l) => /^ {3}That is about [\d.]+% of your weekly limit \(estimate from this week's use\)\.$/.test(l)))
-    assert.ok(text.endsWith(`The share of a weekly limit is an estimate. Anthropic does not publish how the limit counts tokens. Kestrel divides the API value of the account's calls from the start of the week to the time of the reading by the percent that the reading gives: ${money(perPct)} of API value per 1% for claude:aaaaaaaa.`))
+    assert.ok(text.endsWith(`The share of a weekly limit is an estimate. Anthropic does not publish how the limit counts tokens. Kestrel divides the API value of the account's calls from the start of the week to the time of the reading by the percent that the reading gives: ${money(perPct)} of API value per 1% for claude:aaaaaaaa. The percent also counts chat, the phone and other computers, so the share is too high when the plan was used there too.`))
     // Under 5% used, a few calls would change the estimate by a lot: no share.
     files({ limits: week(4) })
     assert.doesNotMatch(findings(calls, { days: 7, now }), /weekly limit/)

@@ -204,7 +204,7 @@ export class CoworkParser {
       return
     }
     for (const b of Array.isArray(content) ? content : []) {
-      if (b?.type === 'tool_result') pending.push(resultEntry(this.toolName.get(b.tool_use_id), textSize(b.content), this.programs.get(b.tool_use_id)))
+      if (b?.type === 'tool_result') pending.push(resultEntry(this.toolName.get(b.tool_use_id), textSize(b.content), this.programs.get(b.tool_use_id), b.is_error === true))
       else if (b?.type === 'text' && typeof b.text === 'string' && b.text) pending.push([typed, b.text.length])
     }
   }

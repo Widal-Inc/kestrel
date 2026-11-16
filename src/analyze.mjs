@@ -57,8 +57,8 @@ function chain(list, calls, blocks) {
     head = 0
     liveTokens = 0
   }
-  // A block of a tool result also keeps its size in characters, the signature of its tool call
-  // and, for a shell command, the name of its program (see parse-claude.mjs).
+  // A block of a tool result also keeps its size in characters, the signature of its tool call,
+  // for a shell command the name of its program, and whether it failed (see parse-claude.mjs).
   const enter = (label, tokens, entry, r, index, more) => {
     live.push({ label, tokens, entry, start: cum, enter: index, ses: r.ses, f: r.f, cwd: r.cwd, ts: r.ts, known: !!rates(r), acct: r.acct, s: r.s, ...more })
     liveTokens += tokens
@@ -128,8 +128,11 @@ function chain(list, calls, blocks) {
         const chars = r.add.reduce((n, a) => n + a[1], 0)
         if (rest > 0) {
           if (chars > 0) {
-            for (const [label, size, sig, prog] of r.add) {
-              const more = sig === undefined ? { chars: size } : prog === undefined ? { chars: size, sig } : { chars: size, sig, prog }
+            for (const [label, size, sig, prog, failed] of r.add) {
+              const more = { chars: size }
+              if (sig !== undefined) more.sig = sig
+              if (prog !== undefined && prog !== null) more.prog = prog
+              if (failed === 1) more.failed = true
               enter(label, (rest * size) / chars, (rest * perToken * size) / chars, r, i, more)
             }
           }

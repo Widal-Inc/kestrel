@@ -43,8 +43,10 @@ const SHORT_SHARE = 0.8
 const OWN_CALLS = 200
 
 // The cap on a shell command's output that the proposal asks for, in characters. Claude Code
-// gives a failed command about 10,000 characters inline whatever the setting says, so a cap of
-// this size leaves failed commands as they are. "apply bash-output-cap" sets it unless another is named.
+// gives a failed command an excerpt of about 10,000 characters inline, so a cap of this size does
+// not shrink that excerpt. The cap also sets the window of output that Claude Code reads back,
+// and the excerpt of a failed command is cut from that window: with a smaller cap, a long failed
+// output can show less of itself. "apply bash-output-cap" sets the cap unless another is named.
 const BASH_CAP = 10_000
 // What Claude gets instead of longer output: a preview of 2,000 characters and the path of the
 // file that holds the rest, about 200 characters more.
@@ -269,16 +271,18 @@ export function proposals(records, { ownFile = agentFile, analyzed } = {}) {
   // goes to a file, and Claude gets a preview and the file's path instead. The replay takes each
   // result of the shell tool that is longer than the cap, and keeps only the preview's share of
   // what it cost to enter and to carry. Only Claude Code's calls: it is a setting of Claude Code.
-  const longOutput = blocks.filter((b) => b.s === 'claude' && b.label === 'Bash' && b.known && b.chars > BASH_CAP)
+  // A failed command gets an excerpt instead of a preview, so its results are not counted.
+  const longOutput = blocks.filter((b) => b.s === 'claude' && b.label === 'Bash' && b.known && !b.failed && b.chars > BASH_CAP)
+  const longCount = new Set(longOutput.map((b) => `${b.f} ${b.ts} ${b.sig}`)).size
   const longCost = sum(longOutput, (b) => b.entry + b.carry)
   list.push({
     id: 'bash-output-cap',
     title: `Cap the shell output that Claude reads inline at ${count(BASH_CAP)} characters`,
     saving: sum(longOutput, (b) => (b.entry + b.carry) * (1 - BASH_PREVIEW / b.chars)),
     chars: BASH_CAP,
-    evidence: `${count(new Set(longOutput.map((b) => `${b.f} ${b.ts} ${b.sig}`)).size)} results of shell commands were longer than ${count(BASH_CAP)} characters. Entering and carried on the later calls, they cost ${money(longCost)}. With the cap Claude gets a preview of 2,000 characters and the path of a file instead, and the replay keeps only that share.`,
+    evidence: `${count(longCount)} ${longCount === 1 ? 'result of a shell command that worked was' : 'results of shell commands that worked were'} longer than ${count(BASH_CAP)} characters. Entering and carried on the later calls, ${longCount === 1 ? 'it' : 'they'} cost ${money(longCost)}. With the cap Claude gets a preview of 2,000 characters and the path of a file instead, and the replay keeps only that share.`,
     how: `One setting in Claude Code: "bashOutputMaxChars": ${BASH_CAP}. Claude Code then gives Claude at most ${count(BASH_CAP)} characters of a successful command's output (about 30,000 without the setting). Longer output goes to a file, and Claude reads it when it needs the rest. It needs Claude Code 2.1.261 or later.`,
-    risk: 'Claude reads the file when it needs more of the output, and each read is a tool call with a result of its own. The replay does not count those reads, so the saving is the most it can be. A failed command keeps its excerpt of about 10,000 characters.',
+    risk: 'Claude reads the file when it needs more of the output, and each read is a tool call with a result of its own. The replay does not count those reads, so the saving is the most it can be. The setting also sets the window of output that Claude Code reads back, and the excerpt of a failed command is cut from that window: with a smaller cap, a long error can show less of its output.',
     apply: true,
     args: `--chars ${BASH_CAP}`,
   })

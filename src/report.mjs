@@ -403,7 +403,8 @@ export function findings(records, { days, now = Date.now(), since = now - days *
   // The replay of "kestrel advise" for the same calls, for the saving that goes with each fix.
   const replay = proposals(records, { ownFile: () => undefined, analyzed: { calls, blocks } })
   const proposal = (id) => replay.all.find((x) => x.id === id)
-  const less = (saving) => (saving > 0 ? `the replay of these ${days} days: ${money(saving)} less` : `the replay of these ${days} days finds no saving`)
+  const period = days === 1 ? 'this day' : `these ${days} days`
+  const less = (saving) => (saving > 0 ? `the replay of ${period}: ${money(saving)} less` : `the replay of ${period} finds no saving`)
 
   const misses = calls.filter((e) => e.miss)
   if (t.waste > 0) {
@@ -494,7 +495,7 @@ export function findings(records, { days, now = Date.now(), since = now - days *
   })
   if (shared) {
     const per = [...weekly.values()].map((r) => `${money(r.perPct)} of API value per 1% for ${r.label}`).join(', ')
-    out.push(`The share of a weekly limit is an estimate. Anthropic does not publish how the limit counts tokens. Kestrel divides the API value of the account's calls from the start of the week to the time of the reading by the percent that the reading gives: ${per}.`)
+    out.push(`The share of a weekly limit is an estimate. Anthropic does not publish how the limit counts tokens. Kestrel divides the API value of the account's calls from the start of the week to the time of the reading by the percent that the reading gives: ${per}. The percent also counts chat, the phone and other computers, so the share is too high when the plan was used there too.`)
   }
   return out.join('\n').trimEnd()
 }

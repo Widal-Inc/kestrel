@@ -22,14 +22,24 @@ import { money } from './format.mjs'
 const idOf = (key) => key.slice(key.indexOf(':') + 1)
 
 /**
- * The plans of Claude whose monthly price Kestrel knows, by the type of organisation that Claude
- * Code names in .claude.json, in dollars a month.
+ * The plans of Claude whose monthly price Kestrel knows, in dollars a month, as claude.com/pricing
+ * gave them on 16 Nov 2026: Pro $20 billed monthly ($17 a month billed yearly), Max $100 ("5x Pro
+ * usage") and Ultra $200. Claude Code names Pro and Max by the type of organisation in
+ * .claude.json: "claude_pro" and "claude_max". A Max account also has a rate limit tier that ends
+ * in "max_5x" or "max_20x" (see maxTierOf in accounts.mjs), and the pricing page links Ultra to
+ * "max_20x". So "claude_max" with "5x" is Max, and with "20x" is Ultra. "claude_max" without a
+ * tier has no price here: Kestrel does not guess between the two.
  */
 export const CLAUDE_PLANS = {
   claude_pro: { name: 'Claude Pro', monthly: 20 },
-  claude_max: { name: 'Claude Max', monthly: 100 },
-  claude_ultra: { name: 'Claude Ultra', monthly: 200 },
 }
+/** The plans of Claude with the type "claude_max", by the size of their tier. */
+export const MAX_PLANS = {
+  '5x': { name: 'Claude Max', monthly: 100 },
+  '20x': { name: 'Claude Ultra', monthly: 200 },
+}
+/** The name of a "claude_max" plan whose tier is not known. */
+const MAX_OR_ULTRA = 'Claude Max or Ultra'
 /** The ChatGPT plans of Codex whose monthly price Kestrel knows, by the plan type in Codex's log. */
 export const CODEX_PLANS = {
   plus: { name: 'ChatGPT Plus', monthly: 20 },
@@ -68,13 +78,22 @@ export function planOf(key, state) {
 /** The entry of the price table for an account, or undefined when its plan has no price there. */
 function tableEntry(key, state) {
   if (key.startsWith('codex:')) return Object.hasOwn(CODEX_PLANS, idOf(key)) ? CODEX_PLANS[idOf(key)] : undefined
-  const type = planEntry(key, state)?.organizationType
+  const e = planEntry(key, state)
+  const type = e?.organizationType
+  if (type === 'claude_max') return e.maxTier && Object.hasOwn(MAX_PLANS, e.maxTier) ? MAX_PLANS[e.maxTier] : undefined
   return type && Object.hasOwn(CLAUDE_PLANS, type) ? CLAUDE_PLANS[type] : undefined
 }
 
-/** The name of an account's plan, as a person reads it: "Claude Max", "ChatGPT Plus", or the plan as Claude Code names it. Null when not known. */
+/**
+ * The name of an account's plan, as a person reads it: "Claude Max", "ChatGPT Plus", "Claude Max
+ * or Ultra" for a Max type whose tier is not known, or the plan as Claude Code names it. Null when
+ * not known.
+ */
 export function planName(key, state) {
-  return tableEntry(key, state)?.name ?? planOf(key, state)
+  const named = tableEntry(key, state)?.name
+  if (named) return named
+  if (!key.startsWith('codex:') && planEntry(key, state)?.organizationType === 'claude_max' && !planEntry(key, state)?.seatTier) return MAX_OR_ULTRA
+  return planOf(key, state)
 }
 
 /**
@@ -155,8 +174,11 @@ export function paidLines({ token, subscription, unknown }) {
 /** A price a month: whole dollars without cents ("$100"), else with them ("$19.99"). */
 export const monthly = (x) => (Number.isInteger(x) ? `$${x.toLocaleString('en-US')}` : money(x))
 
-/** The ratio of two amounts in words: "17.7 times". */
-const times = (x) => `${x >= 100 ? Math.round(x).toLocaleString('en-US') : x.toFixed(1)} times`
+/** The ratio of two amounts in words: "17.7 times", or "less than 0.1 times". */
+const times = (x) => (x < 0.05 ? 'less than 0.1 times' : `${x >= 100 ? Math.round(x).toLocaleString('en-US') : x.toFixed(1)} times`)
+
+/** A number of days in words: "1 day", "7 days". */
+export const dayWords = (n) => (n === 1 ? '1 day' : `${n} days`)
 
 /**
  * The plans of a period, one block per subscription: the account's name, its plan and the price a
@@ -190,12 +212,12 @@ export function plansLines(items, { key, cost, days, now = Date.now(), state = r
     out.push(`  ${label}${label === shortKey(shown) ? '' : ` (${shortKey(shown)})`}${facts.length ? `: ${facts.join(', ')}` : ''}`)
     const limits = readLimits(now, pk)
     if (WINDOWS.some(({ key: w }) => limits[w])) out.push(`    Limits now: ${limitParts(limits, now).map(([text]) => text).reverse().join('; ')}`)
-    const value = `API value in ${days} days: ${money(p.value)}.`
+    const value = `API value in ${dayWords(days)}: ${money(p.value)}.`
     if (!price) out.push(`    ${value} Price not set: kestrel accounts price ${shortKey(shown)} <dollars>`)
     else if (!(price.monthly > 0)) out.push(`    ${value} A free plan, so there is no price to compare with.`)
     else {
       const forDays = (price.monthly * days) / 30
-      out.push(`    ${value} The plan's price for ${days} days: ${money(forDays)}. That is ${times(p.value / forDays)} the plan's price.`)
+      out.push(`    ${value} The plan's price for ${dayWords(days)}: ${money(forDays)}. That is ${times(p.value / forDays)} the plan's price.`)
     }
   }
   return out

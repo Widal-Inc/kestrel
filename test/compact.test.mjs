@@ -319,7 +319,7 @@ test('"kestrel compactions" reads the logs of 30 days unless --days says otherwi
   const files = readdirSync(cache)
   assert.equal(files.length, 1)
   const entry = JSON.parse(readFileSync(join(cache, files[0]), 'utf8'))
-  assert.equal(entry.v, 12)
+  assert.equal(entry.v, 13)
   assert.equal(entry.meta.compactions.length, 3)
   writeFileSync(join(cache, files[0]), JSON.stringify({ ...entry, v: 9, meta: {} }))
   assert.deepEqual(seen('--days', '60')[1], '3')
