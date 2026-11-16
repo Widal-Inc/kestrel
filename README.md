@@ -8,6 +8,30 @@ The project is called Kestrel. Its command is `kestrel`, and its folder on your 
 
 Status: version 0.1.0, started on 2026-11-12. So far it has run on macOS only. No dependencies, Node 22 or newer. Made by Widal, Inc. Free and open source under the MIT licence (see "Licence").
 
+## What it looks like
+
+The screenshots use made-up data: invented projects and two weeks of invented sessions. Nothing in them comes from a real computer.
+
+**The status line in Claude Code.** The model and effort level, the context, how long the prompt cache stays warm, the plan's limits and how fast they fill, the task in progress and the other sessions.
+
+![The status line that Kestrel adds to Claude Code](docs/images/statusline.png)
+
+**Every agent session on this computer, now** (`kestrel top`). Which session works, which waits for you, how warm each cache is, and what each one spent today.
+
+![kestrel top: the open sessions of Claude Code and Codex](docs/images/top.png)
+
+**What the money paid for** (`kestrel summary`). Spend by account, day, project and model, and the share that paid for carrying context and for lost caches.
+
+![kestrel summary: the spend of the last 7 days](docs/images/summary.png)
+
+**Changes that would have saved money** (`kestrel advise`). Each one comes from a replay of your own logs, with the reason, the setting, the risk and the command that applies it.
+
+![kestrel advise: the first two proposals](docs/images/advise.png)
+
+**Security risks of your agents** (`kestrel check`). Each finding names the controls it touches in the frameworks you turn on, and the command that fixes it where there is one.
+
+![kestrel check: the open security findings](docs/images/check.png)
+
 ## Install as a plugin
 
 Type these three commands in Claude Code:
