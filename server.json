@@ -8,12 +8,12 @@
     "source": "github"
   },
   "websiteUrl": "https://kestrel.widal.com",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "packages": [
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/Widal-Inc/kestrel/releases/download/v0.1.0/kestrel-mcp.mcpb",
-      "fileSha256": "dcd0389d944475d6bae4b5d5e56c2b30817595b5bbbe6f19cc800f65cfc87bdc",
+      "identifier": "https://github.com/Widal-Inc/kestrel/releases/download/v0.2.0/kestrel-mcp.mcpb",
+      "fileSha256": "5d12ad0dc9d4db4bc79301ba28bb69e386dd71d9e39dfbc68d2c6acab5227feb",
       "transport": {
         "type": "stdio"
       }

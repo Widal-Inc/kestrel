@@ -6,7 +6,7 @@ Kestrel shows what the AI coding agents on your machine spend, and what the spen
 
 The project is called Kestrel. Its command is `kestrel`, and its folder on your machine is `~/.kestrel`.
 
-Status: version 0.1.0, started on 2026-11-12. So far it has run on macOS only. No dependencies, Node 22 or newer. Made by Widal, Inc. Free and open source under the MIT licence (see "Licence").
+Status: version 0.2.0, started on 2026-11-12. So far it has run on macOS only. No dependencies, Node 22 or newer. Made by Widal, Inc. Free and open source under the MIT licence (see "Licence").
 
 ## What it looks like
 

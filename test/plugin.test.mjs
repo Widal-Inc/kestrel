@@ -53,7 +53,7 @@ const result = (r) => [r.status, r.stdout, r.stderr]
 test('package.json names the package, its version and its command, and the tool has no dependencies', () => {
   const pkg = json('package.json')
   assert.equal(pkg.name, '@widal/kestrel')
-  assert.equal(pkg.version, '0.1.0')
+  assert.equal(pkg.version, '0.2.0')
   assert.equal(pkg.private, true)
   assert.equal(pkg.type, 'module')
   assert.deepEqual(pkg.bin, { kestrel: 'cli/kestrel.mjs' })
