@@ -50,7 +50,7 @@ const USAGE = `kestrel: what your AI coding agents spend, and what the money pay
   kestrel top --once --no-names    the same once, without the names of tasks
   kestrel top --once --json        the same once as data, for the pane in Claude Code (tasks only while names are on)
   kestrel refresh-today            work out today's numbers for the status line and "kestrel top" (the status line runs it)
-  kestrel accounts [--days 7]      spend and the plan's limits per account: Claude accounts, Cowork, Codex
+  kestrel accounts [--days 7]      the dollars, the plan's limits and its price per account: Claude, Cowork, Codex
   kestrel accounts --json          the same as JSON
   kestrel accounts label <key> "<label>"   give an account your own name (take it away with: --clear)
   kestrel accounts price <key> <dollars>   the price of an account's plan a month (take it away with: --clear)

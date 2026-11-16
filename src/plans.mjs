@@ -209,8 +209,8 @@ const WEEK = 7 * 86400e3
 /**
  * Dollars of API value per 1% of the weekly limit, for each subscription with a reading of its
  * week that is open now and at least 5% used: a Map from the plan key to `{ perPct, pct, label }`.
- * It is the API value of the plan's calls since the week began (the end of the week minus 7 days),
- * divided by the percent used. `items` are the calls, `key` gives a call's account, `ts` its time
+ * It is the API value of the plan's calls from the start of the week (its end minus 7 days) to the
+ * time of the reading, divided by the percent that the reading gives. `items` are the calls, `key` gives a call's account, `ts` its time
  * and `cost` its dollars. `since` is the start of the calls that were read: a week that began
  * before it is left out, because its dollars are not all there.
  *
@@ -228,7 +228,7 @@ export function weekRates(items, { key, ts, cost, now = Date.now(), since = -Inf
     let value = 0
     for (const x of items) {
       const k = typeof key(x) === 'string' ? key(x) : 'unknown'
-      if (planKeyOf(k) === pk && ts(x) >= start && pay(k) === 'subscription') value += cost(x)
+      if (planKeyOf(k) === pk && ts(x) >= start && ts(x) <= week.at && pay(k) === 'subscription') value += cost(x)
     }
     if (value > 0) out.set(pk, { perPct: value / week.pct, pct: week.pct, label: labelOf(pk, state) })
   }

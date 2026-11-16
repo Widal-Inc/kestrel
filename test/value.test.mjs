@@ -311,7 +311,7 @@ test('findings give a share of the weekly limit for cache losses, context and to
     assert.ok(finding(text, 'The cache was lost').includes(`   That is about ${share(waste)}% of your weekly limit (estimate from this week's use).`), text)
     assert.ok(finding(text, 'Carrying context above').some((l) => /^ {3}That is about [\d.]+% of your weekly limit \(estimate from this week's use\)\.$/.test(l)))
     assert.ok(finding(text, 'Tool results in the context').some((l) => /^ {3}That is about [\d.]+% of your weekly limit \(estimate from this week's use\)\.$/.test(l)))
-    assert.ok(text.endsWith(`The share of a weekly limit is an estimate. Anthropic does not publish how the limit counts tokens. Kestrel divides this week's API value of the account by the percent of the week used so far: ${money(perPct)} of API value per 1% for claude:aaaaaaaa.`))
+    assert.ok(text.endsWith(`The share of a weekly limit is an estimate. Anthropic does not publish how the limit counts tokens. Kestrel divides the API value of the account's calls from the start of the week to the time of the reading by the percent that the reading gives: ${money(perPct)} of API value per 1% for claude:aaaaaaaa.`))
     // Under 5% used, a few calls would change the estimate by a lot: no share.
     files({ limits: week(4) })
     assert.doesNotMatch(findings(calls, { days: 7, now }), /weekly limit/)

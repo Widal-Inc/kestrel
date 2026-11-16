@@ -382,16 +382,16 @@ export function findings(records, { days, now = Date.now(), since = now - days *
   const found = []
 
   // The share of a weekly limit that an amount stands for, on a subscription with a reading of its week.
-  const rates = weekRates(priced, { key: accountOf, ts: (e) => e.r.ts, cost: (e) => e.c.total, now, since, state: p.state, stored: p.stored, cfg: p.cfg })
+  const weekly = weekRates(priced, { key: accountOf, ts: (e) => e.r.ts, cost: (e) => e.c.total, now, since, state: p.state, stored: p.stored, cfg: p.cfg })
   const shareLine = (list, key, amount) => {
-    if (!rates.size) return []
+    if (!weekly.size) return []
     const byPlan = new Map()
     for (const x of list) {
       const k = key(x) ?? 'unknown'
       if (p.pay(k) !== 'subscription') continue
       byPlan.set(planKeyOf(k), (byPlan.get(planKeyOf(k)) ?? 0) + amount(x))
     }
-    const words = weekShare(byPlan, rates)
+    const words = weekShare(byPlan, weekly)
     return words ? [`That is ${words}.`] : []
   }
   let shared = false
@@ -403,7 +403,7 @@ export function findings(records, { days, now = Date.now(), since = now - days *
   // The replay of "kestrel advise" for the same calls, for the saving that goes with each fix.
   const replay = proposals(records, { ownFile: () => undefined, analyzed: { calls, blocks } })
   const proposal = (id) => replay.all.find((x) => x.id === id)
-  const less = (saving) => (saving > 0 ? `the replay of these ${days} days: ${money(saving)} less` : 'the replay of these days finds no saving')
+  const less = (saving) => (saving > 0 ? `the replay of these ${days} days: ${money(saving)} less` : `the replay of these ${days} days finds no saving`)
 
   const misses = calls.filter((e) => e.miss)
   if (t.waste > 0) {
@@ -493,8 +493,8 @@ export function findings(records, { days, now = Date.now(), since = now - days *
     out.push('')
   })
   if (shared) {
-    const per = [...rates.values()].map((r) => `${money(r.perPct)} of API value per 1% for ${r.label}`).join(', ')
-    out.push(`The share of a weekly limit is an estimate. Anthropic does not publish how the limit counts tokens. Kestrel divides this week's API value of the account by the percent of the week used so far: ${per}.`)
+    const per = [...weekly.values()].map((r) => `${money(r.perPct)} of API value per 1% for ${r.label}`).join(', ')
+    out.push(`The share of a weekly limit is an estimate. Anthropic does not publish how the limit counts tokens. Kestrel divides the API value of the account's calls from the start of the week to the time of the reading by the percent that the reading gives: ${per}.`)
   }
   return out.join('\n').trimEnd()
 }
