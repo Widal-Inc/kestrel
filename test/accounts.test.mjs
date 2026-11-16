@@ -472,22 +472,28 @@ test('"kestrel accounts" shows one row per account, the newest first, with its s
   assert.equal(r.status, 0, r.stderr)
   const text = r.stdout
   assert.match(text, /^Accounts, last 7 days, the newest first\./)
-  assert.match(text, /\n {2}account +tool +kind and plan +plan's limits +tokens today +cost today +tokens +cost +sessions +last seen\n/)
+  assert.match(text, /\n {2}account +tool +kind and plan +plan's limits +tokens today +dollars today +tokens +dollars +dollars are +sessions +last seen\n/)
   const rowOf = (label) => text.split('\n').find((line) => line.startsWith(`  ${label} `))
   const today = allToday(now, 6)
-  assert.match(rowOf('claude:bbbbbbbb'), /^ {2}claude:bbbbbbbb +Claude Code +unknown +none seen +101k +\$0\.42 +101k +\$0\.42 +1 +\d{4}-\d\d-\d\d \d\d:\d\d$/)
+  assert.match(rowOf('claude:bbbbbbbb'), /^ {2}claude:bbbbbbbb +Claude Code +unknown +none seen +101k +\$0\.42 +101k +\$0\.42 +list prices +1 +\d{4}-\d\d-\d\d \d\d:\d\d$/)
   assert.match(rowOf('Widal, Inc.'), today
-    ? /^ {2}Widal, Inc\. +Claude Code +subscription, team_tier_1 +week 9%; 5h 33% +303k +\$1\.26 +303k +\$1\.26 +1 +\d{4}/
+    ? /^ {2}Widal, Inc\. +Claude Code +subscription, team_tier_1 +week 9%; 5h 33% +303k +\$1\.26 +303k +\$1\.26 +API value +1 +\d{4}/
     : /^ {2}Widal, Inc\. +Claude Code +subscription, team_tier_1 +week 9%; 5h 33% +/)
   assert.match(text, /\n {2}Widal, Inc\. .+\n {4}claude:aaaaaaaa \(signed in now\)\n/)
-  assert.match(rowOf('cowork:cw-accou'), /^ {2}cowork:cw-accou +Cowork +subscription +101k +\$0\.21 +101k +\$0\.21 +1 /)
-  assert.match(rowOf('codex:plus'), /^ {2}codex:plus +Codex +subscription, plus +110k +\$0\.30 +110k +\$0\.30 +1 /)
-  assert.match(rowOf('codex:unknown'), /^ {2}codex:unknown +Codex +unknown +110k +\$0\.30 +110k +\$0\.30 +1 /)
+  assert.match(rowOf('cowork:cw-accou'), /^ {2}cowork:cw-accou +Cowork +subscription +101k +\$0\.21 +101k +\$0\.21 +API value +1 /)
+  assert.match(rowOf('codex:plus'), /^ {2}codex:plus +Codex +subscription, plus +110k +\$0\.30 +110k +\$0\.30 +API value +1 /)
+  assert.match(rowOf('codex:unknown'), /^ {2}codex:unknown +Codex +unknown +110k +\$0\.30 +110k +\$0\.30 +list prices +1 /)
   // The newest first: B, then A, then Cowork, then Codex.
   const order = ['claude:bbbbbbbb', 'Widal, Inc.', 'cowork:cw-accou', 'codex:'].map((label) => text.indexOf(`\n  ${label}`))
   assert.deepEqual([...order].sort((x, y) => x - y), order)
   assert.ok(!text.includes('Kestrel found one account'))
-  assert.match(text, /\nGive an account your own name with: kestrel accounts label <key> "<label>"\n$/)
+  // On a subscription the dollars are API value. Accounts whose way to pay is not known stand apart.
+  assert.match(text, /\nOn subscriptions: \$1\.77 of API value \(what the same use would cost by the token\)\nNot known how it is paid: \$0\.72 at list prices\n/)
+  assert.doesNotMatch(text, /spend for this|Spend:/)
+  // The plans, with the limits first, and the line that says how to set a price.
+  assert.match(text, /\nPlans\n {2}Widal, Inc\. \(claude:aaaaaaaa\): team_tier_1\n {4}Limits now: week 9% used, \d+% of the week gone; 5 hour limit 33% used, \d+% of its time gone\n {4}API value in 7 days: \$1\.26\. Price not set: kestrel accounts price claude:aaaaaaaa <dollars>\n/)
+  assert.match(text, /\n {2}codex:plus: ChatGPT Plus, \$20 a month \(the plan's public price\)\n {4}API value in 7 days: \$0\.30\. The plan's price for 7 days: \$4\.67\. That is 0\.1 times the plan's price\.\n/)
+  assert.match(text, /\nGive an account your own name with: kestrel accounts label <key> "<label>"\nSet the price of an account's plan with: kestrel accounts price <key> <dollars a month>\n$/)
 
   const json = run(m, ['accounts', '--json'])
   assert.equal(json.status, 0, json.stderr)
@@ -497,7 +503,8 @@ test('"kestrel accounts" shows one row per account, the newest first, with its s
   assert.equal(data.current, `claude:${A}`)
   assert.deepEqual(data.accounts.map((a) => a.key).slice(0, 3), [`claude:${B}`, `claude:${A}`, 'cowork:cw-account'])
   for (const a of data.accounts) {
-    assert.deepEqual(Object.keys(a), ['key', 'label', 'kind', 'tool', 'plan', 'limits', 'today', 'period', 'lastSeen'])
+    assert.deepEqual(Object.keys(a), ['key', 'label', 'kind', 'tool', 'plan', 'limits', 'today', 'period', 'lastSeen', 'price', 'dollars'])
+    assert.ok(['API value', 'spend', 'list prices'].includes(a.dollars), a.dollars)
     assert.ok(['subscription', 'usage', 'cloud', 'unknown'].includes(a.kind), a.kind)
     assert.ok(['Claude Code', 'Cowork', 'Codex'].includes(a.tool), a.tool)
     assert.deepEqual(Object.keys(a.limits), ['five', 'week'])
@@ -509,8 +516,9 @@ test('"kestrel accounts" shows one row per account, the newest first, with its s
   assert.deepEqual({ ...a, lastSeen: undefined, today: undefined }, {
     key: `claude:${A}`, label: 'Widal, Inc.', kind: 'subscription', tool: 'Claude Code', plan: 'team_tier_1',
     limits: { five: { pct: 33, resetsAt: now + 2 * HOUR, at: now - MIN }, week: { pct: 9, resetsAt: now + 3 * DAY, at: now - MIN } },
-    today: undefined, period: { tokens: 303000, cost: 1.26, sessions: 1 }, lastSeen: undefined,
+    today: undefined, period: { tokens: 303000, cost: 1.26, sessions: 1 }, lastSeen: undefined, price: null, dollars: 'API value',
   })
+  assert.deepEqual(data.accounts.find((x) => x.key === 'codex:plus').price, { monthly: 20, source: 'table' })
   assert.equal(a.lastSeen, now - 2 * MIN)
   if (today) assert.deepEqual(a.today, { tokens: 303000, cost: 1.26 })
   assert.deepEqual(data.accounts.find((x) => x.key === 'codex:unknown'), { ...data.accounts.find((x) => x.key === 'codex:unknown'), kind: 'unknown', plan: null, limits: { five: null, week: null } })
@@ -521,7 +529,82 @@ test('"kestrel accounts" shows one row per account, the newest first, with its s
   assert.equal(JSON.parse(run(m, ['accounts', '--json', '--days', '30']).stdout).accounts[0].label, 'Home')
   assert.equal(JSON.parse(run(m, ['accounts', '--json', '--days', '30']).stdout).days, 30)
   assert.equal(run(m, ['accounts', '--days', '0']).stderr, 'kestrel: --days is a whole number of days, 1 or more.\n')
-  assert.equal(run(m, ['accounts', 'more']).stderr, 'kestrel: "kestrel accounts" takes --days, --json or label, and "more" was given.\n')
+  assert.equal(run(m, ['accounts', 'more']).stderr, 'kestrel: "kestrel accounts" takes --days, --json, label or price, and "more" was given.\n')
+})
+
+test('"kestrel accounts price" sets the price of a plan, wins over the table, is shared by Cowork, and --clear takes it away', async () => {
+  const m = use(machine())
+  const now = Date.now()
+  writeLogs(m, now, MIN)
+  // Account A on Claude Max: the table knows its price.
+  claudeJson(join(m.home, '.claude.json'), A, ORG_A, 'Acme', { organizationType: 'claude_max', seatTier: undefined })
+  mkdirSync(m.kestrel, { recursive: true })
+  writeFileSync(join(m.kestrel, 'limits.json'), JSON.stringify({ [`claude:${A}`]: { week: { pct: 40, resetsAt: now + 3 * DAY, at: now - MIN } } }))
+  const price = (...args) => {
+    const r = run(m, ['accounts', 'price', ...args])
+    return [r.status, (r.stdout + r.stderr).trim()]
+  }
+  const planOfA = () => {
+    const text = run(m, ['accounts']).stdout
+    return text.slice(text.indexOf('\nPlans\n')).split('\n').slice(2, 5).join('\n')
+  }
+  assert.equal(run(m, ['accounts']).status, 0)
+  assert.match(planOfA(), /^ {2}Acme \(claude:aaaaaaaa\): Claude Max, \$100 a month \(the plan's public price\)\n {4}Limits now: week 40% used, 57% of the week gone(: full about [\d.]+ days? early)?\n {4}API value in 7 days: \$1\.26\. The plan's price for 7 days: \$23\.33\. That is 0\.1 times the plan's price\.$/)
+  // The person's own price wins.
+  assert.deepEqual(price('aaaaaaaa', '80'), [0, 'The plan of the account claude:aaaaaaaa costs $80 a month now.'])
+  assert.equal(accountsJson(m).accounts[`claude:${A}`].price, 80)
+  assert.match(planOfA(), /^ {2}Acme \(claude:aaaaaaaa\): Claude Max, \$80 a month \(your price\)\n/)
+  assert.match(planOfA(), /The plan's price for 7 days: \$18\.67\./)
+  assert.deepEqual(price(`claude:${A}`, '$19.99'), [0, 'The plan of the account claude:aaaaaaaa costs $19.99 a month now.'])
+  // A team seat has no price in the table, and gets one of the person's own.
+  assert.deepEqual(price('bbbbbbbb', '30'), [0, 'The plan of the account claude:bbbbbbbb costs $30 a month now.'])
+  const { planPrice } = await import('../src/plans.mjs')
+  const { readAccounts } = await import('../src/accounts.mjs')
+  assert.deepEqual(planPrice(`claude:${B}`, readAccounts()), { monthly: 30, source: 'set' })
+  // A Cowork account with A's id runs on A's plan, and has its price.
+  assert.deepEqual(planPrice(`cowork:${A}`, readAccounts()), { monthly: 19.99, source: 'set' })
+  // Wrong prices and words change nothing.
+  for (const bad of ['-5', 'abc', '100001', '1e3', '12.345', '']) assert.deepEqual(price('aaaaaaaa', bad), [1, 'kestrel: A price is a number of dollars a month from 0 to 100,000, such as 100 or 19.99.'], bad)
+  assert.match(price('aaaaaaaa')[1], /^kestrel: Use "kestrel accounts price <key> <dollars a month>"/)
+  assert.match(price('aaaaaaaa', '5', '--clear')[1], /^kestrel: Use "kestrel accounts price <key>/)
+  assert.match(price('zzzz', '5')[1], /^kestrel: There is no account "zzzz"\./)
+  assert.equal(accountsJson(m).accounts[`claude:${A}`].price, 19.99)
+  // --clear: the table's price is back.
+  assert.deepEqual(price('aaaaaaaa', '--clear'), [0, 'The account claude:aaaaaaaa has no price of yours now.'])
+  assert.equal(accountsJson(m).accounts[`claude:${A}`].price, undefined)
+  assert.match(planOfA(), /\$100 a month \(the plan's public price\)/)
+  // A price that the file holds in a wrong shape is not used.
+  const file = join(m.kestrel, 'accounts.json')
+  const saved = JSON.parse(readFileSync(file, 'utf8'))
+  saved.accounts[`claude:${A}`].price = 'a lot'
+  writeFileSync(file, JSON.stringify(saved))
+  assert.deepEqual(planPrice(`claude:${A}`, readAccounts()), { monthly: 100, source: 'table' })
+})
+
+test('the words for the dollars: spend by the token, API value on a subscription, and both apart when a period mixes them', async () => {
+  const { paidLines, payingOf, DOLLARS } = await import('../src/plans.mjs')
+  assert.deepEqual(paidLines({ token: 12.5, subscription: 0, unknown: 0 }), ['Spend: $12.50, paid by the token, at list prices.'])
+  assert.deepEqual(paidLines({ token: 0, subscription: 412.3, unknown: 0 }), ["On subscriptions: $412 of API value. That is what the same use would cost by the token. You pay your plan's price, not this."])
+  assert.deepEqual(paidLines({ token: 12.5, subscription: 412.3, unknown: 0 }), ['Paid by the token: $12.50 (spend, at list prices)', 'On subscriptions: $412 of API value (what the same use would cost by the token)'])
+  assert.match(paidLines({ token: 0, subscription: 0, unknown: 3 })[0], /^\$3\.00 at list prices\. Kestrel does not know how this is paid\./)
+  assert.deepEqual(paidLines({ token: 0, subscription: 0, unknown: 0 }), [])
+  // How each kind of account pays.
+  const state = { accounts: new Map([['claude:x', { organizationType: 'claude_pro' }], ['claude:y', {}]]), signedIn: new Map() }
+  const none = new Map()
+  const pay = (key, cfg = {}, stored = none) => payingOf(key, state, { stored, cfg })
+  assert.equal(pay('api'), 'token')
+  assert.equal(pay('cloud'), 'token')
+  assert.equal(pay('claude:x'), 'subscription')
+  assert.equal(pay('cowork:x'), 'subscription')
+  assert.equal(pay('codex:plus'), 'subscription')
+  assert.equal(pay('claude:y'), 'unknown')
+  assert.equal(pay('claude:y', {}, new Map([['claude:y', { week: {} }]])), 'subscription')
+  assert.equal(pay('unknown', {}, new Map([['unknown', { week: {} }]])), 'subscription')
+  // An account whose way to pay is not known follows "kestrel plan" when it is set by hand.
+  assert.equal(pay('claude:y', { plan: 'subscription' }), 'subscription')
+  assert.equal(pay('claude:y', { plan: 'usage' }), 'token')
+  assert.equal(pay('api', { plan: 'subscription' }), 'token')
+  assert.deepEqual(DOLLARS, { subscription: 'API value', token: 'spend', unknown: 'list prices' })
 })
 
 test('"kestrel accounts" with one account has one row and says that Kestrel found one account, and "kestrel summary" has "By account" only with more than one', () => {

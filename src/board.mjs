@@ -613,9 +613,9 @@ function findingOf(f) {
  * the last 30 days at the first sync.
  */
 export async function buildPayload(board, { days, now = Date.now() } = {}) {
-  const [{ load }, { namesOn, sessionsNow }, { logLook }, { readFindings, findingsFile }, { storedLimits, isKey }, { readAccounts, labelOf }, { kindOf, planOf }, { settingsData, accountsNow }, { adviseData }, { applied }, { config }] = await Promise.all([
+  const [{ load }, { namesOn, sessionsNow }, { logLook }, { readFindings, findingsFile }, { storedLimits, isKey }, { readAccounts, labelOf }, { kindOf, planOf, planPrice }, { settingsData, accountsNow }, { adviseData }, { applied }, { config }] = await Promise.all([
     import('./store.mjs'), import('./top.mjs'), import('./hint.mjs'), import('./findings.mjs'), import('./billing.mjs'), import('./accounts.mjs'),
-    import('./accounts-report.mjs'), import('./settings.mjs'), import('./advise.mjs'), import('./actions.mjs'), import('./config.mjs'),
+    import('./plans.mjs'), import('./settings.mjs'), import('./advise.mjs'), import('./actions.mjs'), import('./config.mjs'),
   ])
   const from = days ? now - days * DAY : Number.isFinite(board.cursor) && board.cursor <= now ? board.cursor - OVERLAP : now - FIRST_DAYS * DAY
   const proposalsDue = !within(board.proposalsAt, now, PROPOSALS_EVERY)
@@ -677,7 +677,14 @@ export async function buildPayload(board, { days, now = Date.now() } = {}) {
     const r = limits[key.startsWith('cowork:') ? `claude:${key.slice(key.indexOf(':') + 1)}` : key]
     return !!(r?.five || r?.week)
   }
-  const accounts = [...keys].sort().map((key) => ({ key, label: text(labelOf(key, state), 100), billing: kindOf(key, state, hasLimits(key)), tier: planOf(key, state) }))
+  // The price of each account's plan a month: the person's own price ("set"), else the public
+  // price of a plan that Kestrel knows ("table"), else null. A Claude account and the Cowork
+  // account with the same id run on one plan, so both carry the same price.
+  const priceOf = (key) => {
+    const p = planPrice(key, state)
+    return p ? { monthly: p.monthly, source: p.source } : null
+  }
+  const accounts = [...keys].sort().map((key) => ({ key, label: text(labelOf(key, state), 100), billing: kindOf(key, state, hasLimits(key)), tier: planOf(key, state), price: priceOf(key) }))
 
   return {
     from,

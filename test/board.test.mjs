@@ -300,7 +300,7 @@ test('a sync sends the calls, sessions, commits, findings, limits, accounts, set
     const f = body.findings.items[0]
     assert.deepEqual([f.id, f.where.repo, f.scope, f.severity, f.kind, f.status], ['code.secret:~/work/widget:a.txt:1', '~/work/widget', 'repo:~/work/widget', 'high', 'code', 'open'])
     assert.deepEqual(body.limits, { [`claude:${ACCOUNT}`]: { five: reading } })
-    assert.deepEqual(body.accounts, [{ key: `claude:${ACCOUNT}`, label: 'claude:aaaaaaaa', billing: 'subscription', tier: null }])
+    assert.deepEqual(body.accounts, [{ key: `claude:${ACCOUNT}`, label: 'claude:aaaaaaaa', billing: 'subscription', tier: null, price: null }])
     assert.ok(Array.isArray(body.settings.settings) && body.settings.settings.some((s) => s.key === 'hud.names'))
     assert.equal(body.proposals.days, 30)
 
@@ -311,6 +311,42 @@ test('a sync sends the calls, sessions, commits, findings, limits, accounts, set
     assert.deepEqual(saved.lastSent, sent)
     assert.equal(saved.proposalsAt, now)
     assert.equal(statSync(join(c.kestrel, 'board.json')).mode & 0o777, 0o600)
+  } finally {
+    await b.close()
+  }
+})
+
+test('each account sent to the board has the price of its plan: the person\'s own, else a public price that Kestrel knows, else null', async () => {
+  const c = computer()
+  const now = Date.now()
+  const B = 'bbbbbbbb-2222-4222-8222-222222222222'
+  const C = 'cccccccc-3333-4333-8333-333333333333'
+  mkdirSync(c.kestrel, { recursive: true })
+  // A: Claude Max, with no price of the person's own. B: a Team seat, priced by the person. C: a
+  // Team seat without a price. Cowork with A's id shares A's plan. Codex on ChatGPT Plus.
+  writeFileSync(join(c.kestrel, 'accounts.json'), JSON.stringify({
+    accounts: {
+      [`claude:${ACCOUNT}`]: { organizationType: 'claude_max', billingType: 'stripe_subscription' },
+      [`claude:${B}`]: { organizationType: 'claude_team', seatTier: 'team_tier_1', price: 30 },
+      [`claude:${C}`]: { organizationType: 'claude_team', seatTier: 'team_tier_1' },
+      [`cowork:${ACCOUNT}`]: {},
+      'codex:plus': {},
+      api: {},
+    },
+    signedIn: {},
+  }))
+  const b = await standIn()
+  link(b.url)
+  try {
+    await sync({ now })
+    const byKey = Object.fromEntries(b.ingests()[0].body.accounts.map((a) => [a.key, a]))
+    assert.deepEqual(byKey[`claude:${ACCOUNT}`].price, { monthly: 100, source: 'table' })
+    assert.deepEqual(byKey[`cowork:${ACCOUNT}`].price, { monthly: 100, source: 'table' })
+    assert.deepEqual(byKey[`claude:${B}`].price, { monthly: 30, source: 'set' })
+    assert.equal(byKey[`claude:${C}`].price, null)
+    assert.deepEqual(byKey['codex:plus'].price, { monthly: 20, source: 'table' })
+    assert.equal(byKey.api.price, null)
+    for (const a of Object.values(byKey)) assert.deepEqual(Object.keys(a), ['key', 'label', 'billing', 'tier', 'price'])
   } finally {
     await b.close()
   }

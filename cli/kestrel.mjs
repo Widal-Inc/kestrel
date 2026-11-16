@@ -6,7 +6,7 @@
 import { existsSync, lstatSync, readFileSync, realpathSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { labelOf, readAccounts, setLabel, updateAccounts } from '../src/accounts.mjs'
+import { labelOf, readAccounts, setLabel, setPrice, updateAccounts } from '../src/accounts.mjs'
 import { analyze } from '../src/analyze.mjs'
 import { appCommand, appDir, copyApp, fromPlugin, nodeNote, refreshCopy, removeApp, version } from '../src/app.mjs'
 import { ACTIONS, actionsStatus, applied, apply, undo } from '../src/actions.mjs'
@@ -53,6 +53,7 @@ const USAGE = `kestrel: what your AI coding agents spend, and what the money pay
   kestrel accounts [--days 7]      spend and the plan's limits per account: Claude accounts, Cowork, Codex
   kestrel accounts --json          the same as JSON
   kestrel accounts label <key> "<label>"   give an account your own name (take it away with: --clear)
+  kestrel accounts price <key> <dollars>   the price of an account's plan a month (take it away with: --clear)
   kestrel models [--days 30]       spend by model, effort level and kind of work
   kestrel compactions [--days 30]  the compactions of your sessions: how many, and the context before and after
   kestrel advise [--days 30]       changes that would have saved money, from a replay of your logs
@@ -107,8 +108,9 @@ const USAGE = `kestrel: what your AI coding agents spend, and what the money pay
   kestrel --version               the version of this tool
 
 The reports read the session logs of Claude Code, of Codex, and of Cowork sessions that ran on this
-computer. Dollar figures are list prices per token. On a subscription they say what the same use
-would cost by the token, not what you pay. Everything stays on this machine, unless you link it
+computer. Dollar figures are list prices per token. For an account that pays by the token they are
+spend. On a subscription they are API value: what the same use would cost by the token, not what
+you pay. Everything stays on this machine, unless you link it
 to a Kestrel board with "kestrel board login": then Kestrel sends what it records to that board.
 It never sends the text of prompts, answers, tool results or files.`
 
@@ -468,9 +470,10 @@ function limit() {
  */
 async function accounts(days, since) {
   if (argv[0] === 'label') return accountsLabel()
+  if (argv[0] === 'price') return accountsPrice()
   if (!Number.isInteger(days) || days < 1) throw new Error('--days is a whole number of days, 1 or more.')
   const json = flag('--json') === true
-  if (argv.length) throw new Error(`"kestrel accounts" takes --days, --json or label, and "${argv[0]}" was given.`)
+  if (argv.length) throw new Error(`"kestrel accounts" takes --days, --json, label or price, and "${argv[0]}" was given.`)
   const { records, metas } = await load({ since, progress })
   const now = Date.now()
   const data = accountsData(records.filter((r) => r.ts >= since), { days, now, metas })
@@ -488,6 +491,19 @@ function accountsLabel() {
   const how = 'Use "kestrel accounts label <key> "<label>"", or "kestrel accounts label <key> --clear".'
   if (!key || more.length || (clear ? label !== undefined : label === undefined)) throw new Error(how)
   console.log(setLabel(key, clear ? undefined : label))
+}
+
+/**
+ * "kestrel accounts price <key> <dollars a month>" sets the price of an account's plan, and
+ * "kestrel accounts price <key> --clear" takes it away. A price the person set wins over the
+ * table of plans that Kestrel knows. The key can be the short form that "kestrel accounts" prints.
+ */
+function accountsPrice() {
+  const clear = flag('--clear') === true
+  const [, key, dollars, ...more] = argv
+  const how = 'Use "kestrel accounts price <key> <dollars a month>", or "kestrel accounts price <key> --clear".'
+  if (!key || more.length || (clear ? dollars !== undefined : dollars === undefined)) throw new Error(how)
+  console.log(setPrice(key, clear ? undefined : dollars))
 }
 
 /** Shows how the person pays, or sets it by hand. */

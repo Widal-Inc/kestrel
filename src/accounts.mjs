@@ -13,6 +13,7 @@
 //       billingType, seatTier, organizationType,   as Claude Code names them
 //       firstSeen, lastSeen,         the times of the first and the last model call Kestrel saw, in milliseconds
 //       label: "Work",               the person's own label, when they set one
+//       price: 100,                  the price of the plan in dollars a month, when the person set one (see plans.mjs)
 //     }
 //   },
 //   signedIn: { "<config folder>": "<key>" }   the account signed in now in each config folder of Claude Code
@@ -48,6 +49,9 @@ export const LABEL_MAX = 60
 const isObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v)
 const word = (v) => (typeof v === 'string' && WORD.test(v) ? v : undefined)
 const time = (v) => (Number.isFinite(v) ? v : undefined)
+/** The highest price a month that "kestrel accounts price" takes, in dollars. */
+export const PRICE_MAX = 100_000
+const price = (v) => (Number.isFinite(v) && v >= 0 && v <= PRICE_MAX ? v : undefined)
 const text = (v, max) => {
   const t = typeof v === 'string' ? plain(v).trim() : ''
   return t && t.length <= max ? t : undefined
@@ -59,7 +63,7 @@ function cleanEntry(e) {
   const out = {
     org: text(e.org, 100), orgId: typeof e.orgId === 'string' && ID.test(e.orgId) ? e.orgId : undefined,
     billingType: word(e.billingType), seatTier: word(e.seatTier), organizationType: word(e.organizationType),
-    firstSeen: time(e.firstSeen), lastSeen: time(e.lastSeen), label: text(e.label, LABEL_MAX),
+    firstSeen: time(e.firstSeen), lastSeen: time(e.lastSeen), label: text(e.label, LABEL_MAX), price: price(e.price),
   }
   return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined))
 }
@@ -239,4 +243,28 @@ export function setLabel(given, label) {
   e.label = clean
   saveAccounts(state)
   return `The account ${shortKey(key)} is now called "${clean}".`
+}
+
+/**
+ * Sets the price of an account's plan in dollars a month, or takes it away when `dollars` is
+ * undefined. `dollars` is the text the person typed: a number such as 100 or 19.99, with or
+ * without a "$" in front, from 0 to 100,000. A price the person set wins over the table of plans
+ * (see plans.mjs). Returns one sentence that says what changed. It throws one plain sentence for a
+ * wrong key or price.
+ */
+export function setPrice(given, dollars) {
+  const state = readAccounts()
+  const key = findKey(given, state.accounts.keys())
+  const e = state.accounts.get(key)
+  if (dollars === undefined) {
+    delete e.price
+    saveAccounts(state)
+    return `The account ${shortKey(key)} has no price of yours now.`
+  }
+  const typed = String(dollars).trim().replace(/^\$/, '')
+  const value = /^\d{1,6}(\.\d{1,2})?$/.test(typed) ? Number(typed) : NaN
+  if (price(value) === undefined) throw new Error(`A price is a number of dollars a month from 0 to ${PRICE_MAX.toLocaleString('en-US')}, such as 100 or 19.99.`)
+  e.price = value
+  saveAccounts(state)
+  return `The plan of the account ${shortKey(key)} costs ${Number.isInteger(value) ? `$${value.toLocaleString('en-US')}` : `$${value.toFixed(2)}`} a month now.`
 }
