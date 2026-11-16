@@ -1,0 +1,22 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.Widal-Inc/kestrel",
+  "title": "Kestrel",
+  "description": "Shows what your AI coding agents spend, and helps to spend less.",
+  "repository": {
+    "url": "https://github.com/Widal-Inc/kestrel",
+    "source": "github"
+  },
+  "websiteUrl": "https://kestrel.widal.com",
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/Widal-Inc/kestrel/releases/download/v0.1.0/kestrel-mcp.mcpb",
+      "fileSha256": "dcd0389d944475d6bae4b5d5e56c2b30817595b5bbbe6f19cc800f65cfc87bdc",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
