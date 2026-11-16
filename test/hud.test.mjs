@@ -134,7 +134,7 @@ test('the four lines show the session, the plan, the work and the hints, each wi
   const log = logOf([todos([['Read the code', 'completed'], ['Write the code', 'in_progress', 'Writing the code'], ['Test it', 'pending']]), agent('Explore', 'find the parser', 3)])
   const shown = show(session({ cwd: folder, transcript_path: log, prompt_cache: { warm: true, ttl: '1h', expires_at: sec(NOW + 52 * MIN), last_miss_at: sec(NOW - MIN), last_miss_cause: { causes: ['model_changed'] } } }))
   assert.equal(shown, [
-    '[Fable 5.2 · high] │ my-app git:(main) │ context █████░░░░░ 53% of 1M │ cache warm, 52 min left │ last cache loss: the model changed',
+    '[Fable 5.2 · high] │ my-app git:(main) │ context █████░░░░░ 53% of 1M │ cache warm, 52 min left │ cache lost: model changed',
     'week ███▌░░░░░░ 36% │ today 41M tokens, 96% from the cache',
     '▸ Writing the code (1/3) │ Explore: find the parser (3 min) │ other sessions: 1 waits for you',
   ].join('\n'))
@@ -578,7 +578,7 @@ test('"kestrel hud" shows the settings in words, a preview with the sample, what
     ...PREVIEW,
     '',
     'What each line shows:',
-    '  session  the model and its effort level, the folder and its git branch, the context, the cache',
+    '  session  the open security risks, the model and its effort level, the folder and its git branch, the context, the cache',
     '  plan     the plan\'s limits (or the dollars, when you pay by the token), and today\'s tokens of all agents',
     '  work     the task in progress, the agents that run, the other open sessions, and a ticket that is open twice',
     '  hint     the hint about the effort level, and the hint to compact',

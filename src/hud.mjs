@@ -64,9 +64,13 @@ const cut = (text, max = 60) => {
   return clean.length > max ? `${clean.slice(0, max - 3)}...` : clean
 }
 
-/** The line "session": the model and its effort level, the folder and its branch, the context, the cache, and the open security risks. */
+/**
+ * The line "session": the open security risks, the model and its effort level, the folder and its
+ * branch, the context, and the cache. The risks come first, because a terminal cuts a long line at
+ * its end.
+ */
 function sessionLine({ model, effort, folder, branch, ctx, cache, risk }, h) {
-  const parts = []
+  const parts = risk ? [risk] : []
   const name = [model, effort].filter((w) => w !== undefined).join(' · ')
   if (name) parts.push([`[${name}]`])
   if (folder) parts.push([branch ? `${folder} git:(${branch})` : folder])
@@ -75,7 +79,7 @@ function sessionLine({ model, effort, folder, branch, ctx, cache, risk }, h) {
     const text = ctx.pct === undefined ? `context ${tok(ctx.tokens)}` : `context ${h.bars ? `${bar(ctx.pct)} ` : ''}${ctx.pct}%${ctx.window ? ` of ${windowSize(ctx.window)}` : ''}`
     parts.push([text, ctx.tone])
   }
-  return [...parts, ...cache, ...(risk ? [risk] : [])]
+  return [...parts, ...cache]
 }
 
 /**
@@ -278,7 +282,7 @@ export function hudSettingsText(h) {
 
 const WHAT = [
   'What each line shows:',
-  '  session  the model and its effort level, the folder and its git branch, the context, the cache',
+  '  session  the open security risks, the model and its effort level, the folder and its git branch, the context, the cache',
   '  plan     the plan\'s limits (or the dollars, when you pay by the token), and today\'s tokens of all agents',
   '  work     the task in progress, the agents that run, the other open sessions, and a ticket that is open twice',
   '  hint     the hint about the effort level, and the hint to compact',

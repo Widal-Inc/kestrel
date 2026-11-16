@@ -824,10 +824,11 @@ test('the status line shows a red part for high risks and a yellow one for mediu
   assert.deepEqual(riskPart(join(root)), ['2 medium risks', 'warn'])
   saveFindings([makeFinding('set.sandbox-off', { key: 'p', scope: 'settings' }), makeFinding('set.bypass-mode', { key: 'q', scope: 'settings' })], { scope: 'settings', kind: 'settings', now: NOW })
   assert.deepEqual(riskPart(root), ['1 high risk', 'bad'])
-  assert.equal(one(), '$0.00 session (list prices) | 1 high risk | today $0.00')
-  // The lines: on the line "session", in red.
+  // The risks come first, so that a terminal that cuts the line at its end still shows them.
+  assert.equal(one(), '1 high risk | $0.00 session (list prices) | today $0.00')
+  // The lines: at the start of the line "session", in red.
   const lines = statusLine(input, NOW, { color: true, layout: 'lines', env: {}, spawn: () => ({ unref() {} }) }).split('\n')
-  assert.ok(lines[0].endsWith(`\x1b[31m1 high risk\x1b[0m`), lines[0])
+  assert.ok(lines[0].startsWith(`\x1b[31m1 high risk\x1b[0m │ `), lines[0])
   // Resolved: gone again.
   saveFindings([], { scope: 'settings', kind: 'settings', now: NOW })
   assert.deepEqual(riskPart(root), ['1 medium risk', 'warn'])

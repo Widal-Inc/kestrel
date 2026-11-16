@@ -265,9 +265,9 @@ function cachePart(cache, ctx, now, price) {
   return warm ? ['cache warm', warm] : undefined
 }
 
-// The names Claude Code gives the causes of a lost cache, in words.
-const CAUSES = { model_changed: 'the model changed', messages_rewritten: 'earlier messages were rewritten' }
-const causeWords = (cause) => (Object.hasOwn(CAUSES, cause) ? CAUSES[cause] : cause.startsWith('ttl_expired') ? 'the time ran out' : cause.replaceAll('_', ' '))
+// The names Claude Code gives the causes of a lost cache, in short words: the status line is narrow.
+const CAUSES = { model_changed: 'model changed', messages_rewritten: 'messages rewritten' }
+const causeWords = (cause) => (Object.hasOwn(CAUSES, cause) ? CAUSES[cause] : cause.startsWith('ttl_expired') ? 'timed out' : cause.replaceAll('_', ' '))
 
 /**
  * The part about a cache that was lost in the last 10 minutes as [text, tone], or undefined. It
@@ -284,7 +284,7 @@ function lossPart(cache, now) {
   const words = [...new Set((Array.isArray(given) ? given : []).filter((cause) => typeof cause === 'string' && cause).map(causeWords))]
   if (!words.length) return undefined
   const why = words.length > 1 ? `${words.slice(0, -1).join(', ')} and ${words.at(-1)}` : words[0]
-  return [`last cache loss: ${why}`, 'warn']
+  return [`cache lost: ${why}`, 'warn']
 }
 
 /** The tone of a limit in dollars: a warning from 80% of it, bad when it is reached. */
@@ -531,10 +531,10 @@ export function statusLine(input, now = Date.now(), opts = {}) {
     }, hud, on)
   }
 
-  const parts = [...(subscription ? limitParts(limitsNow, now) : sessionDollars), ...cacheParts]
+  // The open risks come first: a terminal cuts a long line at its end.
+  const parts = [...(risk ? [risk] : []), ...(subscription ? limitParts(limitsNow, now) : sessionDollars), ...cacheParts]
   if (ctx) parts.push([`context ${tok(ctx)}${used != null ? ` (${used}%)` : ''}`, ctxTone])
   if (input.effort?.level) parts.push([`effort ${input.effort.level}`])
-  if (risk) parts.push(risk)
   parts.push(...dollars, ...hints)
   // A part can hold text from Claude Code's input: the effort level, the cause of a lost cache.
   // The line goes to the terminal, so every part is shown without control characters. The only

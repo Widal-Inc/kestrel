@@ -170,10 +170,10 @@ test('the status line prints no control characters from Claude Code\'s input: th
     rate_limits: { seven_day: WEEK },
     prompt_cache: { warm: true, ttl: '1h', expires_at: sec(NOW + 4 * MIN), recache_tokens_if_cold: 527119, last_miss_at: sec(NOW - MIN), last_miss_cause: { causes: ['odd\x1b[31m_cause\x9b'] } },
   })
-  assert.equal(line(input), 'week 36% used, 44% of the week gone | cache warm, 4 min left | last cache loss: odd[31m cause | context 527k (53%) | effort hi]0;PWNghmore')
+  assert.equal(line(input), 'week 36% used, 44% of the week gone | cache warm, 4 min left | cache lost: odd[31m cause | context 527k (53%) | effort hi]0;PWNghmore')
   // With colours on, the only escape codes on the line are this tool's own colours.
   const inColour = line(input, NOW, { color: true })
-  assert.match(inColour, /\x1b\[33mlast cache loss: odd\[31m cause\x1b\[0m/)
+  assert.match(inColour, /\x1b\[33mcache lost: odd\[31m cause\x1b\[0m/)
   assert.doesNotMatch(inColour.replace(/\x1b\[(0|2|31|32|33)m/g, ''), /[\x00-\x1f\x7f-\x9f]/)
   // The short name of the folder is kept without them, and so it is in the title of the notification.
   assert.equal(kept('one').project, '[31mRED]0;PWN/proj')
@@ -992,32 +992,32 @@ test('a cache that was lost in the last 10 minutes: the line says why, in yellow
   const lost = (causes, ago = 3 * MIN) => ({ warm: true, ttl: '1h', expires_at: sec(NOW + 52 * MIN), last_miss_at: sec(NOW - ago), last_miss_cause: causes && { causes } })
   const parts = (prompt_cache) => coloured(session({ rate_limits: weekAt(36, 0.44), prompt_cache }))
   // The part stands after the one for the cache.
-  assert.deepEqual(parts(lost(['model_changed'])).slice(1), [['cache warm, 52 min left', 'good'], ['last cache loss: the model changed', 'warn'], ['context 527k (53%)', undefined], ['effort high', undefined]])
+  assert.deepEqual(parts(lost(['model_changed'])).slice(1), [['cache warm, 52 min left', 'good'], ['cache lost: model changed', 'warn'], ['context 527k (53%)', undefined], ['effort high', undefined]])
   const loss = (causes, ago) => parts(lost(causes, ago))[2]
-  assert.deepEqual(loss(['messages_rewritten']), ['last cache loss: earlier messages were rewritten', 'warn'])
-  assert.deepEqual(loss(['ttl_expired_1h']), ['last cache loss: the time ran out', 'warn'])
-  assert.deepEqual(loss(['ttl_expired_5m']), ['last cache loss: the time ran out', 'warn'])
-  assert.deepEqual(loss(['ttl_expired']), ['last cache loss: the time ran out', 'warn'])
+  assert.deepEqual(loss(['messages_rewritten']), ['cache lost: messages rewritten', 'warn'])
+  assert.deepEqual(loss(['ttl_expired_1h']), ['cache lost: timed out', 'warn'])
+  assert.deepEqual(loss(['ttl_expired_5m']), ['cache lost: timed out', 'warn'])
+  assert.deepEqual(loss(['ttl_expired']), ['cache lost: timed out', 'warn'])
   // A cause without words of its own is shown as it is named, with spaces.
-  assert.deepEqual(loss(['system_prompt_changed']), ['last cache loss: system prompt changed', 'warn'])
-  assert.deepEqual(loss(['constructor']), ['last cache loss: constructor', 'warn'])
+  assert.deepEqual(loss(['system_prompt_changed']), ['cache lost: system prompt changed', 'warn'])
+  assert.deepEqual(loss(['constructor']), ['cache lost: constructor', 'warn'])
   // Several causes, each once.
-  assert.deepEqual(loss(['model_changed', 'messages_rewritten']), ['last cache loss: the model changed and earlier messages were rewritten', 'warn'])
-  assert.deepEqual(loss(['ttl_expired_5m', 'model_changed', 'ttl_expired_1h', 'tools_changed']), ['last cache loss: the time ran out, the model changed and tools changed', 'warn'])
+  assert.deepEqual(loss(['model_changed', 'messages_rewritten']), ['cache lost: model changed and messages rewritten', 'warn'])
+  assert.deepEqual(loss(['ttl_expired_5m', 'model_changed', 'ttl_expired_1h', 'tools_changed']), ['cache lost: timed out, model changed and tools changed', 'warn'])
   // A loss without a cause gives no part: the context comes right after the cache.
   assert.deepEqual(loss(undefined), ['context 527k (53%)', undefined])
   assert.deepEqual(loss([]), ['context 527k (53%)', undefined])
   // Up to 10 minutes ago, and not after that.
-  assert.deepEqual(loss(['model_changed'], 10 * MIN), ['last cache loss: the model changed', 'warn'])
+  assert.deepEqual(loss(['model_changed'], 10 * MIN), ['cache lost: model changed', 'warn'])
   assert.deepEqual(loss(['model_changed'], 10 * MIN + 1e3), ['context 527k (53%)', undefined])
   assert.deepEqual(parts({ warm: true, ttl: '1h', expires_at: sec(NOW + 52 * MIN), last_miss_cause: { causes: ['model_changed'] } })[2], ['context 527k (53%)', undefined])
   // By the token the part is the same, and it has no dollars.
   saveConfig({ plan: 'usage' })
-  assert.deepEqual(parts(lost(['model_changed'])).slice(1, 4), [['cache warm, 52 min left, then $8.43', 'good'], ['last cache loss: the model changed', 'warn'], ['context 527k (53%)', undefined]])
+  assert.deepEqual(parts(lost(['model_changed'])).slice(1, 4), [['cache warm, 52 min left, then $8.43', 'good'], ['cache lost: model changed', 'warn'], ['context 527k (53%)', undefined]])
   // Without a context size the line still says it.
   freshHome()
   saveConfig({ plan: 'subscription' })
-  assert.equal(line(session({ context_window: {}, prompt_cache: lost(['model_changed']) })), 'plan limits not reported yet | last cache loss: the model changed | effort high')
+  assert.equal(line(session({ context_window: {}, prompt_cache: lost(['model_changed']) })), 'plan limits not reported yet | cache lost: model changed | effort high')
 })
 
 test('"kestrel nudge" shows the settings, turns the notification on and off, and "status" has a row for it', () => {
