@@ -549,12 +549,12 @@ test('a setting with more than two choices is a Select, and the accounts get a f
 })
 
 /** The Spend tab's data: today and 7 days, two accounts, and four proposals of which three show. */
-const SUMMARY = { days: 7, period: { cost: 312.5, tokens: 41e6, calls: 900, sessions: 12, unpriced: 0 }, today: { cost: 45.67, tokens: 12.3e6, calls: 120, sessions: 3, unpriced: 0 }, byDay: [], byTool: [] }
+const SUMMARY = { days: 7, period: { cost: 312.5, tokens: 41e6, calls: 900, sessions: 12, unpriced: 0, paid: { token: 12.5, subscription: 300, unknown: 0 } }, today: { cost: 45.67, tokens: 12.3e6, calls: 120, sessions: 3, unpriced: 0, paid: { token: 0, subscription: 45.67, unknown: 0 } }, byDay: [], byTool: [] }
 const ACCOUNTS = {
   days: 7, current: 'claude:aaa',
   accounts: [
-    { key: 'claude:aaa', label: 'Widal, Inc.', kind: 'subscription', tool: 'Claude Code', plan: 'max', limits: { five: { pct: 20, resetsAt: 1, at: 1 }, week: { pct: 40, resetsAt: 1, at: 1 } }, today: { tokens: 5e6, cost: 20 }, period: { tokens: 30e6, cost: 200, sessions: 8 }, lastSeen: 1 },
-    { key: 'api', label: 'api', kind: 'usage', tool: 'Claude Code', plan: null, limits: { five: null, week: null }, today: { tokens: 1000, cost: 0.5 }, period: { tokens: 2e6, cost: 9.25, sessions: 2 }, lastSeen: 1 },
+    { key: 'claude:aaa', label: 'Widal, Inc.', kind: 'subscription', tool: 'Claude Code', plan: 'max', limits: { five: { pct: 20, resetsAt: 1, at: 1 }, week: { pct: 40, resetsAt: 1, at: 1 } }, today: { tokens: 5e6, cost: 20 }, period: { tokens: 30e6, cost: 200, sessions: 8 }, lastSeen: 1, price: { monthly: 100, source: 'table' }, dollars: 'API value' },
+    { key: 'api', label: 'api', kind: 'usage', tool: 'Claude Code', plan: null, limits: { five: null, week: null }, today: { tokens: 1000, cost: 0.5 }, period: { tokens: 2e6, cost: 9.25, sessions: 2 }, lastSeen: 1, price: null, dollars: 'spend' },
   ],
 }
 const proposal = (fields) => ({ id: 'x', title: 'x', saving: 1, share: 0.01, action: null, args: [], applied: false, appliedAt: null, note: null, ...fields })
@@ -586,13 +586,13 @@ test('Spend: today and 7 days, per account, the top 3 proposals; Apply asks once
   const spendAt = shown.lastIndexOf('Spend')
   assert.deepEqual(shown.slice(spendAt, spendAt + 4), [
     'Spend',
-    'Today: 12M tokens, $45.67, 120 model calls',
-    'Last 7 days: 41M tokens, $313, 12 sessions',
-    'Dollars are list prices. On a subscription they say what the same use would cost by the token.',
+    'Today: 12M tokens, $45.67 of API value, 120 model calls',
+    'Last 7 days: 41M tokens, $12.50 spend by the token and $300 of API value on subscriptions, 12 sessions',
+    'Dollars are list prices. Paid by the token they are spend. On a subscription they are API value: what the same use would cost by the token.',
   ])
   assert.deepEqual(shown.slice(shown.indexOf('Per account') + 1, shown.indexOf('Per account') + 3), [
-    'Widal, Inc. (Claude Code, max): today 5.0M tokens, $20.00, last 7 days $200, 5 hours 20% used, week 40% used',
-    'api (Claude Code): today 1.0k tokens, $0.50, last 7 days $9.25',
+    'Widal, Inc. (Claude Code, max, $100 a month): today 5.0M tokens, $20.00 of API value, last 7 days $200 of API value, 5 hours 20% used, week 40% used',
+    'api (Claude Code): today 1.0k tokens, $0.50 spend, last 7 days $9.25 spend',
   ])
   // Three proposals, each with what can be done about it. The fourth does not show.
   assert.ok(shown.includes('1. Start sessions at a lower effort: $120 less'))
@@ -677,7 +677,9 @@ test('a run that fails shows one plain line in the pane, and a missing "kestrel 
   assert.ok(words(await d.draw()).includes('At least one line of the status line stays on. For one line, use: kestrel settings set hud.layout one'))
 
   // This version has no "kestrel accounts": the real command says it does not know it, and the tab shows no failure.
-  s = standIn({ answer: (args) => (args[0] === 'accounts' || args[0] === 'top' ? realAnswer(args) : args[0] === 'summary' ? ok(SUMMARY) : ok(ADVISE)) })
+  // Its summary does not split the dollars by how they are paid either: the tab gives the dollars alone.
+  const older = { ...SUMMARY, period: { ...SUMMARY.period, paid: undefined }, today: { ...SUMMARY.today, paid: undefined } }
+  s = standIn({ answer: (args) => (args[0] === 'accounts' || args[0] === 'top' ? realAnswer(args) : args[0] === 'summary' ? ok(older) : ok(ADVISE)) })
   d = driver(await loadMod(), s)
   await d.command('kestrel:open')
   await settle()

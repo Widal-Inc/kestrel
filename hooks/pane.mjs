@@ -447,11 +447,38 @@ function drawDetail($, ui, d) {
   return [heading(ui, s.shown.session), ...lines.map((l) => line(ui, l)), blank(ui), back]
 }
 
-/** One account on the Spend tab, from "kestrel accounts --json". */
+/**
+ * Dollars with the word for what they are: spend for an account that pays by the token, API value
+ * on a subscription (what the same use would cost by the token). `dollars` is what "kestrel
+ * accounts --json" says. A version of Kestrel that does not say it gives the dollars alone.
+ */
+const valued = (amount, dollars) => (dollars === 'API value' ? `${money(amount)} of API value` : dollars === 'spend' ? `${money(amount)} spend` : money(amount))
+
+/** A price a month: whole dollars without cents. */
+const monthly = (x) => (Number.isInteger(x) ? `$${x.toLocaleString('en-US')}` : money(x))
+
+/**
+ * The dollars of a part of "kestrel summary --json", with what they are: `paid` splits them into
+ * spend by the token, API value on subscriptions, and dollars of accounts whose way to pay is not
+ * known. A version of Kestrel without `paid` gives the dollars alone.
+ */
+function paidWords(part) {
+  const p = part?.paid
+  const has = (k) => Number.isFinite(p?.[k]) && p[k] > 0
+  if (!p || ![has('token'), has('subscription'), has('unknown')].some(Boolean)) return money(part?.cost ?? 0)
+  if (has('token') && !has('subscription') && !has('unknown')) return `${money(p.token)} spend`
+  if (has('subscription') && !has('token') && !has('unknown')) return `${money(p.subscription)} of API value`
+  if (!has('token') && !has('subscription')) return money(part.cost)
+  const words = [has('token') && `${money(p.token)} spend by the token`, has('subscription') && `${money(p.subscription)} of API value on subscriptions`, has('unknown') && `${money(p.unknown)} at list prices`].filter(Boolean)
+  return words.length === 2 ? words.join(' and ') : words.join(', ')
+}
+
+/** One account on the Spend tab, from "kestrel accounts --json": its dollars with what they are, and the price of its plan when known. */
 function accountLine(a, days) {
   const limits = [a.limits?.five && `5 hours ${a.limits.five.pct}% used`, a.limits?.week && `week ${a.limits.week.pct}% used`].filter(Boolean)
-  const what = [a.tool, a.plan].filter(Boolean).join(', ')
-  const parts = [`today ${tok(a.today?.tokens ?? 0)} tokens, ${money(a.today?.cost ?? 0)}`, `last ${days} days ${money(a.period?.cost ?? 0)}`, ...limits]
+  const price = Number.isFinite(a.price?.monthly) ? `${monthly(a.price.monthly)} a month` : undefined
+  const what = [a.tool, a.plan, price].filter(Boolean).join(', ')
+  const parts = [`today ${tok(a.today?.tokens ?? 0)} tokens, ${valued(a.today?.cost ?? 0, a.dollars)}`, `last ${days} days ${valued(a.period?.cost ?? 0, a.dollars)}`, ...limits]
   return `${a.label ?? a.key}${what ? ` (${what})` : ''}: ${parts.join(', ')}`
 }
 
@@ -462,9 +489,9 @@ function drawSpend($, ui) {
   const s = spend.summary
   if (s) {
     out.push(heading(ui, 'Spend'))
-    out.push(line(ui, `Today: ${tok(s.today.tokens)} tokens, ${money(s.today.cost)}, ${s.today.calls} model calls`))
-    out.push(line(ui, `Last ${s.days} days: ${tok(s.period.tokens)} tokens, ${money(s.period.cost)}, ${s.period.sessions} sessions`))
-    out.push(line(ui, 'Dollars are list prices. On a subscription they say what the same use would cost by the token.', { dimColor: true }))
+    out.push(line(ui, `Today: ${tok(s.today.tokens)} tokens, ${paidWords(s.today)}, ${s.today.calls} model calls`))
+    out.push(line(ui, `Last ${s.days} days: ${tok(s.period.tokens)} tokens, ${paidWords(s.period)}, ${s.period.sessions} sessions`))
+    out.push(line(ui, 'Dollars are list prices. Paid by the token they are spend. On a subscription they are API value: what the same use would cost by the token.', { dimColor: true }))
   }
   if (spend.accounts?.length) {
     out.push(blank(ui), heading(ui, 'Per account'))
