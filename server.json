@@ -8,12 +8,12 @@
     "source": "github"
   },
   "websiteUrl": "https://code.widal.com",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "packages": [
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/Widal-Inc/widal-code/releases/download/v0.2.0/widal-code.mcpb",
-      "fileSha256": "5d12ad0dc9d4db4bc79301ba28bb69e386dd71d9e39dfbc68d2c6acab5227feb",
+      "identifier": "https://github.com/Widal-Inc/widal-code/releases/download/v0.3.0/widal-code.mcpb",
+      "fileSha256": "648149332d0619ee3632ce08b3b135d5bef47d899f81df086df02d7ccbb9d101",
       "transport": {
         "type": "stdio"
       }
