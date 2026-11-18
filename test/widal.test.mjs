@@ -5,15 +5,17 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
-const dir = mkdtempSync(join(tmpdir(), 'kestrel-test-'))
-// Kestrel also reads the config folders of Claude Code in the home folder, so the home folder is a
+const dir = mkdtempSync(join(tmpdir(), 'widal-code-test-'))
+// Widal.Code also reads the config folders of Claude Code in the home folder, so the home folder is a
 // made-up one too.
 process.env.HOME = join(dir, 'person')
-process.env.KESTREL_HOME = join(dir, 'home')
+// The link that Claude Code's settings call, in the tool's folder in the made-up home folder.
+const OWN = join(process.env.HOME, '.widal', 'bin', 'widal')
+process.env.WIDAL_HOME = join(dir, 'home')
 process.env.CLAUDE_CONFIG_DIR = join(dir, 'claude')
 process.env.CODEX_HOME = join(dir, 'codex')
 // Cowork's folder too: without this a test would read the real Cowork logs of whoever runs it.
-process.env.KESTREL_COWORK_DIR = join(dir, 'cowork')
+process.env.WIDAL_COWORK_DIR = join(dir, 'cowork')
 mkdirSync(process.env.CLAUDE_CONFIG_DIR, { recursive: true })
 
 const { cost, priceOf } = await import('../src/prices.mjs')
@@ -165,13 +167,13 @@ test('the status line shows the plan\'s limit, the cache and the context, and th
 test('install keeps the other settings and hooks, saves a copy first, and uninstall takes it out again', () => {
   const file = join(process.env.CLAUDE_CONFIG_DIR, 'settings.json')
   writeFileSync(file, JSON.stringify({ theme: 'dark', hooks: { PreToolUse: [{ matcher: '', hooks: [{ type: 'command', command: '/x/auto-allow.sh' }] }] } }))
-  installStatusLine('/bin/kestrel')
-  setHook('/bin/kestrel', true)
-  setHook('/bin/kestrel', true) // Twice adds it once.
+  installStatusLine(OWN)
+  setHook(OWN, true)
+  setHook(OWN, true) // Twice adds it once.
   let s = JSON.parse(readFileSync(file, 'utf8'))
   assert.equal(s.theme, 'dark')
-  assert.equal(s.statusLine.command, '/bin/kestrel statusline')
-  assert.deepEqual(s.hooks.PreToolUse.map((m) => m.hooks[0].command), ['/x/auto-allow.sh', '/bin/kestrel hook'])
+  assert.equal(s.statusLine.command, `${OWN} statusline`)
+  assert.deepEqual(s.hooks.PreToolUse.map((m) => m.hooks[0].command), ['/x/auto-allow.sh', `${OWN} hook`])
   assert.deepEqual(installed(), { statusLine: true, otherStatusLine: undefined, hook: true, refresh: 30 })
   assert.equal(uninstall(), true)
   s = JSON.parse(readFileSync(file, 'utf8'))
@@ -179,7 +181,7 @@ test('install keeps the other settings and hooks, saves a copy first, and uninst
   assert.deepEqual(s.hooks.PreToolUse.map((m) => m.hooks[0].command), ['/x/auto-allow.sh'])
 
   writeFileSync(file, JSON.stringify({ statusLine: { type: 'command', command: 'other-tool' } }))
-  assert.match(installStatusLine('/bin/kestrel'), /already has a status line/)
+  assert.match(installStatusLine(OWN), /already has a status line/)
   assert.equal(JSON.parse(readFileSync(file, 'utf8')).statusLine.command, 'other-tool')
 })
 
@@ -222,20 +224,20 @@ test('apply changes one setting and remembers what was there, and undo puts that
   const file = join(process.env.CLAUDE_CONFIG_DIR, 'settings.json')
   const settings = () => JSON.parse(readFileSync(file, 'utf8'))
   writeFileSync(file, JSON.stringify({ theme: 'dark', subagentPromptCacheTtl: '5m', hooks: { PreToolUse: [{ matcher: '', hooks: [{ type: 'command', command: '/x/auto-allow.sh' }] }] } }))
-  assert.match(applyAction('subagent-cache-1h', '/bin/kestrel').join('\n'), /undo subagent-cache-1h/)
+  assert.match(applyAction('subagent-cache-1h', OWN).join('\n'), /undo subagent-cache-1h/)
   assert.equal(settings().subagentPromptCacheTtl, '1h')
-  assert.deepEqual(applyAction('subagent-cache-1h', '/bin/kestrel'), ['subagent-cache-1h is already applied.'])
-  applyAction('model-switch-cost', '/bin/kestrel')
-  assert.equal(settings().hooks.PreModelSwitch[0].hooks[0].command, '/bin/kestrel hook model-switch')
+  assert.deepEqual(applyAction('subagent-cache-1h', OWN), ['subagent-cache-1h is already applied.'])
+  applyAction('model-switch-cost', OWN)
+  assert.equal(settings().hooks.PreModelSwitch[0].hooks[0].command, `${OWN} hook model-switch`)
   assert.deepEqual(Object.keys(appliedActions()).sort(), ['model-switch-cost', 'subagent-cache-1h'])
-  undoAction('subagent-cache-1h', '/bin/kestrel')
+  undoAction('subagent-cache-1h', OWN)
   assert.equal(settings().subagentPromptCacheTtl, '5m') // What was there before, not just "gone".
-  undoAction('model-switch-cost', '/bin/kestrel')
+  undoAction('model-switch-cost', OWN)
   assert.equal(settings().hooks.PreModelSwitch, undefined)
   assert.deepEqual(settings().hooks.PreToolUse.map((m) => m.hooks[0].command), ['/x/auto-allow.sh'])
   assert.equal(settings().theme, 'dark')
-  assert.match(undoAction('subagent-cache-1h', '/bin/kestrel')[0], /was not applied by this tool/)
-  assert.throws(() => applyAction('no-such-thing', '/bin/kestrel'), /There is no action/)
+  assert.match(undoAction('subagent-cache-1h', OWN)[0], /was not applied by this tool/)
+  assert.throws(() => applyAction('no-such-thing', OWN), /There is no action/)
 })
 
 test('the hook before a change of model asks when it can, shows the cost when it cannot, and is silent when the cache is gone', () => {

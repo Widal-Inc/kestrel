@@ -1,4 +1,4 @@
-// Tests for the status line in lines and the command "kestrel hud". With made-up input, session
+// Tests for the status line in lines and the command "widal hud". With made-up input, session
 // files, logs and today.json. Run: node --test
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
@@ -8,14 +8,14 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-const dir = mkdtempSync(join(tmpdir(), 'kestrel-hud-test-'))
+const dir = mkdtempSync(join(tmpdir(), 'widal-code-hud-test-'))
 // The home folder too: the status line can start the command, and nothing of it may reach the real one.
 process.env.HOME = join(dir, 'person')
-process.env.KESTREL_HOME = join(dir, 'home')
+process.env.WIDAL_HOME = join(dir, 'home')
 process.env.CLAUDE_CONFIG_DIR = join(dir, 'claude')
 process.env.CODEX_HOME = join(dir, 'codex')
 // Cowork's folder too: without this a test would read the real Cowork logs of whoever runs it.
-process.env.KESTREL_COWORK_DIR = join(dir, 'cowork')
+process.env.WIDAL_COWORK_DIR = join(dir, 'cowork')
 mkdirSync(process.env.CLAUDE_CONFIG_DIR, { recursive: true })
 
 const { saveConfig, statusLine } = await import('../src/claude-code.mjs')
@@ -25,7 +25,7 @@ const { localDay, writeToday } = await import('../src/today-file.mjs')
 // Each test gets its own empty folder for this tool's files, so that no test sees another's.
 let homes = 0
 const freshHome = () => {
-  process.env.KESTREL_HOME = join(dir, `home-${++homes}`)
+  process.env.WIDAL_HOME = join(dir, `home-${++homes}`)
   starts.length = 0
 }
 
@@ -37,7 +37,7 @@ const DAY = 86400e3
 const sec = (ms) => Math.round(ms / 1000)
 const iso = (ms) => new Date(ms).toISOString()
 
-// The starts of "kestrel refresh-today" that the status lines of a test made, each as the
+// The starts of "widal refresh-today" that the status lines of a test made, each as the
 // arguments of the spawn. No test starts the real command.
 const starts = []
 const spawner = (...args) => {
@@ -51,11 +51,11 @@ const spawner = (...args) => {
  */
 const show = (input, now = NOW, opts = {}) => statusLine(input, now, { env: {}, color: false, notify: () => {}, spawn: spawner, ...opts })
 /** What the status line keeps about one session. */
-const kept = (id = 'one') => JSON.parse(readFileSync(join(process.env.KESTREL_HOME, 'sessions', `${id}.json`), 'utf8'))
+const kept = (id = 'one') => JSON.parse(readFileSync(join(process.env.WIDAL_HOME, 'sessions', `${id}.json`), 'utf8'))
 /** Writes the file of another session, as its status line would have kept it. */
 const otherSession = (id, fields) => {
-  mkdirSync(join(process.env.KESTREL_HOME, 'sessions'), { recursive: true })
-  writeFileSync(join(process.env.KESTREL_HOME, 'sessions', `${id}.json`), JSON.stringify({ day: localDay(NOW), cost: 1, dayStart: 0, ...fields }))
+  mkdirSync(join(process.env.WIDAL_HOME, 'sessions'), { recursive: true })
+  writeFileSync(join(process.env.WIDAL_HOME, 'sessions', `${id}.json`), JSON.stringify({ day: localDay(NOW), cost: 1, dayStart: 0, ...fields }))
 }
 
 let repos = 0
@@ -300,8 +300,8 @@ test('other sessions: working, waiting for you, one that is not open, and the wa
   // Not open: the status line last ran 2 minutes ago. Its ticket does not count either.
   otherSession('closed', { at: NOW - 2 * MIN, callAt: NOW - 2 * MIN, project: 'work/d', ticket: 'ABC-321' })
   // A file that cannot be read, and one that is not of a session.
-  writeFileSync(join(process.env.KESTREL_HOME, 'sessions', 'broken.json'), '{')
-  writeFileSync(join(process.env.KESTREL_HOME, 'sessions', 'notes.txt'), 'x')
+  writeFileSync(join(process.env.WIDAL_HOME, 'sessions', 'broken.json'), '{')
+  writeFileSync(join(process.env.WIDAL_HOME, 'sessions', 'notes.txt'), 'x')
   const input = session({ cwd: folder })
   assert.equal(onlyLines(['work'], input), 'other sessions: 1 working, 2 wait for you │ ABC-321 is also open in work/a')
   // Both parts are yellow while one waits for you.
@@ -345,8 +345,8 @@ test('today\'s part: there, old (shown, and a refresh starts), missing (a refres
   assert.equal(plan(), 'plan limits not reported yet')
   assert.equal(starts.length, 1)
   const [[program, args, options]] = starts
-  assert.deepEqual([program, args, options], [process.execPath, [fileURLToPath(new URL('../cli/kestrel.mjs', import.meta.url)), 'refresh-today'], { detached: true, stdio: 'ignore' }])
-  assert.equal(JSON.parse(readFileSync(join(process.env.KESTREL_HOME, 'today.start'), 'utf8')), NOW)
+  assert.deepEqual([program, args, options], [process.execPath, [fileURLToPath(new URL('../cli/widal.mjs', import.meta.url)), 'refresh-today'], { detached: true, stdio: 'ignore' }])
+  assert.equal(JSON.parse(readFileSync(join(process.env.WIDAL_HOME, 'today.start'), 'utf8')), NOW)
   // Not again within 2 minutes, again after them.
   plan(NOW + MIN)
   plan(NOW + 2 * MIN - 1)
@@ -462,7 +462,7 @@ test('a line that fails is left out and the others are still shown, and broken f
   freshHome()
   writeToday({ day: localDay(NOW), at: NOW, tokens: 41e6, cacheRead: 39.4e6 })
   // The work line reads the folder of the sessions. A file there that is a folder cannot be read.
-  mkdirSync(join(process.env.KESTREL_HOME, 'sessions', 'odd.json'), { recursive: true })
+  mkdirSync(join(process.env.WIDAL_HOME, 'sessions', 'odd.json'), { recursive: true })
   otherSession('two', { at: 'now', callAt: [] })
   assert.equal(onlyLines(['work', 'plan'], session()), 'week ███▌░░░░░░ 36% │ today 41M tokens, 96% from the cache')
   // A log that is missing, a folder or no text: no task list, and no error.
@@ -470,7 +470,7 @@ test('a line that fails is left out and the others are still shown, and broken f
 })
 
 /** Every file below this tool's folder, as one text. */
-const filesText = () => readdirSync(process.env.KESTREL_HOME, { recursive: true, withFileTypes: true })
+const filesText = () => readdirSync(process.env.WIDAL_HOME, { recursive: true, withFileTypes: true })
   .filter((f) => f.isFile())
   .map((f) => readFileSync(join(f.parentPath ?? f.path, f.name), 'utf8'))
   .join('\n')
@@ -538,20 +538,20 @@ test('speed: one run with all four lines stays well under 100 ms, with a log of 
   assert.ok(fastest < 100, `the fastest of three runs took ${fastest.toFixed(1)} ms`)
 })
 
-// From here on: the command "kestrel hud".
+// From here on: the command "widal hud".
 
-const BIN = fileURLToPath(new URL('../cli/kestrel.mjs', import.meta.url))
+const BIN = fileURLToPath(new URL('../cli/widal.mjs', import.meta.url))
 /**
- * Runs "kestrel hud" with folders of its own below `name`: the home folder, this tool's folder,
+ * Runs "widal hud" with folders of its own below `name`: the home folder, this tool's folder,
  * and the folders of Claude Code, Codex and Cowork. The command gets nothing else of the real
  * environment but the PATH. `run` takes the words after "hud". `settings` reads this tool's settings.
  */
 function command(name) {
   const own = join(dir, name)
-  const env = { PATH: process.env.PATH, HOME: own, USERPROFILE: own, KESTREL_HOME: join(own, 'home'), CLAUDE_CONFIG_DIR: join(own, 'claude'), CODEX_HOME: join(own, 'codex'), KESTREL_COWORK_DIR: join(own, 'cowork') }
+  const env = { PATH: process.env.PATH, HOME: own, USERPROFILE: own, WIDAL_HOME: join(own, 'home'), CLAUDE_CONFIG_DIR: join(own, 'claude'), CODEX_HOME: join(own, 'codex'), WIDAL_COWORK_DIR: join(own, 'cowork') }
   mkdirSync(env.CLAUDE_CONFIG_DIR, { recursive: true })
   const run = (...args) => spawnSync(process.execPath, [BIN, 'hud', ...args], { encoding: 'utf8', env })
-  const settings = () => JSON.parse(readFileSync(join(env.KESTREL_HOME, 'config.json'), 'utf8'))
+  const settings = () => JSON.parse(readFileSync(join(env.WIDAL_HOME, 'config.json'), 'utf8'))
   return { env, run, settings }
 }
 
@@ -564,9 +564,9 @@ const PREVIEW = [
 ]
 const ONE = '5 hour limit 33% used, 60% of its time gone | week 85% used, 59% of the week gone: full about 2.2 days early | cache warm, 52 min left | context 420k (42%) | effort high | context 420k: a good moment to /compact'
 /** What a change prints: what was saved, the new preview, and the way back. */
-const saved = (words, preview) => [`Saved. ${words}`, '', 'Preview with sample data:', '', ...preview, '', 'Take it back with: kestrel hud undo', ''].join('\n')
+const saved = (words, preview) => [`Saved. ${words}`, '', 'Preview with sample data:', '', ...preview, '', 'Take it back with: widal hud undo', ''].join('\n')
 
-test('"kestrel hud" shows the settings in words, a preview with the sample, what each line shows, and the commands', () => {
+test('"widal hud" shows the settings in words, a preview with the sample, what each line shows, and the commands', () => {
   const { run } = command('hud-show')
   const r = run()
   assert.deepEqual([r.status, r.stderr], [0, ''])
@@ -582,25 +582,25 @@ test('"kestrel hud" shows the settings in words, a preview with the sample, what
     '  plan     the plan\'s limits (or the dollars, when you pay by the token), and today\'s tokens of all agents',
     '  work     the task in progress, the agents that run, the other open sessions, and a ticket that is open twice',
     '  hint     the hint about the effort level, and the hint to compact',
-    'The names of tasks and agents show on your screen. Kestrel keeps them in no file. A computer linked to a Kestrel board sends them to the board too.',
+    'The names of tasks and agents show on your screen. Widal.Code keeps them in no file. A computer linked to a Widal.Code board sends them to the board too.',
     '',
     'Change it with:',
-    '  kestrel hud lines session,plan,work,hint   the lines to show, in this order (any of the four)',
-    '  kestrel hud lines                          all four lines again',
-    '  kestrel hud one                            one line',
-    '  kestrel hud bars on|off                    bars for the context and the limits, or numbers only',
-    '  kestrel hud names on|off                   the names of tasks and agents, or counts only',
-    '  kestrel hud undo                           put back the settings from before the last change',
+    '  widal hud lines session,plan,work,hint   the lines to show, in this order (any of the four)',
+    '  widal hud lines                          all four lines again',
+    '  widal hud one                            one line',
+    '  widal hud bars on|off                    bars for the context and the limits, or numbers only',
+    '  widal hud names on|off                   the names of tasks and agents, or counts only',
+    '  widal hud undo                           put back the settings from before the last change',
     '',
   ].join('\n'))
   // It only shows: it saves nothing.
   assert.equal(readdirSync(join(dir, 'hud-show')).includes('home'), false)
-  // "kestrel help" names every one of its commands.
+  // "widal help" names every one of its commands.
   const help = spawnSync(process.execPath, [BIN, 'help'], { encoding: 'utf8', env: { PATH: process.env.PATH, HOME: join(dir, 'hud-show') } }).stdout
-  for (const words of ['hud', 'hud lines \\[list\\]', 'hud one', 'hud bars on\\|off', 'hud names on\\|off', 'hud undo']) assert.match(help, new RegExp(`^  kestrel ${words} +\\S`, 'm'), words)
+  for (const words of ['hud', 'hud lines \\[list\\]', 'hud one', 'hud bars on\\|off', 'hud names on\\|off', 'hud undo']) assert.match(help, new RegExp(`^  widal ${words} +\\S`, 'm'), words)
 })
 
-test('each change prints the new preview and is saved, and "kestrel hud undo" puts back the settings from before, one step', () => {
+test('each change prints the new preview and is saved, and "widal hud undo" puts back the settings from before, one step', () => {
   const { run, settings, env } = command('hud-change')
   const out = (...args) => {
     const r = run(...args)
@@ -608,8 +608,8 @@ test('each change prints the new preview and is saved, and "kestrel hud undo" pu
     return r.stdout
   }
   // Other settings in the file stay as they are.
-  mkdirSync(env.KESTREL_HOME, { recursive: true })
-  writeFileSync(join(env.KESTREL_HOME, 'config.json'), JSON.stringify({ plan: 'subscription' }))
+  mkdirSync(env.WIDAL_HOME, { recursive: true })
+  writeFileSync(join(env.WIDAL_HOME, 'config.json'), JSON.stringify({ plan: 'subscription' }))
   // Lines in the given order. Before, nothing was set.
   assert.equal(out('lines', 'plan,session'), saved('The status line shows 2 lines, in this order: plan, session. Bars on. Names of tasks and agents on.', [PREVIEW[1], PREVIEW[0]]))
   assert.deepEqual(settings(), { plan: 'subscription', hud: { layout: 'lines', lines: ['plan', 'session'], bars: true, names: true }, hudBefore: null })
@@ -650,15 +650,15 @@ test('a wrong word gives one plain sentence that lists the right ones, exit code
     [['foo'], '"foo" is not one of lines, one, bars, names, undo.'],
     [['lines', 'session,foo'], '"foo" is not one of session, plan, work, hint.'],
     [['bars', 'maybe'], '"maybe" is not one of on, off.'],
-    [['names'], '"kestrel hud names" needs one of on, off.'],
-    [['names', 'off', 'now'], '"kestrel hud names off" takes no more words, and "now" was given.'],
-    [['one', 'two'], '"kestrel hud one" takes no more words, and "two" was given.'],
-    [['undo', 'all'], '"kestrel hud undo" takes no more words, and "all" was given.'],
+    [['names'], '"widal hud names" needs one of on, off.'],
+    [['names', 'off', 'now'], '"widal hud names off" takes no more words, and "now" was given.'],
+    [['one', 'two'], '"widal hud one" takes no more words, and "two" was given.'],
+    [['undo', 'all'], '"widal hud undo" takes no more words, and "all" was given.'],
   ]) {
     const r = run(...args)
-    assert.deepEqual([r.status, r.stdout, r.stderr], [1, '', `kestrel: ${sentence}\n`], args.join(' '))
+    assert.deepEqual([r.status, r.stdout, r.stderr], [1, '', `widal: ${sentence}\n`], args.join(' '))
   }
-  assert.equal(existsSync(join(env.KESTREL_HOME, 'config.json')), false)
+  assert.equal(existsSync(join(env.WIDAL_HOME, 'config.json')), false)
 })
 
 test('the preview shows what the status line shows for the same sample, in both layouts, with and without colours', () => {
@@ -691,11 +691,11 @@ test('the preview shows what the status line shows for the same sample, in both 
   assert.equal(hudPreview(hudConfig({ hud: { layout: 'one' } })), ONE)
 })
 
-// From here on: the plugin's command "/kestrel:hud" and the skill.
+// From here on: the plugin's command "/widal:hud" and the skill.
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 // How the plugin runs the tool: node with the command's file in the plugin's folder.
-const TOOL = 'node "${CLAUDE_PLUGIN_ROOT}/cli/kestrel.mjs"'
+const TOOL = 'node "${CLAUDE_PLUGIN_ROOT}/cli/widal.mjs"'
 
 /** The front matter of a Markdown file (the "key: value" lines between two lines of "---" at its top) as an object, and the text after it. */
 function markdown(...path) {
@@ -709,7 +709,7 @@ function markdown(...path) {
   return { fields, body }
 }
 
-test('the plugin\'s command "/kestrel:hud" runs "kestrel hud", picks one command, shows its preview, names the undo, and never changes Claude Code\'s settings', () => {
+test('the plugin\'s command "/widal:hud" runs "widal hud", picks one command, shows its preview, names the undo, and never changes Claude Code\'s settings', () => {
   const { fields, body } = markdown('commands', 'hud.md')
   assert.deepEqual(Object.keys(fields).sort(), ['allowed-tools', 'argument-hint', 'description', 'disable-model-invocation'])
   // The person runs the command. The model does not start it on its own.
@@ -719,18 +719,18 @@ test('the plugin\'s command "/kestrel:hud" runs "kestrel hud", picks one command
   for (const words of ['show agents', 'only two lines', 'hide the names', 'go back']) assert.ok(fields.description.includes(`"${words}"`), words)
   // The person's words reach the model.
   assert.match(body, /In their own words: \$ARGUMENTS\n/)
-  // The steps: run "kestrel hud", pick one command, run it, show the preview, name the undo.
+  // The steps: run "widal hud", pick one command, run it, show the preview, name the undo.
   assert.ok(body.includes(`1. Run \`${TOOL} hud\` with the Bash tool.`))
   assert.match(body, /\n2\. Pick the one command from that list that does what the person asked\./)
   assert.ok(body.includes(`\n3. Run that one command with the Bash tool: \`${TOOL} hud\` and its words.`))
   assert.match(body, /\n4\. Show the preview that it prints, exactly as it is, in one code block\./)
-  assert.match(body, /\n5\. Say that `\/kestrel:hud undo` takes the change back\./)
+  assert.match(body, /\n5\. Say that `\/widal:hud undo` takes the change back\./)
   assert.match(body, /\nNever change Claude Code's settings for this, and run no other command\./)
   // Every program that the file names is the tool's "hud", which the allowed tool covers.
   const programs = [...body.matchAll(/`(node [^`]*)`/g)].map(([, line]) => line)
   assert.equal(programs.length, 2)
   for (const line of programs) assert.equal(line, `${TOOL} hud`)
-  // Every example is a command that "kestrel hud" takes.
+  // Every example is a command that "widal hud" takes.
   const examples = [...body.matchAll(/`hud ([^`]*)`/g)].map(([, words]) => words.split(' '))
   assert.deepEqual(examples.map((words) => words[0]), ['lines', 'names', 'lines', 'lines', 'names', 'bars', 'one', 'undo'])
   const { run } = command('hud-examples')
@@ -740,9 +740,9 @@ test('the plugin\'s command "/kestrel:hud" runs "kestrel hud", picks one command
   }
 })
 
-test('the skill tells the person to type "/kestrel:hud" to change the status line, and names the undo', () => {
-  const skill = readFileSync(join(ROOT, 'skills', 'kestrel', 'SKILL.md'), 'utf8')
-  assert.match(skill, /\n## The lines of the status line\n\nThe status line shows up to four lines: .* tell them to type `\/kestrel:hud` with what they want in their own words, .* `\/kestrel:hud undo` takes the change back\.\n/)
+test('the skill tells the person to type "/widal:hud" to change the status line, and names the undo', () => {
+  const skill = readFileSync(join(ROOT, 'skills', 'widal', 'SKILL.md'), 'utf8')
+  assert.match(skill, /\n## The lines of the status line\n\nThe status line shows up to four lines: .* tell them to type `\/widal:hud` with what they want in their own words, .* `\/widal:hud undo` takes the change back\.\n/)
 })
 
 test('an agent that runs in the background shows while its own log has no meta file, although its call already has a result', () => {

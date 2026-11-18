@@ -305,7 +305,7 @@ const word = (v) => ((typeof v === 'string' && v) || Number.isFinite(v) ? String
  * without either can no longer get one there. Then the environment tells a cloud provider
  * ("cloud") or an API key ("api"), else the account is "unknown". While the log is not there or
  * is shorter, nothing is kept and a later run looks again. Until then the session counts to the
- * account signed in now in this config folder, as "kestrel refresh-today" last saw it.
+ * account signed in now in this config folder, as "widal refresh-today" last saw it.
  */
 function accountOf(s, path, env) {
   if (isKey(s?.account)) return { key: s.account, keep: true }
@@ -320,8 +320,8 @@ function accountOf(s, path, env) {
  * `opts.env` stands in for the environment, and `opts.color` (true or false) turns the colours on
  * or off, so that a test does not depend on the real environment. `opts.notify` stands in for the
  * notification of the operating system. `opts.layout` ("lines" or "one") stands in for the layout
- * of the settings, and `opts.spawn` for the start of "kestrel refresh-today" (see hud.mjs) and of
- * "kestrel board sync" (see board.mjs).
+ * of the settings, and `opts.spawn` for the start of "widal refresh-today" (see hud.mjs) and of
+ * "widal board sync" (see board.mjs).
  *
  * On a subscription the person does not pay per token. The line then shows how much of the plan's
  * limits is used, and no dollars except for a limit the person set in dollars. When every token
@@ -371,7 +371,7 @@ export function statusLine(input, now = Date.now(), opts = {}) {
   // The limits that Claude Code hands the status line come from the account signed in now. After a
   // sign-in in the middle of a session that is not the account the session started with, which its
   // log keeps naming. So the limits are saved and shown for the account signed in now, as
-  // "kestrel refresh-today" last saw it, else for the session's account.
+  // "widal refresh-today" last saw it, else for the session's account.
   const limitsAccount = currentAccount() ?? account.key
   if (input.rate_limits) saveLimits(input.rate_limits, now, { fresh, account: limitsAccount })
   const bill = billing(input, { env, cfg, now, account: limitsAccount })
@@ -407,7 +407,7 @@ export function statusLine(input, now = Date.now(), opts = {}) {
   // last size that a run was given. Unlike the size of the context above, these two stay when
   // this input has no size, so that a compaction is still seen as a drop at the next run.
   // The git branch of the folder and its ticket are for the other sessions' status lines and for
-  // "kestrel top": they say what each session works on. A branch name is no text of a session.
+  // "widal top": they say what each session works on. A branch name is no text of a session.
   const branch = branchOf(input.cwd)
   const kept = {
     day: today, cost, dayStart, at: now, billing: bill.mode, apiMs, callAt,
@@ -433,7 +433,7 @@ export function statusLine(input, now = Date.now(), opts = {}) {
   } catch {
     // The old files stay for now: a failure here must not break the status line.
   }
-  // When this computer is linked to a Kestrel board and the last sync is 10 minutes old, a sync
+  // When this computer is linked to a Widal.Code board and the last sync is 10 minutes old, a sync
   // starts in the background. This run reads two small files for that and never waits: the status
   // line itself never uses the network. In both layouts.
   startBoardSync(now, opts.spawn)
@@ -563,11 +563,11 @@ export function limitHook(input, now = Date.now()) {
     : limits.day && spent >= limits.day ? `today's spend is ${money(spent)}, and the day's limit is ${money(limits.day)}`
     : undefined
   if (!over) return undefined
-  const how = 'Raise it with "kestrel limit", or turn it off with "kestrel limit --off".'
+  const how = 'Raise it with "widal limit", or turn it off with "widal limit --off".'
   // Stop: refuse this tool call and end the agent's turn. Without the refusal, Claude Code runs the
   // tool call first and stops after it (seen in a live test on 2026-11-12).
   if (limits.action === 'stop') {
-    const reason = `Kestrel stopped the agent: ${over}. ${how}`
+    const reason = `Widal.Code stopped the agent: ${over}. ${how}`
     return { continue: false, stopReason: reason, hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }
   }
   // Ask or warn once, then again only after the spend has grown by a tenth of the limit.
@@ -577,8 +577,8 @@ export function limitHook(input, now = Date.now()) {
   // Only "askedAt" is this hook's own. The other fields belong to the status line and the other
   // hooks, and one of them can have written the file since this hook read it.
   saveSession(file, { askedAt: measure }, s)
-  if (limits.action === 'warn') return { systemMessage: `kestrel: ${over}. ${how}` }
-  return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: `kestrel: ${over}. Approve to continue. ${how}` } }
+  if (limits.action === 'warn') return { systemMessage: `widal: ${over}. ${how}` }
+  return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: `widal: ${over}. Approve to continue. ${how}` } }
 }
 
 /**
@@ -599,9 +599,9 @@ export function modelSwitchHook(input, env = process.env) {
   // A person is there when Claude Code runs in a terminal (its entry point is "cli"). In a run
   // without a person an "ask" would refuse the switch, so there the cost is only shown.
   if (cost >= askFrom && input.source === 'command' && env.CLAUDE_CODE_ENTRYPOINT === 'cli') {
-    return { hookSpecificOutput: { hookEventName: 'PreModelSwitch', permissionDecision: 'ask', permissionDecisionReason: `kestrel: ${text} Switch anyway?` } }
+    return { hookSpecificOutput: { hookEventName: 'PreModelSwitch', permissionDecision: 'ask', permissionDecisionReason: `widal: ${text} Switch anyway?` } }
   }
-  return { systemMessage: `kestrel: ${text}` }
+  return { systemMessage: `widal: ${text}` }
 }
 
 /**
@@ -632,7 +632,7 @@ export function coldStartHook(input, now = Date.now(), env = process.env) {
   // By the token the message gives dollars, the same figure the status line showed before the end.
   const cold = mode === 'usage' ? coldCost(priceOf(s.model), s.ctx, s.ttl) : undefined
   const what = cold !== undefined ? `This prompt cost about ${money(cold)} more.` : `This prompt sent ${tok(resend)} tokens again.`
-  const message = `kestrel: this session's cache ended at ${clock(until)}. ${what} Before a long break next time: /compact, or start a new session.`
+  const message = `widal: this session's cache ended at ${clock(until)}. ${what} Before a long break next time: /compact, or start a new session.`
   // The warning counts as shown only once its text is there. If building the text fails, nothing
   // is saved, and the next prompt tries again. The other fields of the file belong to the status
   // line and the other hooks. They stay as they are in the file now.

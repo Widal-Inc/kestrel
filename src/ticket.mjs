@@ -1,6 +1,6 @@
 // The ticket a session works on, and its git branch.
 //
-// Kestrel learns the ticket from the name of the git branch, for example "user/abc-322-the-plugin"
+// Widal.Code learns the ticket from the name of the git branch, for example "user/abc-322-the-plugin"
 // gives ABC-322. A branch name is not text of a session, so the ticket can be kept and shown, and
 // sent to the team view, without reading what anybody wrote.
 import { readFileSync, statSync } from 'node:fs'

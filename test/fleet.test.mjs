@@ -1,5 +1,5 @@
-// Tests for today's numbers ("kestrel refresh-today"), the live view of every session
-// ("kestrel top"), the spend per ticket ("kestrel tickets"), and the two tools of the desktop
+// Tests for today's numbers ("widal refresh-today"), the live view of every session
+// ("widal top"), the spend per ticket ("widal tickets"), and the two tools of the desktop
 // extension that give the same. With made-up logs of Claude Code, Codex and Cowork, made-up
 // session files and made-up home folders. Run: node --test
 import assert from 'node:assert/strict'
@@ -11,12 +11,12 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-const dir = mkdtempSync(join(tmpdir(), 'kestrel-fleet-test-'))
+const dir = mkdtempSync(join(tmpdir(), 'widal-code-fleet-test-'))
 process.env.HOME = join(dir, 'home-folder')
-process.env.KESTREL_HOME = join(dir, 'home')
+process.env.WIDAL_HOME = join(dir, 'home')
 process.env.CLAUDE_CONFIG_DIR = join(dir, 'claude')
 process.env.CODEX_HOME = join(dir, 'codex')
-process.env.KESTREL_COWORK_DIR = join(dir, 'cowork')
+process.env.WIDAL_COWORK_DIR = join(dir, 'cowork')
 // These say that the person pays by the token. The made-up computer is on a subscription.
 for (const name of ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 'CLAUDE_CODE_USE_FOUNDRY', 'CLAUDE_CODE_USE_MANTLE']) delete process.env[name]
 
@@ -27,7 +27,7 @@ const { claudeTail, top, topText } = await import('../src/top.mjs')
 const { localDay, readToday } = await import('../src/today-file.mjs')
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url)).replace(/[/\\]$/, '')
-const KESTREL = join(ROOT, 'cli', 'kestrel.mjs')
+const WIDAL = join(ROOT, 'cli', 'widal.mjs')
 const HOUR = 3600e3
 const MIN = 60e3
 const iso = (ms) => new Date(ms).toISOString()
@@ -49,19 +49,19 @@ function machine() {
   mkdirSync(home, { recursive: true })
   const env = {
     PATH: process.env.PATH, HOME: home, USERPROFILE: home,
-    KESTREL_HOME: join(home, '.kestrel'), CLAUDE_CONFIG_DIR: join(home, '.claude'), CODEX_HOME: join(home, '.codex'), KESTREL_COWORK_DIR: join(home, 'cowork'),
+    WIDAL_HOME: join(home, '.widal'), CLAUDE_CONFIG_DIR: join(home, '.claude'), CODEX_HOME: join(home, '.codex'), WIDAL_COWORK_DIR: join(home, 'cowork'),
   }
-  return { home, env, kestrel: env.KESTREL_HOME }
+  return { home, env, widal: env.WIDAL_HOME }
 }
 
 /** Points this process at a made-up computer, for the parts that run in it. */
 function use(m) {
-  for (const key of ['HOME', 'KESTREL_HOME', 'CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'KESTREL_COWORK_DIR']) process.env[key] = m.env[key]
+  for (const key of ['HOME', 'WIDAL_HOME', 'CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'WIDAL_COWORK_DIR']) process.env[key] = m.env[key]
   return m
 }
 
 /** Runs the command on a made-up computer. */
-const run = (m, args, more = {}) => spawnSync(process.execPath, [KESTREL, ...args], { encoding: 'utf8', env: { ...m.env, ...more } })
+const run = (m, args, more = {}) => spawnSync(process.execPath, [WIDAL, ...args], { encoding: 'utf8', env: { ...m.env, ...more } })
 const lines = (list) => `${list.join('\n')}\n`
 const writeJson = (file, value) => {
   mkdirSync(join(file, '..'), { recursive: true })
@@ -129,7 +129,7 @@ function writeLogs(m, now) {
   ]))
   utimesSync(codexLog, (now - 30e3) / 1000, (now - 30e3) / 1000)
 
-  const cowork = join(m.env.KESTREL_COWORK_DIR, 'account-1', 'workspace-1', 'local_w1')
+  const cowork = join(m.env.WIDAL_COWORK_DIR, 'account-1', 'workspace-1', 'local_w1')
   mkdirSync(cowork, { recursive: true })
   const entry = (fields) => JSON.stringify({ session_id: 'engine-1', _audit_timestamp: iso(now - 4 * HOUR), ...fields })
   const coworkLog = join(cowork, 'audit.jsonl')
@@ -148,11 +148,11 @@ function writeLogs(m, now) {
  * c2's file names no ticket: the view takes it from today's numbers.
  */
 function writeSessions(m, now) {
-  const sessions = join(m.kestrel, 'sessions')
+  const sessions = join(m.widal, 'sessions')
   writeJson(join(sessions, 'c1.json'), { at: now - 10e3, callAt: now - 20e3, cacheUntil: now + 50 * MIN, ttl: '1h', ctx: 313000, project: 'work/app', model: 'claude-opus-5-5', ticket: 'ABC-322', branch: 'user/abc-322-login' })
   writeJson(join(sessions, 'c2.json'), { at: now - 30e3, callAt: now - 12.5 * MIN, cacheUntil: now + 20 * MIN, ttl: '1h', ctx: 55000, project: 'work/web', model: 'claude-opus-5-5' })
   writeJson(join(sessions, 'old.json'), { at: now - 5 * MIN, callAt: now - 6 * MIN, project: 'work/old' })
-  writeJson(join(m.kestrel, 'limits.json'), { five: { pct: 33, resetsAt: now + 2 * HOUR, at: now - 10 * MIN } })
+  writeJson(join(m.widal, 'limits.json'), { five: { pct: 33, resetsAt: now + 2 * HOUR, at: now - 10 * MIN } })
 }
 
 /** A made-up computer with the logs and the session files, and this process pointed at it. */
@@ -186,8 +186,8 @@ test('refresh-today works out the numbers per session and per ticket, as they ca
     accounts: { unknown: { tokens: 680000, cacheRead: 311000 }, 'codex:unknown': { tokens: 110000, cacheRead: 40000 }, 'cowork:account-1': { tokens: 101000, cacheRead: 0 } },
   })
   // The lock is given back.
-  assert.equal(existsSync(join(m.kestrel, 'today.lock')), false)
-  noMarkerIn(m.kestrel)
+  assert.equal(existsSync(join(m.widal, 'today.lock')), false)
+  noMarkerIn(m.widal)
 })
 
 test('a cold start is only a call after the cache had ended that wrote 100,000 tokens or more again', async () => {
@@ -217,48 +217,48 @@ test('refresh-today prints nothing, a second run ends at once while the lock is 
   // The first run, as the status line starts it: nothing printed, and the file is there.
   let r = run(m, ['refresh-today'])
   assert.deepEqual([r.status, r.stdout, r.stderr], [0, '', ''])
-  assert.ok(existsSync(join(m.kestrel, 'today.json')))
-  assert.equal(existsSync(join(m.kestrel, 'today.lock')), false)
+  assert.ok(existsSync(join(m.widal, 'today.json')))
+  assert.equal(existsSync(join(m.widal, 'today.lock')), false)
 
   // Another run holds the lock: this one ends at once, writes nothing and leaves the lock alone.
-  rmSync(join(m.kestrel, 'today.json'))
+  rmSync(join(m.widal, 'today.json'))
   const held = String(Date.now() - MIN)
-  writeFileSync(join(m.kestrel, 'today.lock'), held)
+  writeFileSync(join(m.widal, 'today.lock'), held)
   r = run(m, ['refresh-today'])
   assert.deepEqual([r.status, r.stdout, r.stderr], [0, '', ''])
-  assert.equal(existsSync(join(m.kestrel, 'today.json')), false)
-  assert.equal(readFileSync(join(m.kestrel, 'today.lock'), 'utf8'), held)
+  assert.equal(existsSync(join(m.widal, 'today.json')), false)
+  assert.equal(readFileSync(join(m.widal, 'today.lock'), 'utf8'), held)
 
   // A lock of 11 minutes ago belongs to a run that died: it is taken over, and given back after.
-  writeFileSync(join(m.kestrel, 'today.lock'), String(Date.now() - 11 * MIN))
+  writeFileSync(join(m.widal, 'today.lock'), String(Date.now() - 11 * MIN))
   r = run(m, ['refresh-today'])
   assert.deepEqual([r.status, r.stdout, r.stderr], [0, '', ''])
-  assert.ok(existsSync(join(m.kestrel, 'today.json')))
-  assert.equal(existsSync(join(m.kestrel, 'today.lock')), false)
+  assert.ok(existsSync(join(m.widal, 'today.json')))
+  assert.equal(existsSync(join(m.widal, 'today.lock')), false)
   // A lock that holds no time is taken over too.
-  writeFileSync(join(m.kestrel, 'today.lock'), 'not a time')
-  rmSync(join(m.kestrel, 'today.json'))
+  writeFileSync(join(m.widal, 'today.lock'), 'not a time')
+  rmSync(join(m.widal, 'today.json'))
   r = run(m, ['refresh-today'])
   assert.deepEqual([r.status, r.stdout, r.stderr], [0, '', ''])
-  assert.ok(existsSync(join(m.kestrel, 'today.json')))
-  noMarkerIn(m.kestrel)
+  assert.ok(existsSync(join(m.widal, 'today.json')))
+  noMarkerIn(m.widal)
 })
 
 test('on an error refresh-today writes nothing, prints nothing and ends with exit code 0', () => {
   const m = machine()
   writeLogs(m, Date.now())
   // The cache of the parsed logs cannot be made: its place is a file.
-  mkdirSync(m.kestrel, { recursive: true })
-  writeFileSync(join(m.kestrel, 'cache'), '')
+  mkdirSync(m.widal, { recursive: true })
+  writeFileSync(join(m.widal, 'cache'), '')
   const r = run(m, ['refresh-today'])
   assert.deepEqual([r.status, r.stdout, r.stderr], [0, '', ''])
-  assert.equal(existsSync(join(m.kestrel, 'today.json')), false)
-  assert.equal(existsSync(join(m.kestrel, 'today.lock')), false)
+  assert.equal(existsSync(join(m.widal, 'today.json')), false)
+  assert.equal(existsSync(join(m.widal, 'today.lock')), false)
 })
 
 // The view of the made-up computer at noon, with names on and without colours.
 const VIEW = [
-  'Kestrel · 4 sessions on this computer · 5 hour limit 33% used (read 10 min ago), 60% of its time gone · 12:00:00',
+  'Widal.Code · 4 sessions on this computer · 5 hour limit 33% used (read 10 min ago), 60% of its time gone · 12:00:00',
   '',
   'SESSION              TOOL    TICKET                    STATE                   CONTEXT     CACHE              TODAY  AGENTS  TASK',
   `work/app             Claude  ABC-322 also in work/web  working                 313k        warm, 50 min left  625k   1       Writing the ${MARKER} notes`,
@@ -283,7 +283,7 @@ test('top --once: the rows in the order working, waits for you, idle, every colu
 test('top: the second "Next" rule, and none when no rule holds', async () => {
   const m = computer()
   await refreshToday({ now: NOON })
-  const sessions = join(m.kestrel, 'sessions')
+  const sessions = join(m.widal, 'sessions')
   // c2's cache ends in 45 minutes: no longer within 30. A session waits with 400,000 tokens of context, and its cache is gone.
   writeJson(join(sessions, 'c2.json'), { at: NOON - 30e3, callAt: NOON - 12.5 * MIN, cacheUntil: NOON + 45 * MIN, ttl: '1h', ctx: 55000, project: 'work/web' })
   writeJson(join(sessions, 'big.json'), { at: NOON - 15e3, callAt: NOON - 40 * MIN, cacheUntil: NOON - 5 * MIN, ttl: '1h', ctx: 400000, project: 'work/big' })
@@ -296,7 +296,7 @@ test('top: the second "Next" rule, and none when no rule holds', async () => {
   assert.ok(text.endsWith('\nWaste today: 1 cold start sent 300k tokens again (34% of today).'), text)
   assert.doesNotMatch(text, /Next:/)
   // Without today's numbers, the view says so.
-  rmSync(join(m.kestrel, 'today.json'))
+  rmSync(join(m.widal, 'today.json'))
   assert.match(topText(NOON), /\nToday's numbers are not worked out yet\.$/)
 })
 
@@ -319,7 +319,7 @@ test('top: colours as the status line has them, and none with NO_COLOR or withou
   assert.ok(output.text.includes('SESSION') && !output.text.includes('\x1b'), output.text)
   const r = run(m, ['top', '--once'])
   assert.equal(r.status, 0, r.stderr)
-  assert.match(r.stdout, /^Kestrel · \d+ sessions? on this computer/)
+  assert.match(r.stdout, /^Widal.Code · \d+ sessions? on this computer/)
   assert.ok(!r.stdout.includes('\x1b') && !r.stderr.includes('\x1b'))
 })
 
@@ -332,16 +332,16 @@ test('top: the TASK column follows the setting hud.names, and --no-names leaves 
     return output.text
   }
   assert.equal(await view(), `${VIEW}\n`)
-  writeJson(join(m.kestrel, 'config.json'), { hud: { names: false } })
+  writeJson(join(m.widal, 'config.json'), { hud: { names: false } })
   const off = await view()
   assert.doesNotMatch(off, /TASK/)
   assert.ok(!off.includes(MARKER))
-  writeJson(join(m.kestrel, 'config.json'), { hud: { names: true } })
+  writeJson(join(m.widal, 'config.json'), { hud: { names: true } })
   assert.match(await view(), /TASK/)
   const output = { isTTY: false, text: '', write(s) { this.text += s } }
   await top({ once: true, names: false, output, env: {}, time: () => NOON })
   assert.doesNotMatch(output.text, /TASK/)
-  noMarkerIn(m.kestrel)
+  noMarkerIn(m.widal)
 })
 
 test('the end of a Claude Code log: running subagents, and the task in progress of TaskCreate and TaskUpdate', () => {
@@ -437,7 +437,7 @@ test('top live: it says that it reads the logs, redraws, and q ends it and puts 
   const all = output.writes.join('')
   // The other screen of the terminal and a hidden cursor while it runs, both back at the end.
   assert.ok(output.writes[0].startsWith('\x1b[?1049h\x1b[?25l'))
-  assert.ok(all.indexOf('Kestrel · reading the logs') < all.indexOf('SESSION'))
+  assert.ok(all.indexOf('Widal.Code · reading the logs') < all.indexOf('SESSION'))
   assert.equal(output.writes.at(-1), '\x1b[?25h\x1b[?1049l')
   assert.deepEqual(input.modes, [true, false])
   assert.equal(input.listenerCount('data'), 0)
@@ -445,7 +445,7 @@ test('top live: it says that it reads the logs, redraws, and q ends it and puts 
   const draw = output.writes.find((w) => w.includes('SESSION'))
   assert.ok(draw.startsWith('\x1b[H') && draw.endsWith('\x1b[J'))
   assert.ok(draw.includes(MARKER), 'names are on, so the task shows on the screen')
-  noMarkerIn(m.kestrel)
+  noMarkerIn(m.widal)
 })
 
 test('top live: Ctrl+C ends it too, leaving while the logs are read ends the process, and after an error the terminal is put back', async () => {
@@ -459,7 +459,7 @@ test('top live: Ctrl+C ends it too, leaving while the logs are read ends the pro
   assert.deepEqual(t.input.modes, [true, false])
 
   // The person leaves while the logs are still read: the terminal is put back, then the process ends.
-  rmSync(join(process.env.KESTREL_HOME, 'today.json'))
+  rmSync(join(process.env.WIDAL_HOME, 'today.json'))
   t = terminal()
   let quit = 0
   done = top({ input: t.input, output: t.output, env: {}, time: () => NOON, refresh: () => new Promise(() => {}), quit: () => quit++ })
@@ -504,7 +504,7 @@ test('tickets: the tickets with the most tokens first, their totals, the line fo
   assert.equal(tickets([], { days: 3 }), 'No model calls in the last 3 days.')
 })
 
-test('"kestrel tickets" prints the report, and takes --days', () => {
+test('"widal tickets" prints the report, and takes --days', () => {
   const m = machine()
   writeLogs(m, Date.now())
   const r = run(m, ['tickets', '--days', '30'])
@@ -514,9 +514,9 @@ test('"kestrel tickets" prints the report, and takes --days', () => {
   assert.ok(!r.stdout.includes(MARKER))
 })
 
-/** Starts "kestrel mcp" on a made-up computer, after the handshake. `call` gives a tool's result. */
+/** Starts "widal desktop-mcp" on a made-up computer, after the handshake. `call` gives a tool's result. */
 async function server(env) {
-  const child = spawn(process.execPath, [KESTREL, 'mcp'], { env, stdio: ['pipe', 'pipe', 'pipe'] })
+  const child = spawn(process.execPath, [WIDAL, 'desktop-mcp'], { env, stdio: ['pipe', 'pipe', 'pipe'] })
   const waiting = new Map()
   const all = []
   let rest = ''
@@ -554,13 +554,13 @@ test('the tools whats_running and spend_by_ticket answer over the server, check 
   const now = Date.now()
   writeLogs(m, now)
   writeSessions(m, now)
-  writeJson(join(m.kestrel, 'config.json'), { hud: { names: true } })
+  writeJson(join(m.widal, 'config.json'), { hud: { names: true } })
   const s = await server(m.env)
 
   const running = await s.call('whats_running')
   assert.equal(running.isError, false)
   const text = running.content[0].text
-  assert.match(text, /^Kestrel · 4 sessions on this computer · 5 hour limit 33% used/)
+  assert.match(text, /^Widal.Code · 4 sessions on this computer · 5 hour limit 33% used/)
   assert.match(text, /\nSESSION +TOOL +TICKET +STATE +CONTEXT +CACHE +TODAY +AGENTS\n/)
   // The tokens of today depend on the time of day the test runs at: the calls are some hours old.
   assert.match(text, /\nwork\/app +Claude +ABC-322 also in work\/web +working +313k +warm, 50 min left +(?:\S+ +)?1\n/)
@@ -587,7 +587,7 @@ test('the tools whats_running and spend_by_ticket answer over the server, check 
   const end = await s.close()
   assert.equal(end.code, 0)
   for (const line of end.lines) assert.ok(!line.includes(MARKER), line)
-  noMarkerIn(m.kestrel)
+  noMarkerIn(m.widal)
 })
 
 test('privacy: after refresh-today and top as commands, no file of the tool holds text of a session', () => {
@@ -600,5 +600,5 @@ test('privacy: after refresh-today and top as commands, no file of the tool hold
   assert.equal(r.status, 0, r.stderr)
   // The view itself shows the task: names are on by default, and this is the person's own screen.
   assert.ok(r.stdout.includes(MARKER))
-  noMarkerIn(m.kestrel)
+  noMarkerIn(m.widal)
 })

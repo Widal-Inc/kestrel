@@ -1,4 +1,4 @@
-// The status line in lines, its settings, and the command "kestrel hud".
+// The status line in lines, its settings, and the command "widal hud".
 //
 // The status line shows up to four lines: the session, the plan, the work and the hints. Bars
 // read faster than numbers, and a person likes to choose the lines. So the settings say which
@@ -7,12 +7,12 @@
 // line has always had.
 //
 // The settings are `hud` in this tool's config: `{ layout: 'lines' | 'one', lines: [...], bars,
-// names }`. "kestrel hud" shows them with a preview made from sample data, and changes them. Each
-// change keeps the settings from before as `hudBefore`, so that "kestrel hud undo" puts them back.
+// names }`. "widal hud" shows them with a preview made from sample data, and changes them. Each
+// change keeps the settings from before as `hudBefore`, so that "widal hud undo" puts them back.
 //
 // Names: the names of tasks and agents are text from a session. They are shown on the status line
 // while `names` is not false, and are never written to a file. With names off, the work line gives
-// counts only. A computer linked to a Kestrel board sends the tasks and agents of its open sessions
+// counts only. A computer linked to a Widal.Code board sends the tasks and agents of its open sessions
 // to the board while names are on (see board.mjs), and none while they are off.
 import { spawn } from 'node:child_process'
 import { readdirSync } from 'node:fs'
@@ -209,13 +209,13 @@ export function sessionsAround(dir, own, ticket, now) {
   return { others: { working, waiting }, overlap: projects.length ? { ticket, projects: [...new Set(projects)] } : undefined }
 }
 
-// "kestrel refresh-today" is started at most this often, also when it fails to write the file.
+// "widal refresh-today" is started at most this often, also when it fails to write the file.
 const START_EVERY = 2 * 60e3
 // The command's file, next to this folder.
-const COMMAND = fileURLToPath(new URL('../cli/kestrel.mjs', import.meta.url))
+const COMMAND = fileURLToPath(new URL('../cli/widal.mjs', import.meta.url))
 
 /**
- * Starts "kestrel refresh-today" in the background when today's numbers are missing or old, and
+ * Starts "widal refresh-today" in the background when today's numbers are missing or old, and
  * no start was made in the last 2 minutes. The time of the last start is kept in today.start, and
  * is saved before the start, so that a start that fails is not tried again on every run. The
  * status line never waits for the command. `spawner` stands in for `spawn` in a test. Returns
@@ -286,23 +286,23 @@ const WHAT = [
   '  plan     the plan\'s limits (or the dollars, when you pay by the token), and today\'s tokens of all agents',
   '  work     the task in progress, the agents that run, the other open sessions, and a ticket that is open twice',
   '  hint     the hint about the effort level, and the hint to compact',
-  'The names of tasks and agents show on your screen. Kestrel keeps them in no file. A computer linked to a Kestrel board sends them to the board too.',
+  'The names of tasks and agents show on your screen. Widal.Code keeps them in no file. A computer linked to a Widal.Code board sends them to the board too.',
 ]
 const HOW = [
   'Change it with:',
-  '  kestrel hud lines session,plan,work,hint   the lines to show, in this order (any of the four)',
-  '  kestrel hud lines                          all four lines again',
-  '  kestrel hud one                            one line',
-  '  kestrel hud bars on|off                    bars for the context and the limits, or numbers only',
-  '  kestrel hud names on|off                   the names of tasks and agents, or counts only',
-  '  kestrel hud undo                           put back the settings from before the last change',
+  '  widal hud lines session,plan,work,hint   the lines to show, in this order (any of the four)',
+  '  widal hud lines                          all four lines again',
+  '  widal hud one                            one line',
+  '  widal hud bars on|off                    bars for the context and the limits, or numbers only',
+  '  widal hud names on|off                   the names of tasks and agents, or counts only',
+  '  widal hud undo                           put back the settings from before the last change',
 ]
 
 /** A wrong word: one sentence that lists the right ones. */
 const wrong = (word, right) => new Error(`"${word}" is not one of ${right.join(', ')}.`)
 
 /**
- * The command "kestrel hud". `args` are the words after "hud". It returns what to print, and
+ * The command "widal hud". `args` are the words after "hud". It returns what to print, and
  * throws one plain sentence for a wrong word. `tty` says that the output goes to a terminal: only
  * there does the preview have colours.
  *
@@ -323,7 +323,7 @@ export function hudCommand(args, { tty = false } = {}) {
   const [word, ...rest] = args
   if (word === undefined) return [hudSettingsText(h), '', ...preview(h), '', ...WHAT, '', ...HOW].join('\n')
   const nothingAfter = () => {
-    if (rest.length) throw new Error(`"kestrel hud ${word}" takes no more words, and "${rest[0]}" was given.`)
+    if (rest.length) throw new Error(`"widal hud ${word}" takes no more words, and "${rest[0]}" was given.`)
   }
   if (word === 'undo') {
     nothingAfter()
@@ -347,11 +347,11 @@ export function hudCommand(args, { tty = false } = {}) {
     if (bad) throw wrong(bad, HUD_LINES)
     next = { ...h, layout: 'lines', lines: list.length ? [...new Set(list)] : [...HUD_LINES] }
   } else if (word === 'bars' || word === 'names') {
-    if (!rest.length) throw new Error(`"kestrel hud ${word}" needs one of on, off.`)
+    if (!rest.length) throw new Error(`"widal hud ${word}" needs one of on, off.`)
     if (rest[0] !== 'on' && rest[0] !== 'off') throw wrong(rest[0], ['on', 'off'])
-    if (rest.length > 1) throw new Error(`"kestrel hud ${word} ${rest[0]}" takes no more words, and "${rest[1]}" was given.`)
+    if (rest.length > 1) throw new Error(`"widal hud ${word} ${rest[0]}" takes no more words, and "${rest[1]}" was given.`)
     next = { ...h, [word]: rest[0] === 'on' }
   } else throw wrong(word, ['lines', 'one', 'bars', 'names', 'undo'])
   saveConfig({ ...cfg, hud: next, hudBefore: isObject(cfg.hud) ? cfg.hud : null })
-  return [`Saved. ${hudSettingsText(next)}`, '', ...preview(next), '', 'Take it back with: kestrel hud undo'].join('\n')
+  return [`Saved. ${hudSettingsText(next)}`, '', ...preview(next), '', 'Take it back with: widal hud undo'].join('\n')
 }

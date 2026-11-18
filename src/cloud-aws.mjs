@@ -1,11 +1,11 @@
-// "kestrel cloud-check aws": read-only checks of one AWS account, with the person's own sign-in.
+// "widal cloud-check aws": read-only checks of one AWS account, with the person's own sign-in.
 //
 // First "aws sts get-caller-identity" says which account the sign-in is for. Only the account id
 // is kept. Then one of two paths:
-//   - When Prowler is installed, Kestrel runs it with the compliance frameworks that match the
+//   - When Prowler is installed, Widal.Code runs it with the compliance frameworks that match the
 //     frameworks that are on (only those Prowler has), within a time limit, and reads its JSON-OCSF
 //     output. Prowler only reads.
-//   - Otherwise Kestrel reads the results AWS already has: the non-compliant rules of the AWS
+//   - Otherwise Widal.Code reads the results AWS already has: the non-compliant rules of the AWS
 //     Config conformance packs that are deployed, and the Security Hub CSPM findings of severity
 //     high and critical. When neither is there, or neither may be read, one finding of severity
 //     info says what to switch on and what it costs.
@@ -14,7 +14,7 @@
 //   - The AWS CLI ends with exit code 253 when its configuration or credentials are missing, and
 //     254 when the service answered with an error. Its error line reads "An error occurred
 //     (<Code>) when calling the <Operation> operation: <message>".
-//   - "get-conformance-pack-compliance-details" is not paginated by the CLI: Kestrel follows its
+//   - "get-conformance-pack-compliance-details" is not paginated by the CLI: Widal.Code follows its
 //     NextToken. "get-findings" is, and --max-items caps it.
 //   - Security Hub was renamed Security Hub CSPM in 2025. "get-findings" still gives its findings
 //     in the AWS Security Finding Format. The new Security Hub gives OCSF with "get-findings-v2".
@@ -32,10 +32,10 @@ export const PRICES = {
 }
 
 /**
- * Prowler's compliance frameworks for AWS, for each framework of Kestrel that Prowler has. HITRUST
+ * Prowler's compliance frameworks for AWS, for each framework of Widal.Code that Prowler has. HITRUST
  * has none: its findings come through the controls it shares with HIPAA and ISO 27001. Prowler
  * has nothing for GLBA or NYDFS. Its DORA file covers several providers, and its results go only
- * to Prowler's own compliance report, not to the findings Kestrel reads, so it is left out.
+ * to Prowler's own compliance report, not to the findings Widal.Code reads, so it is left out.
  */
 export const PROWLER_FRAMEWORKS = {
   hipaa: ['hipaa_aws'],
@@ -49,7 +49,7 @@ export const PROWLER_FRAMEWORKS = {
 }
 
 // The keys of Prowler's "unmapped.compliance" (its framework, a dash and its version) and of
-// AWS's conformance packs and requirements, matched to Kestrel's frameworks by their names.
+// AWS's conformance packs and requirements, matched to Widal.Code's frameworks by their names.
 const PROWLER_KEYS = [[/^HIPAA/i, 'hipaa'], [/^SOC ?2/i, 'soc2'], [/^PCI/i, 'pci'], [/^ISO ?27001/i, 'iso27001'], [/^GDPR/i, 'gdpr'], [/21-CFR-Part-11/i, 'part11'], [/Annex-11/i, 'annex11']]
 const PACK_KEYS = [[/hipaa/i, 'hipaa'], [/pci/i, 'pci'], [/21.?cfr|part.?11/i, 'part11'], [/annex.?11/i, 'annex11'], [/glba|gramm/i, 'glba'], [/nydfs/i, 'nydfs'], [/gdpr/i, 'gdpr']]
 
@@ -126,7 +126,7 @@ export async function awsCheck(options, { env, frameworks, catalog }) {
   const minutes = options.minutes === undefined ? 20 : Number(options.minutes)
   if (!(minutes > 0 && minutes <= 600)) throw new Error('--minutes is a number of minutes above 0 and at most 600.')
   const aws = findProgram('aws', env)
-  if (!aws) throw new Error('The AWS command line tool (aws) is not installed, so Kestrel cannot read AWS. Install it and sign in, then run this again.')
+  if (!aws) throw new Error('The AWS command line tool (aws) is not installed, so Widal.Code cannot read AWS. Install it and sign in, then run this again.')
   const place = [...(options.profile ? ['--profile', options.profile] : []), ...(options.region ? ['--region', options.region] : [])]
   // No pager: the CLI would wait for a key. Only JSON on standard output.
   const callEnv = { ...env, AWS_PAGER: '' }
@@ -164,7 +164,7 @@ function awsPath(call, { account, scope, catalog, region }) {
     config = 'denied'
   } else {
     const list = parseJson(packs.stdout)?.ConformancePackDetails
-    if (!Array.isArray(list)) throw new Error('AWS Config gave an answer that Kestrel could not read. Nothing was saved.')
+    if (!Array.isArray(list)) throw new Error('AWS Config gave an answer that Widal.Code could not read. Nothing was saved.')
     config = list.length ? 'read' : 'none'
     for (const pack of list) {
       const name = String(pack.ConformancePackName ?? '')
@@ -175,7 +175,7 @@ function awsPath(call, { account, scope, catalog, region }) {
         const r = call(['configservice', 'get-conformance-pack-compliance-details', '--conformance-pack-name', name, '--filters', 'ComplianceType=NON_COMPLIANT', '--limit', '100', ...(token ? ['--next-token', token] : [])])
         if (r.status !== 0) throw new Error(`AWS Config could not give the results of the conformance pack ${name}: ${firstLine(r.stderr)} Nothing was saved.`)
         const page = parseJson(r.stdout)
-        if (!Array.isArray(page?.ConformancePackRuleEvaluationResults)) throw new Error(`AWS Config gave an answer about the conformance pack ${name} that Kestrel could not read. Nothing was saved.`)
+        if (!Array.isArray(page?.ConformancePackRuleEvaluationResults)) throw new Error(`AWS Config gave an answer about the conformance pack ${name} that Widal.Code could not read. Nothing was saved.`)
         for (const result of page.ConformancePackRuleEvaluationResults) {
           const q = result?.EvaluationResultIdentifier?.EvaluationResultQualifier ?? {}
           if (result?.ComplianceType !== 'NON_COMPLIANT' || !q.ConfigRuleName) continue
@@ -206,10 +206,10 @@ function awsPath(call, { account, scope, catalog, region }) {
     else throw new Error(`Security Hub could not be read: ${firstLine(r.stderr)} Nothing was saved.`)
   } else {
     const answer = parseJson(r.stdout)
-    if (!Array.isArray(answer?.Findings)) throw new Error('Security Hub gave an answer that Kestrel could not read. Nothing was saved.')
+    if (!Array.isArray(answer?.Findings)) throw new Error('Security Hub gave an answer that Widal.Code could not read. Nothing was saved.')
     hub = 'read'
     read.push('Security Hub CSPM')
-    if (answer.NextToken) notes.push(`Security Hub has more than ${HUB_MOST} findings of severity high and critical: Kestrel read the first ${HUB_MOST}.`)
+    if (answer.NextToken) notes.push(`Security Hub has more than ${HUB_MOST} findings of severity high and critical: Widal.Code read the first ${HUB_MOST}.`)
     for (const f of answer.Findings) {
       const controlId = f?.Compliance?.SecurityControlId ?? String(f?.GeneratorId ?? '').split('/').pop()
       if (!f?.Id || !controlId) continue
@@ -229,14 +229,15 @@ function awsPath(call, { account, scope, catalog, region }) {
     }
   }
 
-  const configWords = { none: 'No AWS Config conformance pack is deployed', denied: 'Kestrel may not read AWS Config (the read needs the policy SecurityAudit)' }
-  const hubWords = { off: 'Security Hub CSPM is not switched on, or Kestrel may not read it', denied: 'Kestrel may not read Security Hub (the read needs the policy SecurityAudit)' }
+  const configWords = { none: 'No AWS Config conformance pack is deployed', denied: 'Widal.Code may not read AWS Config (the read needs the policy SecurityAudit)' }
+  const hubWords = { off: 'Security Hub CSPM is not switched on, or Widal.Code may not read it', denied: 'Widal.Code may not read Security Hub (the read needs the policy SecurityAudit)' }
   if (config !== 'read' && hub !== 'read') {
     findings.push(cloudFinding({
       rule: 'cloud.aws.nothing-to-read', key: account, scope, severity: 'info',
-      title: 'AWS has no compliance results that Kestrel can read',
+      title: 'AWS has no compliance results that Widal.Code can read',
       detail: `${configWords[config]}, and ${hubWords[hub]}. To get results, switch on Security Hub CSPM with a standard such as AWS Foundational Security Best Practices: it costs about $0.001 per check of one resource in one region, after a 30 day free trial (${PRICES.securityHub}). Or deploy an AWS Config conformance pack, such as the one for HIPAA Security: about $0.001 per rule evaluation and $0.003 per configuration item recorded (${PRICES.config}). Or install Prowler, which is free and reads the account itself.`,
       where: { provider: 'aws', account, ...(region ? { region } : {}) },
+      // The board reads the source "kestrel" as this tool's own checks, so it stays as it was.
       source: 'kestrel',
     }))
   } else {
@@ -256,7 +257,9 @@ function awsPath(call, { account, scope, catalog, region }) {
  */
 function prowlerPath(prowler, options, minutes, { account, scope, catalog, frameworks, region }, env) {
   const compliance = [...new Set(frameworks.flatMap((key) => PROWLER_FRAMEWORKS[key] ?? []))]
-  const folder = mkdtempSync(join(tmpdir(), 'kestrel-prowler-'))
+  const folder = mkdtempSync(join(tmpdir(), 'widal-code-prowler-'))
+  // Prowler's output file keeps the name "kestrel" from before the change of name. It is a temp
+  // file that is read once below and deleted with its folder.
   const args = [
     'aws', '--output-formats', 'json-ocsf', '--output-directory', folder, '--output-filename', 'kestrel',
     '--status', 'FAIL', '--no-banner', '--ignore-exit-code-3',
@@ -274,7 +277,7 @@ function prowlerPath(prowler, options, minutes, { account, scope, catalog, frame
   } finally {
     rmSync(folder, { recursive: true, force: true })
   }
-  if (r.timedOut) throw new Error(`Prowler did not finish within ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}, so nothing was saved. Give it more time with --minutes, for example: kestrel cloud-check aws --minutes ${Math.ceil(minutes * 2)}`)
+  if (r.timedOut) throw new Error(`Prowler did not finish within ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}, so nothing was saved. Give it more time with --minutes, for example: widal cloud-check aws --minutes ${Math.ceil(minutes * 2)}`)
   if (r.failed) throw new Error(`Prowler could not start: ${firstLine(r.failed)}.`)
   if (r.status !== 0) throw new Error(`Prowler ended with exit code ${r.status}: ${firstLine(r.stderr) || 'it said nothing more'}. Nothing was saved.`)
   // Prowler writes the file only when it has findings to write: with --status FAIL, no file
@@ -311,6 +314,6 @@ function prowlerPath(prowler, options, minutes, { account, scope, catalog, frame
   return {
     what: `AWS account ${account}${region ? ` in ${region}` : ''} with Prowler (${names})`,
     runs: [{ scope, findings }],
-    notes: ["Prowler's own report named every resource it checked, so Kestrel deleted it after reading it. For the full report, run Prowler yourself."],
+    notes: ["Prowler's own report named every resource it checked, so Widal.Code deleted it after reading it. For the full report, run Prowler yourself."],
   }
 }

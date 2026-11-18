@@ -1,8 +1,8 @@
-// The security and compliance findings of Kestrel, in one small file: ~/.kestrel/findings.json.
+// The security and compliance findings of Widal.Code, in one small file: ~/.widal/findings.json.
 //
 // Every check (of the agents' settings, of what they did, of the code they changed, of session
 // text when the person turned that on, and of cloud accounts on request) writes its findings here.
-// The status line, the hooks, "kestrel check", the pane and the desktop extension read them.
+// The status line, the hooks, "widal check", the pane and the desktop extension read them.
 //
 // A finding never holds what was matched: no secret, no patient data, no command, no text of a
 // session. It says what kind of thing was found and where (a file and line, a project, a cloud
@@ -19,8 +19,8 @@
 //   where: { file, line, repo, project, session, account, provider, resource },   only the fields that apply
 //   scope: "settings" | "repo:/work/app" | "session:<id>" | "cloud:aws:<account>" | ...,   what one run of a check covers
 //   controls: [ { framework: "hipaa", id: "164.312(e)", confirmed: true, label: "Transmission security" } ],
-//   fix: { action: "no-bypass", words: "kestrel apply no-bypass" } | null,
-//   source: "kestrel" | "checkov" | "trivy" | "kics" | "gitleaks" | "prowler" | "aws-config" | "security-hub" | "vercel" | "github",
+//   fix: { action: "no-bypass", words: "widal apply no-bypass" } | null,
+//   source: "kestrel" (this tool's own checks: the board reads that name) | "checkov" | "trivy" | "kics" | "gitleaks" | "prowler" | "aws-config" | "security-hub" | "vercel" | "github",
 //   status: "open" | "resolved",
 //   firstSeen, lastSeen, resolvedAt: times in milliseconds
 // }

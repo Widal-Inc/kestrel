@@ -1,33 +1,33 @@
 ---
-name: kestrel
+name: widal-code
 description: Use for questions like "what did my agents spend?", tokens, usage, limits, the cost of Claude Code, Cowork or Codex, and "how do I use less of my plan?"
 ---
 
-# Kestrel: what your agents spend, and how to use less of your plan
+# Widal.Code: what your agents spend, and how to use less of your plan
 
-Kestrel is a desktop extension for the Claude desktop app. It reads the logs that Claude Code, Codex and Cowork keep on the person's computer, and answers with numbers only. This skill says how to answer questions about spend, usage and limits: with Kestrel's tools when they are there, and with tips when they are not.
+Widal.Code is a desktop extension for the Claude desktop app. It reads the logs that Claude Code, Codex and Cowork keep on the person's computer, and answers with numbers only. This skill says how to answer questions about spend, usage and limits: with Widal.Code's tools when they are there, and with tips when they are not.
 
-## First: are Kestrel's tools there?
+## First: are Widal.Code's tools there?
 
-Kestrel's tools are named `what_kestrel_sees`, `spend_summary`, `plan_limits`, `spend_advice`, `compactions`, `spend_by_model`, `whats_running`, `spend_by_ticket`, `spend_by_account` and `security_check`.
+Widal.Code's tools are named `what_widal_code_sees`, `spend_summary`, `plan_limits`, `spend_advice`, `compactions`, `spend_by_model`, `whats_running`, `spend_by_ticket`, `spend_by_account` and `security_check`.
 
-- If they are there, follow "With Kestrel's tools".
-- If they are not (on claude.ai, on the phone, or before the extension is installed), follow "Without Kestrel's tools".
+- If they are there, follow "With Widal.Code's tools".
+- If they are not (on claude.ai, on the phone, or before the extension is installed), follow "Without Widal.Code's tools".
 
 ## Never
 
 - Never ask the person to paste a log, a session file or a transcript.
-- Never open, read or search a log file yourself, also when a file tool could reach it. Kestrel reads the logs and returns numbers only. That is how the text of a session stays private.
-- Never say that Kestrel changed or can change a setting. In the desktop app it only reads.
-- Never say that Kestrel makes anyone compliant or certifies anything. It checks technical controls and flags risks.
+- Never open, read or search a log file yourself, also when a file tool could reach it. Widal.Code reads the logs and returns numbers only. That is how the text of a session stays private.
+- Never say that Widal.Code changed or can change a setting. In the desktop app it only reads.
+- Never say that Widal.Code makes anyone compliant or certifies anything. It checks technical controls and flags risks.
 
-## With Kestrel's tools
+## With Widal.Code's tools
 
 ### Which tool answers which question
 
 | The person asks | Tool |
 |---|---|
-| What is there? Why is an answer empty? Does Kestrel see my Cowork sessions? | `what_kestrel_sees` |
+| What is there? Why is an answer empty? Does Widal.Code see my Cowork sessions? | `what_widal_code_sees` |
 | What did my agents spend this week? Which project costs the most? | `spend_summary` (argument `days`, 1 to 90, default 7) |
 | How much of my plan is used? Am I on a subscription? When does my limit reset? | `plan_limits` |
 | Where can I save? How do I use less of my plan? | `spend_advice` (`days`, default 30) |
@@ -36,43 +36,43 @@ Kestrel's tools are named `what_kestrel_sees`, `spend_summary`, `plan_limits`, `
 | What are my agents doing right now? Which session waits for me? What should I do next? | `whats_running` |
 | What did each ticket cost? Which ticket used the most tokens this week? | `spend_by_ticket` (`days`, default 7) |
 | Which of my accounts used the most? How much of the plan does each account have left? | `spend_by_account` (`days`, default 7) |
-| What security risks did Kestrel find? Is my setup a risk for HIPAA or SOC 2? | `security_check` |
+| What security risks did Widal.Code find? Is my setup a risk for HIPAA or SOC 2? | `security_check` |
 
-- When unsure what there is, call `what_kestrel_sees` first.
+- When unsure what there is, call `what_widal_code_sees` first.
 - A question about the last month: set `days` to 30. A question about "today": set `days` to 1.
 - A question such as "what did my agents spend, and where can I save?" takes two calls: `spend_summary`, then `spend_advice`.
 - `whats_running` ends with a line "Next:" when one session needs the person soon. Give that step first.
 - `spend_by_ticket` takes the ticket from the git branch name, for example the branch user/abc-322-login gives ABC-322. When it finds no ticket, say that.
 - `spend_by_account` gives one row per account: a work and a personal Claude account, Cowork, Codex. Each account has limits of its own. Name an account by the name the tool gives, never by an email address.
-- `security_check` lists the open findings of Kestrel's checks, the most severe first, each with where it is, the controls of the frameworks that are on and the fix. Give the high ones first. A control marked "(id to check)" is Kestrel's mapping, not yet checked against the framework's own text: say so. A fix with a `kestrel apply` command is made in a terminal, by the person. Cloud findings are as new as the last `kestrel cloud-check`, which the person runs in a terminal. End with the tool's sentence that Kestrel certifies nothing.
+- `security_check` lists the open findings of Widal.Code's checks, the most severe first, each with where it is, the controls of the frameworks that are on and the fix. Give the high ones first. A control marked "(id to check)" is Widal.Code's mapping, not yet checked against the framework's own text: say so. A fix with a `widal apply` command is made in a terminal, by the person. Cloud findings are as new as the last `widal cloud-check`, which the person runs in a terminal. End with the tool's sentence that Widal.Code certifies nothing.
 
 ### How to give the answer
 
 - Give the numbers plainly and rounded, with the period they cover. For example: "In the last 7 days your agents used about [total] at list prices: [amount] in Claude Code and [amount] in Cowork." Fill in the numbers that the tool gave.
-- Use the tool's words for the dollars. When the person pays by the token they are spend. On a subscription (Pro, Max or Ultra, a Team seat, a ChatGPT plan) they are API value: what the same use would cost when every token is paid for. The person does not pay that, and the block "Plans" sets it next to the plan's price. There the plan's percent is what counts. `plan_limits` gives the percent when Kestrel knows it, and the Claude app shows it under Settings, Usage.
+- Use the tool's words for the dollars. When the person pays by the token they are spend. On a subscription (Pro, Max or Ultra, a Team seat, a ChatGPT plan) they are API value: what the same use would cost when every token is paid for. The person does not pay that, and the block "Plans" sets it next to the plan's price. There the plan's percent is what counts. `plan_limits` gives the percent when Widal.Code knows it, and the Claude app shows it under Settings, Usage.
 - Name the largest one or two parts (a project, a model), not every row.
 - If the person asked how to save, end with the one or two proposals from `spend_advice` that save the most, each with its reason and its expected saving. Keep the words of the risk.
-- A proposal can name a command such as `kestrel apply effort-default`. Say that the person runs it in a terminal, if they want the change. Kestrel in the desktop app never changes a setting.
+- A proposal can name a command such as `widal apply effort-default`. Say that the person runs it in a terminal, if they want the change. Widal.Code in the desktop app never changes a setting.
 - Do not add numbers that the tools did not give.
 
 ### When a tool says something else
 
 - **"Still reading the session logs ... for the first time":** the first read of many logs takes a while. Tell the person, and say that asking again in a minute will work.
-- **"Kestrel found no logs ...":** the person only chats, or runs the agents on another computer. Say that Claude does not keep chat usage on the computer, that the plan's percent is in the Claude app under Settings, Usage, and that the numbers start once they use Cowork, Claude Code or Codex on this computer. Then offer the tips below.
+- **"Widal.Code found no logs ...":** the person only chats, or runs the agents on another computer. Say that Claude does not keep chat usage on the computer, that the plan's percent is in the Claude app under Settings, Usage, and that the numbers start once they use Cowork, Claude Code or Codex on this computer. Then offer the tips below.
 - **"No model calls in the last 7 days":** ask whether to look further back, up to 90 days.
-- **An error:** say in one sentence that Kestrel could not answer, and give the tips below if they help.
+- **An error:** say in one sentence that Widal.Code could not answer, and give the tips below if they help.
 
-### What Kestrel cannot see
+### What Widal.Code cannot see
 
 - Chat on claude.ai, in the Claude app and on the phone, and ChatGPT.
 - Sessions that ran in the cloud and not on this computer.
 - Other computers.
 
-So Kestrel's dollars cover the agents on this computer only. The plan's percent counts everything, because chat, Cowork and Claude Code share one plan.
+So Widal.Code's dollars cover the agents on this computer only. The plan's percent counts everything, because chat, Cowork and Claude Code share one plan.
 
-## Without Kestrel's tools
+## Without Widal.Code's tools
 
-Say in one sentence: "The numbers need the Kestrel extension in the Claude desktop app, on the computer where your agents run."
+Say in one sentence: "The numbers need the Widal.Code extension in the Claude desktop app, on the computer where your agents run."
 
 Then give the tips that fit the question. Pick a few, not all. Do not add numbers to them.
 
@@ -100,4 +100,4 @@ Then give the tips that fit the question. Pick a few, not all. Do not add number
 ## Where the tips come from
 
 - Anthropic's help pages: "How do usage and length limits work?", "Usage limit best practices", "Models, usage, and limits in Claude Code" and "Get started with Claude Cowork".
-- Kestrel's guide (the README of the Kestrel repository): an agent sends its whole context on every call, chat, Cowork and Claude Code draw from one pool, and what a summary has to keep.
+- Widal.Code's guide (the README of the Widal.Code repository): an agent sends its whole context on every call, chat, Cowork and Claude Code draw from one pool, and what a summary has to keep.

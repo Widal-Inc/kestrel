@@ -20,7 +20,7 @@ const DEFAULTS = { on: false, before: 5, min: 100_000 }
 /** The settings of the notification: `{ on, before, min }`, with the defaults for what is not set. */
 export const nudgeConfig = (cfg = config()) => ({ ...DEFAULTS, ...cfg?.nudge })
 
-/** The settings in words, for "kestrel nudge" and the row of "kestrel status". */
+/** The settings in words, for "widal nudge" and the row of "widal doctor". */
 export function nudgeSettingsText(n) {
   const when = `${n.before} ${n.before === 1 ? 'minute' : 'minutes'} before the end, when the next call would send ${count(n.min)} tokens or more again`
   return n.on ? `on, ${when}` : `off (when on: ${when})`
@@ -61,7 +61,7 @@ const IDLE_COMPACTION_FROM = 200_000
  * the cache ends. The body then says that instead, with the tokens and the end of the cache.
  */
 export function nudgeText({ project, until, recache, mode, coldCost, keepWarmStopped, ttl, idleCompaction }) {
-  const title = `kestrel: ${project ? `${project} ` : ''}cache ends at ${clock(until)}`
+  const title = `widal: ${project ? `${project} ` : ''}cache ends at ${clock(until)}`
   const stopped = keepWarmStopped ? `Keep-warm stopped after ${keepWarmStopped}. ` : ''
   if (ttl === '1h' && recache >= IDLE_COMPACTION_FROM && idleCompaction !== false) {
     return { title, body: `${stopped}Soon Claude Code compacts this idle session on its own (${tok(recache)} tokens). To keep the full context, send a message before ${clock(until)}. To choose what stays, run /compact with your own words now.` }

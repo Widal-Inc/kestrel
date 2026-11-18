@@ -7,14 +7,14 @@ import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-const dir = mkdtempSync(join(tmpdir(), 'kestrel-test-'))
-// Kestrel also reads the config folders of Claude Code in the home folder, so the home folder is a
+const dir = mkdtempSync(join(tmpdir(), 'widal-code-test-'))
+// Widal.Code also reads the config folders of Claude Code in the home folder, so the home folder is a
 // made-up one too.
 process.env.HOME = join(dir, 'person')
-process.env.KESTREL_HOME = join(dir, 'home')
+process.env.WIDAL_HOME = join(dir, 'home')
 process.env.CLAUDE_CONFIG_DIR = join(dir, 'claude')
 process.env.CODEX_HOME = join(dir, 'codex')
-process.env.KESTREL_COWORK_DIR = join(dir, 'cowork')
+process.env.WIDAL_COWORK_DIR = join(dir, 'cowork')
 mkdirSync(process.env.CLAUDE_CONFIG_DIR, { recursive: true })
 
 const { CoworkParser } = await import('../src/parse-cowork.mjs')
@@ -25,7 +25,7 @@ const { load, logFiles } = await import('../src/store.mjs')
 const { analyze, totals } = await import('../src/analyze.mjs')
 const { COWORK_NOTE, findings, models, session, summary } = await import('../src/report.mjs')
 
-const COWORK = process.env.KESTREL_COWORK_DIR
+const COWORK = process.env.WIDAL_COWORK_DIR
 const SESSION = join(COWORK, 'account-1', 'workspace-1', 'local_s1')
 const LOG = join(SESSION, 'audit.jsonl')
 const OPUS = 'claude-opus-4-7'
@@ -251,12 +251,12 @@ test('the reports name Cowork, and say that sessions in the cloud are not counte
   assert.equal(other.includes('Cowork'), false)
 })
 
-const status = (coworkFolder) => spawnSync(process.execPath, [fileURLToPath(new URL('../cli/kestrel.mjs', import.meta.url)), 'status'], {
+const status = (coworkFolder) => spawnSync(process.execPath, [fileURLToPath(new URL('../cli/widal.mjs', import.meta.url)), 'doctor'], {
   // The command also looks for its link below the home folder: a made-up one, not the real one.
-  env: { ...process.env, HOME: join(dir, 'user'), USERPROFILE: join(dir, 'user'), KESTREL_COWORK_DIR: coworkFolder }, encoding: 'utf8',
+  env: { ...process.env, HOME: join(dir, 'user'), USERPROFILE: join(dir, 'user'), WIDAL_COWORK_DIR: coworkFolder }, encoding: 'utf8',
 }).stdout
 
-test('kestrel status counts the Cowork logs', () => {
+test('widal doctor counts the Cowork logs', () => {
   writeLogs()
   const text = status(COWORK)
   assert.match(text, /Session logs found +0 of Claude Code, 0 of Codex, 2 of Cowork\n/)
@@ -267,12 +267,12 @@ test('kestrel status counts the Cowork logs', () => {
 })
 
 test('no Cowork folder gives no files and no error', async () => {
-  process.env.KESTREL_COWORK_DIR = join(dir, 'no-such-folder')
+  process.env.WIDAL_COWORK_DIR = join(dir, 'no-such-folder')
   try {
     assert.deepEqual(logFiles(), [])
     assert.deepEqual((await load()).records, [])
   } finally {
-    process.env.KESTREL_COWORK_DIR = COWORK
+    process.env.WIDAL_COWORK_DIR = COWORK
   }
 })
 
@@ -291,8 +291,8 @@ test('without the setting, the Cowork folder is the desktop app\'s folder of ses
   assert.equal(coworkDir({ platform: 'freebsd', home, env }), join(home, '.config', 'Claude', 'local-agent-mode-sessions'))
   // The setting wins on every system. An empty one does not count.
   for (const platform of ['darwin', 'win32', 'linux']) {
-    assert.equal(coworkDir({ platform, home, env: { KESTREL_COWORK_DIR: join(dir, 'set') } }), join(dir, 'set'), platform)
-    assert.equal(coworkDir({ platform, home, env: { KESTREL_COWORK_DIR: '' } }), coworkDir({ platform, home, env }), platform)
+    assert.equal(coworkDir({ platform, home, env: { WIDAL_COWORK_DIR: join(dir, 'set') } }), join(dir, 'set'), platform)
+    assert.equal(coworkDir({ platform, home, env: { WIDAL_COWORK_DIR: '' } }), coworkDir({ platform, home, env }), platform)
   }
   // Without arguments it is the folder for this system, or the setting of this run.
   assert.equal(coworkDir(), COWORK)
@@ -421,7 +421,7 @@ test('a model or a tool that is named "__proto__" or "constructor" in a Cowork l
   const log = join(folder, 'account-1', 'workspace-1', 'local_odd', 'audit.jsonl')
   mkdirSync(dirname(log), { recursive: true })
   writeFileSync(log, lines.join('\n'))
-  process.env.KESTREL_COWORK_DIR = folder
+  process.env.WIDAL_COWORK_DIR = folder
   try {
     for (const loaded of [await load(), await load()]) {
       assert.deepEqual(loaded.records.map((r) => r.m), [...ODD_NAMES, OPUS])
@@ -432,7 +432,7 @@ test('a model or a tool that is named "__proto__" or "constructor" in a Cowork l
       for (const name of ODD_NAMES) assert.match(text, new RegExp(`^ {2}${name} {2,}\\(not logged\\) {2,}1 {2,}no price$`, 'm'), name)
     }
   } finally {
-    process.env.KESTREL_COWORK_DIR = COWORK
+    process.env.WIDAL_COWORK_DIR = COWORK
   }
   assert.deepEqual(builtIns(), before)
 })

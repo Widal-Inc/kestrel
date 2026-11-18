@@ -1,4 +1,4 @@
-// "kestrel top": a live view in the terminal of every agent session on this computer.
+// "widal top": a live view in the terminal of every agent session on this computer.
 //
 // Where the sessions come from:
 //   - Claude Code: the files that the status line keeps per session. A session is open while the
@@ -8,11 +8,11 @@
 //     written to in the last 60 seconds, otherwise idle.
 // Of a log only the end is read, at most 256 KB, as for the hints of the status line.
 //
-// Today's tokens come from today.json, which "kestrel refresh-today" writes.
+// Today's tokens come from today.json, which "widal refresh-today" writes.
 //
 // Names: a task in progress is text from a session. It is shown here, on the person's own screen,
 // while the setting hud.names is not false. It is never written to a file. A computer linked to a
-// Kestrel board sends the tasks of its open sessions to the board while names are on (board.mjs).
+// Widal.Code board sends the tasks of its open sessions to the board while names are on (board.mjs).
 // The desktop extension asks for the view without it. The pane in Claude Code asks for the view as data
 // ("--json"), which holds the task only while the setting allows it.
 //
@@ -399,7 +399,7 @@ export function topText(now, { names = false, colors = false, env = process.env 
   const today = readToday(now)
   const rows = sessionsNow(now, { names, today })
   const paint = (t, tone) => (colors ? color(plain(t), tone) : plain(t))
-  const head = [`Kestrel · ${count(rows.length)} ${rows.length === 1 ? 'session' : 'sessions'} on this computer`]
+  const head = [`Widal.Code · ${count(rows.length)} ${rows.length === 1 ? 'session' : 'sessions'} on this computer`]
   // The plan's limits, as the status line words them, on a subscription.
   // Each account has limits of its own. The view shows those of the account signed in now, else the newest reading.
   if (billing({}, { env, now }).mode === 'subscription') head.push(...limitParts(readLimits(now, accountToShow(now)), now).map(([t, tone]) => paint(t, tone)))
@@ -418,7 +418,7 @@ export function topText(now, { names = false, colors = false, env = process.env 
 }
 
 /**
- * The view as data, once ("kestrel top --once --json"), for the pane in Claude Code: the head, the
+ * The view as data, once ("widal top --once --json"), for the pane in Claude Code: the head, the
  * rows and the footer. `names` adds the task of a row: without names no row holds a task. Each row
  * has its facts and, under `shown`, the words of its cells as the view prints them. A Claude Code
  * row has the command that resumes it. `env` stands in for the environment.
@@ -451,7 +451,7 @@ const LEAVE = '\x1b[?25h\x1b[?1049l'
 const SIGNALS = ['SIGTERM', 'SIGHUP']
 
 /**
- * "kestrel top". With a terminal it draws the view every 2 seconds until the person presses q or
+ * "widal top". With a terminal it draws the view every 2 seconds until the person presses q or
  * Ctrl+C. Without a terminal, or with `once`, it prints the view once.
  *
  * When today's numbers are missing or due, it works them out first, in this process, and says so.
@@ -479,7 +479,7 @@ export async function top({
   if (!live) {
     if (todayDue(time())) {
       // The view goes to standard output. The note goes to the terminal only, and is wiped after.
-      if (errors.isTTY) errors.write('Kestrel · reading the logs')
+      if (errors.isTTY) errors.write('Widal.Code · reading the logs')
       await refresh({ now: time() }).catch(() => {})
       if (errors.isTTY) errors.write('\r\x1b[K')
     }
@@ -520,7 +520,7 @@ export async function top({
     output.on?.('resize', onResize)
     for (const signal of SIGNALS) process.on(signal, onSignal)
     if (todayDue(time())) {
-      draw(['Kestrel · reading the logs'])
+      draw(['Widal.Code · reading the logs'])
       let done = false
       // The wait ends when the reading is done, or when the person leaves before that.
       await new Promise((resolve) => {

@@ -4,12 +4,12 @@
 // At most 200 files and 2 MB per file are read. Binary files and everything below node_modules are
 // skipped. The text of a file stays in memory for this one check.
 //
-// Outside programs check the code when they are installed, and Kestrel's own rules do it when they
+// Outside programs check the code when they are installed, and Widal.Code's own rules do it when they
 // are not:
 //   - infrastructure code (Terraform, CloudFormation, Kubernetes YAML, Dockerfiles): Checkov, Trivy
 //     ("trivy config") or KICS, the first one found, with a time limit of 60 seconds. Without one,
-//     or when it fails or runs out of time, Kestrel's own rules for Terraform;
-//   - secret keys: gitleaks, with the same time limit, else Kestrel's own patterns.
+//     or when it fails or runs out of time, Widal.Code's own rules for Terraform;
+//   - secret keys: gitleaks, with the same time limit, else Widal.Code's own patterns.
 // A finding says which program found it. It names the file, the line and the kind of thing, and
 // never what was matched. gitleaks runs with --redact, so not even its output holds a key.
 import { execFileSync, spawnSync } from 'node:child_process'
@@ -100,7 +100,7 @@ const json = (text) => {
   }
 }
 
-/** A scanner's severity as Kestrel's. A scanner that gives none (Checkov without its platform) counts as medium. */
+/** A scanner's severity as Widal.Code's. A scanner that gives none (Checkov without its platform) counts as medium. */
 export function severityFrom(value) {
   const s = String((typeof value === 'object' && value ? value.name : value) ?? '').toUpperCase()
   if (s === 'CRITICAL' || s === 'HIGH') return 'high'
@@ -110,7 +110,7 @@ export function severityFrom(value) {
   return 'medium'
 }
 
-const NAMES = { checkov: 'Checkov', trivy: 'Trivy', kics: 'KICS', gitleaks: 'gitleaks', kestrel: "Kestrel's own rules" }
+const NAMES = { checkov: 'Checkov', trivy: 'Trivy', kics: 'KICS', gitleaks: 'gitleaks', own: "Widal.Code's own rules" }
 
 /**
  * A path that a scanner gave, relative to the repository. A full path inside the repository is made
@@ -166,7 +166,7 @@ function scanIac(name, program, files, { root, env, limitMs }) {
     return { items, ok: true }
   }
   // KICS writes its report to a folder. It ends with 20 to 60 when it found something, by the most severe result.
-  const dir = mkdtempSync(join(tmpdir(), 'kestrel-kics-'))
+  const dir = mkdtempSync(join(tmpdir(), 'widal-code-kics-'))
   try {
     const r = runProgram(program, ['scan', '-p', files.map((f) => f.path).join(','), '-o', dir, '--report-formats', 'json', '--output-name', 'results', '--no-progress'], { cwd: root, timeout: left(), env })
     let out
@@ -208,7 +208,7 @@ function scanSecrets(program, files, { env, limitMs }) {
   return { items, done }
 }
 
-// Kestrel's own rules for Terraform, used without an infrastructure scanner.
+// Widal.Code's own rules for Terraform, used without an infrastructure scanner.
 
 /** The blocks `resource "<type>" "<name>" { ... }` of a Terraform file: `{ type, start, body }`, `start` the offset of the block. */
 function resources(text) {
@@ -256,7 +256,7 @@ function openToAll(body) {
   return !(from === to && (from === 80 || from === 443))
 }
 
-/** The findings of Kestrel's own rules for one Terraform file: [check, line, words, severity]. */
+/** The findings of Widal.Code's own rules for one Terraform file: [check, line, words, severity]. */
 export function terraformRules(text) {
   const out = []
   const all = resources(text)
@@ -323,7 +323,7 @@ export function checkCode({ root, frameworks = [], env = process.env, limits = L
   const used = new Set()
   const add = (rule, file, line, extra, opts) => findings.push(makeFinding(rule, { key: `${root}:${file}:${line ?? 0}${extra ? `:${extra}` : ''}`, scope, frameworks, where: { repo: root, file, ...(line && { line }) }, ...opts }))
 
-  // Infrastructure code: the first scanner that is installed, else Kestrel's own rules for Terraform.
+  // Infrastructure code: the first scanner that is installed, else Widal.Code's own rules for Terraform.
   const iac = files.filter(isIac)
   let ownIac = iac.length > 0
   if (iac.length) {
@@ -341,18 +341,18 @@ export function checkCode({ root, frameworks = [], env = process.env, limits = L
           add('code.iac', it.file, it.line, String(it.id ?? 'check'), { severity: it.severity, source: name, detail: `${what.length > 1 ? `${what[0]} (${what[1]})` : what[0] ?? 'A check failed'}, found by ${NAMES[name]}.` })
         }
       }
-      // One scanner is enough. When it failed or ran out of time, Kestrel's own rules stand in.
+      // One scanner is enough. When it failed or ran out of time, Widal.Code's own rules stand in.
       break
     }
   }
   if (ownIac) {
     for (const f of iac.filter((x) => x.path.endsWith('.tf'))) {
-      used.add('kestrel')
-      for (const [check, line, words, severity] of terraformRules(f.text)) add('code.iac', f.path, line, check, { severity, detail: `${words}, found by Kestrel's own rules for Terraform.` })
+      used.add('own')
+      for (const [check, line, words, severity] of terraformRules(f.text)) add('code.iac', f.path, line, check, { severity, detail: `${words}, found by Widal.Code's own rules for Terraform.` })
     }
   }
 
-  // Secret keys: gitleaks when it is installed. The files it did not reach in time get Kestrel's own patterns.
+  // Secret keys: gitleaks when it is installed. The files it did not reach in time get Widal.Code's own patterns.
   const gitleaks = findProgram('gitleaks', env)
   let checked = new Set()
   if (gitleaks && files.length) {
@@ -367,13 +367,13 @@ export function checkCode({ root, frameworks = [], env = process.env, limits = L
   for (const f of files) {
     const lines = f.text.split('\n')
     const ownKeys = !checked.has(f.path)
-    if (ownKeys) used.add('kestrel')
+    if (ownKeys) used.add('own')
     const script = SCRIPT.test(f.path)
     const config = CONFIG(f.path)
     const fixture = TEST_FIXTURE.test(f.path)
     lines.forEach((text, i) => {
       const line = i + 1
-      if (ownKeys) for (const kind of keysIn(text).keys()) add('code.secret', f.path, line, kind, { detail: `The kind of key: ${kind}. Found by Kestrel's own patterns.` })
+      if (ownKeys) for (const kind of keysIn(text).keys()) add('code.secret', f.path, line, kind, { detail: `The kind of key: ${kind}. Found by Widal.Code's own patterns.` })
       for (const [words, re] of TLS_OFF) if (re.test(text)) add('code.tls-off', f.path, line, words, { detail: `${words}.` })
       if (script && /\bcurl\b/.test(text) && insecureCurl(text)) add('code.tls-off', f.path, line, 'curl -k', { detail: 'curl with -k or --insecure.' })
       if (phi && LOG_CALL.test(text) && PERSON_FIELD.test(text)) add('code.phi-log', f.path, line, '', { detail: 'A log or print call in the same line as a field named like an identifier of a person.' })

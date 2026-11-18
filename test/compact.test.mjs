@@ -10,15 +10,17 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-const dir = mkdtempSync(join(tmpdir(), 'kestrel-compact-test-'))
-// Kestrel also reads the config folders of Claude Code in the home folder, so the home folder is a
+const dir = mkdtempSync(join(tmpdir(), 'widal-code-compact-test-'))
+// Widal.Code also reads the config folders of Claude Code in the home folder, so the home folder is a
 // made-up one too.
 process.env.HOME = join(dir, 'person')
-process.env.KESTREL_HOME = join(dir, 'home')
+// The link that Claude Code's settings call, in the tool's folder in the made-up home folder.
+const OWN = join(process.env.HOME, '.widal', 'bin', 'widal')
+process.env.WIDAL_HOME = join(dir, 'home')
 process.env.CLAUDE_CONFIG_DIR = join(dir, 'claude')
 process.env.CODEX_HOME = join(dir, 'codex')
 // Cowork's folder too: without this a test would read the real Cowork logs of whoever runs it.
-process.env.KESTREL_COWORK_DIR = join(dir, 'cowork')
+process.env.WIDAL_COWORK_DIR = join(dir, 'cowork')
 mkdirSync(process.env.CLAUDE_CONFIG_DIR, { recursive: true })
 
 const { ClaudeParser } = await import('../src/parse-claude.mjs')
@@ -37,7 +39,7 @@ const { day, when } = await import('../src/format.mjs')
 const MIN = 60e3
 const DAY = 86400e3
 const START = Date.parse('2026-11-12T10:00:00Z')
-const BIN = fileURLToPath(new URL('../cli/kestrel.mjs', import.meta.url))
+const BIN = fileURLToPath(new URL('../cli/widal.mjs', import.meta.url))
 
 /**
  * Runs the command with folders of its own below `name`, so that it sees no log and no setting of
@@ -46,7 +48,7 @@ const BIN = fileURLToPath(new URL('../cli/kestrel.mjs', import.meta.url))
  */
 function command(name) {
   const own = join(dir, name)
-  const env = { PATH: process.env.PATH, HOME: own, USERPROFILE: own, KESTREL_HOME: join(own, 'home'), CLAUDE_CONFIG_DIR: join(own, 'claude'), CODEX_HOME: join(own, 'codex'), KESTREL_COWORK_DIR: join(own, 'cowork') }
+  const env = { PATH: process.env.PATH, HOME: own, USERPROFILE: own, WIDAL_HOME: join(own, 'home'), CLAUDE_CONFIG_DIR: join(own, 'claude'), CODEX_HOME: join(own, 'codex'), WIDAL_COWORK_DIR: join(own, 'cowork') }
   mkdirSync(env.CLAUDE_CONFIG_DIR, { recursive: true })
   const run = (args, input) => spawnSync(process.execPath, [BIN, ...args], { encoding: 'utf8', env, input })
   return { env, run }
@@ -56,14 +58,14 @@ function command(name) {
 let homes = 0
 const SETTINGS = () => join(process.env.CLAUDE_CONFIG_DIR, 'settings.json')
 const freshHome = () => {
-  process.env.KESTREL_HOME = join(dir, `home-${++homes}`)
+  process.env.WIDAL_HOME = join(dir, `home-${++homes}`)
   process.env.CLAUDE_CONFIG_DIR = join(dir, `claude-${homes}`)
   mkdirSync(process.env.CLAUDE_CONFIG_DIR, { recursive: true })
 }
 /** Claude Code's settings as they are in the file now. */
 const settings = () => JSON.parse(readFileSync(SETTINGS(), 'utf8'))
 /** This tool's settings as they are in the file now. */
-const ownConfig = (home = process.env.KESTREL_HOME) => JSON.parse(readFileSync(join(home, 'config.json'), 'utf8'))
+const ownConfig = (home = process.env.WIDAL_HOME) => JSON.parse(readFileSync(join(home, 'config.json'), 'utf8'))
 
 let made = 0
 /** One line of a Claude Code log: a model call at the time `ts`, in the folder `cwd`. */
@@ -293,7 +295,7 @@ test('a period without a compaction gets one sentence, and a compaction before t
   assert.equal(compactionsOf(undefined).length, 0)
 })
 
-test('"kestrel compactions" reads the logs of 30 days unless --days says otherwise, also from the cache', async () => {
+test('"widal compactions" reads the logs of 30 days unless --days says otherwise, also from the cache', async () => {
   const { env, run } = command('compactions-command')
   assert.equal(run(['compactions']).stdout, 'No compaction in the last 30 days.\n')
   assert.equal(run(['compactions', '--days', '14']).stdout, 'No compaction in the last 14 days.\n')
@@ -311,11 +313,11 @@ test('"kestrel compactions" reads the logs of 30 days unless --days says otherwi
   assert.deepEqual(seen(), ['Compactions, last 30 days. A compaction replaces a long conversation with a summary.', '2', '2 of 2'])
   assert.deepEqual(seen('--days', '14'), ['Compactions, last 14 days. A compaction replaces a long conversation with a summary.', '1', '1 of 1'])
   assert.deepEqual(seen('--days', '60'), ['Compactions, last 60 days. A compaction replaces a long conversation with a summary.', '3', '3 of 3'])
-  assert.match(run(['help']).stdout, /^  kestrel compactions \[--days 30\] +the compactions of your sessions: how many, and the context before and after$/m)
+  assert.match(run(['help']).stdout, /^  widal compactions \[--days 30\] +the compactions of your sessions: how many, and the context before and after$/m)
 
   // The parsed log is kept in the cache with its compactions. A cache file of the version
   // before has none: the log is parsed again.
-  const cache = join(env.KESTREL_HOME, 'cache')
+  const cache = join(env.WIDAL_HOME, 'cache')
   const files = readdirSync(cache)
   assert.equal(files.length, 1)
   const entry = JSON.parse(readFileSync(join(cache, files[0]), 'utf8'))
@@ -324,18 +326,18 @@ test('"kestrel compactions" reads the logs of 30 days unless --days says otherwi
   writeFileSync(join(cache, files[0]), JSON.stringify({ ...entry, v: 9, meta: {} }))
   assert.deepEqual(seen('--days', '60')[1], '3')
   // `load()` gives the same from the cache as from the log.
-  Object.assign(process.env, { KESTREL_HOME: env.KESTREL_HOME, CLAUDE_CONFIG_DIR: env.CLAUDE_CONFIG_DIR })
+  Object.assign(process.env, { WIDAL_HOME: env.WIDAL_HOME, CLAUDE_CONFIG_DIR: env.CLAUDE_CONFIG_DIR })
   try {
     const { metas } = await load({ since: 0, sources: ['claude'] })
     assert.deepEqual(compactionsOf(metas).map((c) => [c.trigger, c.pre, c.post, c.sec, c.ses, c.cwd]), [1, 2, 3].map(() => ['auto', 366000, 31000, 95, 'ages', '/work/repo']))
   } finally {
-    Object.assign(process.env, { KESTREL_HOME: join(dir, 'home'), CLAUDE_CONFIG_DIR: join(dir, 'claude') })
+    Object.assign(process.env, { WIDAL_HOME: join(dir, 'home'), CLAUDE_CONFIG_DIR: join(dir, 'claude') })
   }
 })
 
 const KEEP = 'Keep what the person asked for and decided, the current plan with its open steps, the files that were changed, commands that have to be run again, and everything the person said not to do.'
 
-test('"kestrel compact-keep" shows the default text, sets the person\'s own, and puts the default back', () => {
+test('"widal compact-keep" shows the default text, sets the person\'s own, and puts the default back', () => {
   assert.equal(DEFAULT_KEEP, KEEP)
   const { env, run } = command('keep-command')
   const out = (...args) => {
@@ -343,22 +345,22 @@ test('"kestrel compact-keep" shows the default text, sets the person\'s own, and
     assert.deepEqual([r.status, r.stderr], [0, ''], args.join(' '))
     return r.stdout.split('\n')
   }
-  const NOT_YET = 'Claude Code is not given the text yet. Add the hook for that with: kestrel apply compact-keep'
-  const HOW = 'Set your own with: kestrel compact-keep "<text>". Put the default back with: kestrel compact-keep --default'
+  const NOT_YET = 'Claude Code is not given the text yet. Add the hook for that with: widal apply compact-keep'
+  const HOW = 'Set your own with: widal compact-keep "<text>". Put the default back with: widal compact-keep --default'
   assert.deepEqual(out(), ['What a summary has to keep, at every compaction (the default text):', KEEP, HOW, NOT_YET, ''])
   // Showing the text saves nothing.
-  assert.throws(() => ownConfig(env.KESTREL_HOME), { code: 'ENOENT' })
+  assert.throws(() => ownConfig(env.WIDAL_HOME), { code: 'ENOENT' })
 
   // The other settings stay when the text is set.
-  mkdirSync(env.KESTREL_HOME, { recursive: true })
-  writeFileSync(join(env.KESTREL_HOME, 'config.json'), JSON.stringify({ limits: { day: 200, action: 'warn' } }))
+  mkdirSync(env.WIDAL_HOME, { recursive: true })
+  writeFileSync(join(env.WIDAL_HOME, 'config.json'), JSON.stringify({ limits: { day: 200, action: 'warn' } }))
   const own = 'Keep the names of the tables, and the test that still fails.'
   assert.deepEqual(out(own), ['The text is saved.', NOT_YET, ''])
-  assert.deepEqual(ownConfig(env.KESTREL_HOME), { limits: { day: 200, action: 'warn' }, compactKeep: { text: own } })
+  assert.deepEqual(ownConfig(env.WIDAL_HOME), { limits: { day: 200, action: 'warn' }, compactKeep: { text: own } })
   assert.deepEqual(out(), ['What a summary has to keep, at every compaction (your own text):', own, HOW, NOT_YET, ''])
   // A text can have more than one line.
   assert.deepEqual(out('first line\nsecond line'), ['The text is saved.', NOT_YET, ''])
-  assert.equal(ownConfig(env.KESTREL_HOME).compactKeep.text, 'first line\nsecond line')
+  assert.equal(ownConfig(env.WIDAL_HOME).compactKeep.text, 'first line\nsecond line')
 
   // Once the hook is applied, the note about it is gone.
   assert.equal(run(['apply', 'compact-keep']).status, 0)
@@ -367,33 +369,33 @@ test('"kestrel compact-keep" shows the default text, sets the person\'s own, and
 
   // The default comes back, and the person's text is out of the settings.
   assert.deepEqual(out('--default'), ['The default text is back.', ''])
-  assert.deepEqual(ownConfig(env.KESTREL_HOME), { limits: { day: 200, action: 'warn' } })
+  assert.deepEqual(ownConfig(env.WIDAL_HOME), { limits: { day: 200, action: 'warn' } })
   assert.deepEqual(out(), ['What a summary has to keep, at every compaction (the default text):', KEEP, HOW, ''])
   assert.deepEqual(out('--default'), ['The default text is back.', ''])
 
   const help = run(['help']).stdout
-  assert.match(help, /^  kestrel compact-keep +the text that says what a summary has to keep, at every compaction$/m)
-  assert.match(help, /^  kestrel compact-keep "<text>" +set your own text \(put the default back with: kestrel compact-keep --default\)$/m)
+  assert.match(help, /^  widal compact-keep +the text that says what a summary has to keep, at every compaction$/m)
+  assert.match(help, /^  widal compact-keep "<text>" +set your own text \(put the default back with: widal compact-keep --default\)$/m)
 })
 
 test('the text has 1 to 10,000 characters: a text outside that, or more than one argument, fails with one sentence and changes nothing', () => {
   const { env, run } = command('keep-bounds')
-  const config = () => ownConfig(env.KESTREL_HOME)
+  const config = () => ownConfig(env.WIDAL_HOME)
   const set = (...args) => {
     const r = run(['compact-keep', ...args])
     return [r.status, r.stdout, r.stderr]
   }
-  const saved = [0, 'The text is saved.\nClaude Code is not given the text yet. Add the hook for that with: kestrel apply compact-keep\n', '']
+  const saved = [0, 'The text is saved.\nClaude Code is not given the text yet. Add the hook for that with: widal apply compact-keep\n', '']
   // The two bounds, and one step outside each.
   assert.deepEqual(set('k'), saved)
   assert.deepEqual(config(), { compactKeep: { text: 'k' } })
-  assert.deepEqual(set(''), [1, '', 'kestrel: The text has to be 1 to 10,000 characters long, and this one has 0.\n'])
+  assert.deepEqual(set(''), [1, '', 'widal: The text has to be 1 to 10,000 characters long, and this one has 0.\n'])
   assert.deepEqual(set('k'.repeat(10000)), saved)
   assert.equal(config().compactKeep.text.length, 10000)
-  assert.deepEqual(set('k'.repeat(10001)), [1, '', 'kestrel: The text has to be 1 to 10,000 characters long, and this one has 10,001.\n'])
+  assert.deepEqual(set('k'.repeat(10001)), [1, '', 'widal: The text has to be 1 to 10,000 characters long, and this one has 10,001.\n'])
   assert.equal(config().compactKeep.text.length, 10000)
   // A text that is not in quotes arrives as several arguments. A text after --default is not expected either.
-  const how = 'kestrel: Use "kestrel compact-keep", "kestrel compact-keep --default", or "kestrel compact-keep" with your text as one argument, in quotes.\n'
+  const how = 'widal: Use "widal compact-keep", "widal compact-keep --default", or "widal compact-keep" with your text as one argument, in quotes.\n'
   assert.deepEqual(set('keep', 'the', 'plan'), [1, '', how])
   assert.deepEqual(set('--default', 'keep the plan'), [1, '', how])
   assert.deepEqual(set('keep the plan', '--default'), [1, '', how])
@@ -410,7 +412,7 @@ test('the text has 1 to 10,000 characters: a text outside that, or more than one
   assert.deepEqual(ownConfig(), {})
 })
 
-test('"kestrel hook compact-keep" prints exactly the text and exits 0, the same for an automatic compaction and for one by hand', () => {
+test('"widal hook compact-keep" prints exactly the text and exits 0, the same for an automatic compaction and for one by hand', () => {
   const { env, run } = command('keep-hook')
   const hook = (input) => {
     const r = run(['hook', 'compact-keep'], input)
@@ -421,8 +423,8 @@ test('"kestrel hook compact-keep" prints exactly the text and exits 0, the same 
   // The default, with no settings file. No line break is added, and nothing of the input is printed.
   for (const input of [auto, byHand, undefined, '', 'not JSON']) assert.deepEqual(hook(input), [0, KEEP, ''], String(input))
   // With settings that do not name a text: still the default.
-  mkdirSync(env.KESTREL_HOME, { recursive: true })
-  const config = (value) => writeFileSync(join(env.KESTREL_HOME, 'config.json'), typeof value === 'string' ? value : JSON.stringify(value))
+  mkdirSync(env.WIDAL_HOME, { recursive: true })
+  const config = (value) => writeFileSync(join(env.WIDAL_HOME, 'config.json'), typeof value === 'string' ? value : JSON.stringify(value))
   config({ nudge: { on: true } })
   assert.deepEqual(hook(auto), [0, KEEP, ''])
   // The person's own text, with its line breaks and spaces as they are.
@@ -432,20 +434,20 @@ test('"kestrel hook compact-keep" prints exactly the text and exits 0, the same 
   config({ compactKeep: { text: 'k'.repeat(10000) } })
   assert.deepEqual(hook(auto), [0, 'k'.repeat(10000), ''])
   // The hook saves nothing.
-  assert.deepEqual(readdirSync(env.KESTREL_HOME), ['config.json'])
+  assert.deepEqual(readdirSync(env.WIDAL_HOME), ['config.json'])
 })
 
 test('the hook prints nothing and exits 0 when the settings are broken, and the command then says what is wrong', () => {
   const { env, run } = command('keep-broken')
-  mkdirSync(env.KESTREL_HOME, { recursive: true })
-  const file = join(env.KESTREL_HOME, 'config.json')
-  const noText = `kestrel: "compactKeep" in ${file} does not hold a text of 1 to 10,000 characters. Set one with: kestrel compact-keep "<text>"\n`
+  mkdirSync(env.WIDAL_HOME, { recursive: true })
+  const file = join(env.WIDAL_HOME, 'config.json')
+  const noText = `widal: "compactKeep" in ${file} does not hold a text of 1 to 10,000 characters. Set one with: widal compact-keep "<text>"\n`
   const broken = [
-    ['{"compactKeep": {"text": "Keep the pl', `kestrel: ${file} is not valid JSON, so the text is not known.\n`],
-    ['', `kestrel: ${file} is not valid JSON, so the text is not known.\n`],
-    ['[]', `kestrel: ${file} does not hold a JSON object, so the text is not known.\n`],
-    ['"Keep the plan."', `kestrel: ${file} does not hold a JSON object, so the text is not known.\n`],
-    ['null', `kestrel: ${file} does not hold a JSON object, so the text is not known.\n`],
+    ['{"compactKeep": {"text": "Keep the pl', `widal: ${file} is not valid JSON, so the text is not known.\n`],
+    ['', `widal: ${file} is not valid JSON, so the text is not known.\n`],
+    ['[]', `widal: ${file} does not hold a JSON object, so the text is not known.\n`],
+    ['"Keep the plan."', `widal: ${file} does not hold a JSON object, so the text is not known.\n`],
+    ['null', `widal: ${file} does not hold a JSON object, so the text is not known.\n`],
     [JSON.stringify({ compactKeep: 'Keep the plan.' }), noText],
     [JSON.stringify({ compactKeep: null }), noText],
     [JSON.stringify({ compactKeep: {} }), noText],
@@ -463,7 +465,7 @@ test('the hook prints nothing and exits 0 when the settings are broken, and the 
   }
   // A settings file that cannot be read as a file: here a folder stands in its place.
   const { env: other, run: runOther } = command('keep-unreadable')
-  mkdirSync(join(other.KESTREL_HOME, 'config.json'), { recursive: true })
+  mkdirSync(join(other.WIDAL_HOME, 'config.json'), { recursive: true })
   const hook = runOther(['hook', 'compact-keep'])
   assert.deepEqual([hook.status, hook.stdout, hook.stderr], [0, '', ''])
   assert.match(runOther(['compact-keep']).stderr, /config\.json cannot be read \(EISDIR\), so the text is not known\.\n$/)
@@ -480,7 +482,7 @@ test('the hook prints nothing and exits 0 when the settings are broken, and the 
 
 test('"apply compact-keep" adds one hook before a compaction, with a backup, and "undo" takes only that hook out', () => {
   freshHome()
-  const ours = { type: 'command', command: '/bin/kestrel hook compact-keep', timeout: 5 }
+  const ours = { type: 'command', command: `${OWN} hook compact-keep`, timeout: 5 }
   const theirs = { type: 'command', command: '/bin/other-tool before-compact' }
   const OTHER = {
     model: 'claude-fable-5-2',
@@ -489,39 +491,39 @@ test('"apply compact-keep" adds one hook before a compaction, with a backup, and
       Stop: [{ hooks: [{ type: 'command', command: '/bin/other-tool stop' }] }],
     },
   }
-  const backups = () => readdirSync(join(process.env.KESTREL_HOME, 'backup'))
+  const backups = () => readdirSync(join(process.env.WIDAL_HOME, 'backup'))
   // Off until it is applied.
   assert.deepEqual(actionsStatus().find(([id]) => id === 'compact-keep'), ['compact-keep', 'not applied'])
-  assert.deepEqual(undoAction('compact-keep', '/bin/kestrel'), ['compact-keep was not applied by this tool, so there is nothing to take back.'])
+  assert.deepEqual(undoAction('compact-keep', OWN), ['compact-keep was not applied by this tool, so there is nothing to take back.'])
   writeFileSync(SETTINGS(), JSON.stringify(OTHER))
 
-  const said = applyAction('compact-keep', '/bin/kestrel')
-  assert.deepEqual(said, [ACTIONS['compact-keep'].what, ACTIONS['compact-keep'].note, 'Take it back with: kestrel undo compact-keep'])
+  const said = applyAction('compact-keep', OWN)
+  assert.deepEqual(said, [ACTIONS['compact-keep'].what, ACTIONS['compact-keep'].note, 'Take it back with: widal undo compact-keep'])
   assert.match(said[0], /^Adds a hook to Claude Code that runs before every compaction, automatic or by hand\./)
   // The hook has no matcher, so it runs for both kinds of compaction. The other tool's hooks stay.
   assert.deepEqual(settings(), { ...OTHER, hooks: { ...OTHER.hooks, PreCompact: [{ matcher: 'manual', hooks: [theirs] }, { hooks: [ours] }] } })
   // The settings as they were before are in the backup folder.
   assert.equal(backups().length, 1)
-  assert.deepEqual(JSON.parse(readFileSync(join(process.env.KESTREL_HOME, 'backup', backups()[0]), 'utf8')), OTHER)
+  assert.deepEqual(JSON.parse(readFileSync(join(process.env.WIDAL_HOME, 'backup', backups()[0]), 'utf8')), OTHER)
   assert.deepEqual(Object.keys(appliedActions()), ['compact-keep'])
   assert.match(actionsStatus().find(([id]) => id === 'compact-keep')[1], /^applied on \d{4}-\d\d-\d\d$/)
-  assert.deepEqual(applyAction('compact-keep', '/bin/kestrel'), ['compact-keep is already applied.'])
+  assert.deepEqual(applyAction('compact-keep', OWN), ['compact-keep is already applied.'])
 
-  assert.deepEqual(undoAction('compact-keep', '/bin/kestrel'), ['compact-keep is taken back. Claude Code\'s settings are as they were before it.'])
+  assert.deepEqual(undoAction('compact-keep', OWN), ['compact-keep is taken back. Claude Code\'s settings are as they were before it.'])
   assert.deepEqual(settings(), OTHER)
   assert.deepEqual(appliedActions(), {})
 
   // A group that this tool's hook shares with another tool's hook keeps the other one.
   writeFileSync(SETTINGS(), JSON.stringify({ hooks: { PreCompact: [{ hooks: [theirs, ours] }] } }))
-  applyAction('compact-keep', '/bin/kestrel')
+  applyAction('compact-keep', OWN)
   assert.deepEqual(settings(), { hooks: { PreCompact: [{ hooks: [theirs] }, { hooks: [ours] }] } })
-  undoAction('compact-keep', '/bin/kestrel')
+  undoAction('compact-keep', OWN)
   assert.deepEqual(settings(), { hooks: { PreCompact: [{ hooks: [theirs] }] } })
   // The hook that somebody took out by hand: the status says so, and applying puts it back.
-  applyAction('compact-keep', '/bin/kestrel')
+  applyAction('compact-keep', OWN)
   writeFileSync(SETTINGS(), JSON.stringify({ hooks: { PreCompact: [{ hooks: [theirs] }] } }))
   assert.match(actionsStatus().find(([id]) => id === 'compact-keep')[1], /, but no longer in the settings$/)
-  applyAction('compact-keep', '/bin/kestrel')
+  applyAction('compact-keep', OWN)
   assert.deepEqual(settings().hooks.PreCompact, [{ hooks: [theirs] }, { hooks: [ours] }])
   // "uninstall" takes the hook out with this tool's other hooks.
   assert.equal(uninstall(), true)
@@ -529,13 +531,13 @@ test('"apply compact-keep" adds one hook before a compaction, with a backup, and
 
   // With no settings file at all: the hook is added, and the undo leaves no hook behind.
   freshHome()
-  applyAction('compact-keep', '/bin/kestrel')
+  applyAction('compact-keep', OWN)
   assert.deepEqual(settings(), { hooks: { PreCompact: [{ hooks: [ours] }] } })
-  undoAction('compact-keep', '/bin/kestrel')
+  undoAction('compact-keep', OWN)
   assert.deepEqual(settings(), { hooks: {} })
   // Settings that are not in the shape Claude Code writes are not changed.
   writeFileSync(SETTINGS(), JSON.stringify({ hooks: { PreCompact: 'a hook' } }))
-  assert.throws(() => applyAction('compact-keep', '/bin/kestrel'), { message: `"hooks.PreCompact" in ${SETTINGS()} is not a list, so this tool does not change it.` })
+  assert.throws(() => applyAction('compact-keep', OWN), { message: `"hooks.PreCompact" in ${SETTINGS()} is not a list, so this tool does not change it.` })
   assert.deepEqual(settings(), { hooks: { PreCompact: 'a hook' } })
   assert.deepEqual(appliedActions(), {})
 })
@@ -575,7 +577,7 @@ test('the replay gives the saving of an earlier automatic point for 200,000, 300
   assert.equal(found.evidence, '2 calls of Claude Code carried more than 300k tokens. The part above that cost $0.08: $0.02 in subagents and $0.06 in main sessions. The same count for three points: $0.13 less at 200k tokens, $0.08 less at 300k tokens, $0.02 less at 500k tokens.')
   assert.equal(found.how, 'One setting in Claude Code: "autoCompactWindow": 300000. Claude Code then compacts a context on its own when it reaches that many tokens. Without the setting it does so only at the limit of the model.')
   // The text says what the amount rests on, that nobody has measured it, and to measure after the change.
-  assert.equal(found.risk, 'The amount assumes that the work goes on the same with a smaller context. Nobody has measured that. A summary loses detail, and work that misses the detail can take more calls. So measure the change after it is applied: kestrel measure autocompact-window')
+  assert.equal(found.risk, 'The amount assumes that the work goes on the same with a smaller context. Nobody has measured that. A summary loses detail, and work that misses the detail can take more calls. So measure the change after it is applied: widal measure autocompact-window')
   assert.deepEqual([found.apply, found.args, found.action], [true, '--tokens 300000', undefined])
   // The proposal about a long context under its old name is gone.
   assert.equal(p.list.filter((x) => x.id === 'autocompact-window').length, 1)
@@ -593,12 +595,12 @@ test('the replay gives the saving of an earlier automatic point for 200,000, 300
     `   Why:  ${found.evidence}`,
     `   How:  ${found.how}`,
     `   Risk: ${found.risk}`,
-    '   Apply: kestrel apply autocompact-window --tokens 300000',
+    '   Apply: widal apply autocompact-window --tokens 300000',
   ])
   assert.doesNotMatch(text, /[\u2013\u2014]/)
   // Once it is applied, the proposal names the measure and the undo.
   const applied = adviseReport(carried(), { days: 30, applied: { 'autocompact-window': { at: START, before: { tokens: 300000 } } } })
-  assert.equal(block(applied)[4], `   Applied on ${day(START)}. See: kestrel measure autocompact-window. Take it back: kestrel undo autocompact-window`)
+  assert.equal(block(applied)[4], `   Applied on ${day(START)}. See: widal measure autocompact-window. Take it back: widal undo autocompact-window`)
 })
 
 test('the replay of an earlier automatic point counts Claude Code\'s calls only, at each point from the first token above it', () => {
@@ -623,17 +625,17 @@ test('"apply autocompact-window" sets the size at which Claude Code compacts on 
   freshHome()
   const OTHER = { model: 'claude-fable-5-2', hooks: { Stop: [{ hooks: [{ type: 'command', command: '/bin/other-tool stop' }] }] } }
   writeFileSync(SETTINGS(), JSON.stringify(OTHER))
-  const apply = (...args) => applyAction('autocompact-window', '/bin/kestrel', START, args)
+  const apply = (...args) => applyAction('autocompact-window', OWN, START, args)
   // Without --tokens it is 300,000.
   assert.deepEqual(apply(), [
     'Set "autoCompactWindow" to 300000 in Claude Code\'s settings. Claude Code compacts a context on its own when it reaches that many tokens.',
     ACTIONS['autocompact-window'].note,
-    'Take it back with: kestrel undo autocompact-window',
+    'Take it back with: widal undo autocompact-window',
   ])
-  assert.match(ACTIONS['autocompact-window'].note, /Nobody has measured whether the work goes on the same with a smaller context\. .* Check the effect with: kestrel measure autocompact-window$/)
+  assert.match(ACTIONS['autocompact-window'].note, /Nobody has measured whether the work goes on the same with a smaller context\. .* Check the effect with: widal measure autocompact-window$/)
   assert.deepEqual(settings(), { ...OTHER, [SETTINGS_KEY]: 300000 })
   assert.deepEqual(appliedActions(), { 'autocompact-window': { at: START, before: { tokens: 300000 } } })
-  assert.equal(readdirSync(join(process.env.KESTREL_HOME, 'backup')).length, 1)
+  assert.equal(readdirSync(join(process.env.WIDAL_HOME, 'backup')).length, 1)
   assert.deepEqual(apply(), ['autocompact-window is already applied.'])
   assert.deepEqual(apply('--tokens', '300000'), ['autocompact-window is already applied.'])
   // With --tokens: another size. What was there before the first apply is still kept.
@@ -641,20 +643,20 @@ test('"apply autocompact-window" sets the size at which Claude Code compacts on 
   assert.deepEqual(settings(), { ...OTHER, [SETTINGS_KEY]: 500000 })
   assert.deepEqual(appliedActions()['autocompact-window'].before, { tokens: 500000 })
   // The undo takes the key out again, because there was none before.
-  assert.deepEqual(undoAction('autocompact-window', '/bin/kestrel'), ['autocompact-window is taken back. Claude Code\'s settings are as they were before it.'])
+  assert.deepEqual(undoAction('autocompact-window', OWN), ['autocompact-window is taken back. Claude Code\'s settings are as they were before it.'])
   assert.deepEqual(settings(), OTHER)
   assert.deepEqual(appliedActions(), {})
 })
 
 test('--tokens is a whole number from 100000 to 1000000, and any other value changes nothing', () => {
   freshHome()
-  const apply = (tokens) => applyAction('autocompact-window', '/bin/kestrel', START, ['--tokens', tokens])
+  const apply = (tokens) => applyAction('autocompact-window', OWN, START, ['--tokens', tokens])
   // The two bounds are taken.
   for (const tokens of ['100000', '1000000']) {
     assert.match(apply(tokens)[0], new RegExp(`^Set "autoCompactWindow" to ${tokens} in`))
     assert.equal(settings()[SETTINGS_KEY], Number(tokens))
   }
-  undoAction('autocompact-window', '/bin/kestrel')
+  undoAction('autocompact-window', OWN)
   assert.deepEqual(settings(), {})
   // One step outside each bound, and what is no whole number.
   for (const bad of ['99999', '1000001', '0', '-300000', '300000.5', '3e5', '300k', 'many', '', ' 300000']) {
@@ -662,17 +664,17 @@ test('--tokens is a whole number from 100000 to 1000000, and any other value cha
     assert.deepEqual(settings(), {}, bad)
     assert.deepEqual(appliedActions(), {}, bad)
   }
-  assert.throws(() => applyAction('autocompact-window', '/bin/kestrel', START, ['--tokens']), { message: '--tokens needs a value after it.' })
-  assert.throws(() => applyAction('autocompact-window', '/bin/kestrel', START, ['--size', '300000']), { message: 'autocompact-window does not take "--size". It takes: --tokens <value>' })
+  assert.throws(() => applyAction('autocompact-window', OWN, START, ['--tokens']), { message: '--tokens needs a value after it.' })
+  assert.throws(() => applyAction('autocompact-window', OWN, START, ['--size', '300000']), { message: 'autocompact-window does not take "--size". It takes: --tokens <value>' })
   assert.deepEqual(settings(), {})
   // The command says the same, and ends with exit code 1.
   const { env, run } = command('window-bounds')
   const bad = run(['apply', 'autocompact-window', '--tokens', '99999'])
-  assert.deepEqual([bad.status, bad.stdout, bad.stderr], [1, '', 'kestrel: --tokens is a whole number from 100000 to 1000000.\n'])
+  assert.deepEqual([bad.status, bad.stdout, bad.stderr], [1, '', 'widal: --tokens is a whole number from 100000 to 1000000.\n'])
   const good = run(['apply', 'autocompact-window', '--tokens', '400000'])
   assert.equal(good.status, 0)
   assert.deepEqual(JSON.parse(readFileSync(join(env.CLAUDE_CONFIG_DIR, 'settings.json'), 'utf8')), { [SETTINGS_KEY]: 400000 })
-  assert.match(run(['status']).stdout, /^Change: autocompact-window +applied on \d{4}-\d\d-\d\d$/m)
+  assert.match(run(['doctor']).stdout, /^Change: autocompact-window +applied on \d{4}-\d\d-\d\d$/m)
   assert.match(run(['apply']).stdout, /^ {2}autocompact-window\n {4}Sets "autoCompactWindow" in Claude Code's settings: /m)
 })
 
@@ -680,19 +682,19 @@ test('"undo autocompact-window" puts back the value that was there, and leaves a
   freshHome()
   // An earlier value, set by hand.
   writeFileSync(SETTINGS(), JSON.stringify({ [SETTINGS_KEY]: 800000, model: 'claude-fable-5-2' }))
-  applyAction('autocompact-window', '/bin/kestrel', START)
+  applyAction('autocompact-window', OWN, START)
   assert.deepEqual(settings(), { [SETTINGS_KEY]: 300000, model: 'claude-fable-5-2' })
   assert.deepEqual(appliedActions()['autocompact-window'].before, { value: 800000, tokens: 300000 })
   // Applied again with another size: the undo still goes back to the first value.
-  applyAction('autocompact-window', '/bin/kestrel', START, ['--tokens', '200000'])
-  undoAction('autocompact-window', '/bin/kestrel')
+  applyAction('autocompact-window', OWN, START, ['--tokens', '200000'])
+  undoAction('autocompact-window', OWN)
   assert.deepEqual(settings(), { [SETTINGS_KEY]: 800000, model: 'claude-fable-5-2' })
 
   // The person changes the value after the apply: it is theirs, and the undo says so.
-  applyAction('autocompact-window', '/bin/kestrel', START)
+  applyAction('autocompact-window', OWN, START)
   writeFileSync(SETTINGS(), JSON.stringify({ [SETTINGS_KEY]: 450000, model: 'claude-fable-5-2' }))
   assert.match(actionsStatus().find(([id]) => id === 'autocompact-window')[1], /, but no longer in the settings$/)
-  assert.deepEqual(undoAction('autocompact-window', '/bin/kestrel'), [
+  assert.deepEqual(undoAction('autocompact-window', OWN), [
     'autocompact-window is taken back, except for one setting.',
     '"autoCompactWindow" in Claude Code\'s settings was not put back, because it was changed after this tool set it: it is 450000 now, and it was 800000 before the change.',
   ])
@@ -700,9 +702,9 @@ test('"undo autocompact-window" puts back the value that was there, and leaves a
   // The value was already 300,000 before the apply: nothing is written, and the undo leaves it.
   freshHome()
   writeFileSync(SETTINGS(), JSON.stringify({ [SETTINGS_KEY]: 300000 }))
-  applyAction('autocompact-window', '/bin/kestrel', START)
-  assert.throws(() => readdirSync(join(process.env.KESTREL_HOME, 'backup')), { code: 'ENOENT' })
-  undoAction('autocompact-window', '/bin/kestrel')
+  applyAction('autocompact-window', OWN, START)
+  assert.throws(() => readdirSync(join(process.env.WIDAL_HOME, 'backup')), { code: 'ENOENT' })
+  undoAction('autocompact-window', OWN)
   assert.deepEqual(settings(), { [SETTINGS_KEY]: 300000 })
 })
 
@@ -772,9 +774,9 @@ test('"measure autocompact-window" compares the compactions per session, the siz
   assert.doesNotMatch(measureReport(records, { id: 'effort-default', at: AT, before: {}, metas }), /Compactions|Carrying cost/)
 })
 
-test('"kestrel measure autocompact-window" reads the calls and the compactions from the logs', () => {
+test('"widal measure autocompact-window" reads the calls and the compactions from the logs', () => {
   const { env, run } = command('window-measure')
-  assert.equal(run(['measure', 'autocompact-window']).stdout, 'autocompact-window is not applied. Apply it with: kestrel apply autocompact-window\n')
+  assert.equal(run(['measure', 'autocompact-window']).stdout, 'autocompact-window is not applied. Apply it with: widal apply autocompact-window\n')
   // The change was applied 3 days ago. One session before it and one after it, each with a compaction.
   const at = Date.now() - 3 * DAY
   const project = join(env.CLAUDE_CONFIG_DIR, 'projects', 'work-repo')
@@ -782,8 +784,8 @@ test('"kestrel measure autocompact-window" reads the calls and the compactions f
   const log = (name, ts, pre) => writeFileSync(join(project, `${name}.jsonl`), `${[call(ts), call(ts + MIN), boundary(ts + 2 * MIN, facts('auto', pre, 30000, 60)), call(ts + 3 * MIN)].join('\n')}\n`)
   log('before', at - DAY, 800000)
   log('after', at + DAY, 300000)
-  mkdirSync(env.KESTREL_HOME, { recursive: true })
-  writeFileSync(join(env.KESTREL_HOME, 'actions.json'), JSON.stringify({ 'autocompact-window': { at, before: { tokens: 300000 } } }))
+  mkdirSync(env.WIDAL_HOME, { recursive: true })
+  writeFileSync(join(env.WIDAL_HOME, 'actions.json'), JSON.stringify({ 'autocompact-window': { at, before: { tokens: 300000 } } }))
   const r = run(['measure', 'autocompact-window'])
   assert.deepEqual([r.status, r.stderr], [0, ''])
   const lines = r.stdout.split('\n')
@@ -820,7 +822,7 @@ const given = (ctx, api = 1000, extra = {}) => ({
 })
 /** The status line without colours and with an empty environment. */
 const line = (input, now = NOW, opts = {}) => statusLine(input, now, { env: {}, color: false, notify: () => {}, layout: 'one', ...opts })
-const sessionFile = (id) => join(process.env.KESTREL_HOME, 'sessions', `${id}.json`)
+const sessionFile = (id) => join(process.env.WIDAL_HOME, 'sessions', `${id}.json`)
 /** What the status line keeps about one session. */
 const kept = (id = 'one') => JSON.parse(readFileSync(sessionFile(id), 'utf8'))
 /** Changes fields of what is kept about one session. */
@@ -830,7 +832,7 @@ const sizes = (id = 'one') => [kept(id).compactBase, kept(id).ctxSeen]
 /** The hint to compact of a line: its last part when that names /compact, else undefined. */
 const hintOf = (shown) => (/\/compact/.test(shown.split(' | ').at(-1)) ? shown.split(' | ').at(-1) : undefined)
 /** The text of every file in this tool's folder. */
-const filesText = () => readdirSync(process.env.KESTREL_HOME, { recursive: true, withFileTypes: true })
+const filesText = () => readdirSync(process.env.WIDAL_HOME, { recursive: true, withFileTypes: true })
   .filter((f) => f.isFile())
   .map((f) => readFileSync(join(f.parentPath ?? f.path, f.name), 'utf8'))
   .join('\n')
@@ -964,7 +966,7 @@ test('the point of the automatic compaction is "autoCompactWindow" from Claude C
   assert.equal(withSetting({ autoCompactWindow: 1000000 }, 800000, 900000), NEAR)
   // The action of this tool sets it, and the status line then goes by it.
   freshHome()
-  applyAction('autocompact-window', '/bin/kestrel', NOW, ['--tokens', '400000'])
+  applyAction('autocompact-window', OWN, NOW, ['--tokens', '400000'])
   line(given(250000, 1000), NOW - 2 * MIN)
   line(given(300000, 2000), NOW - MIN)
   assert.equal(hintOf(line(given(300000, 2000), NOW)), NEAR)
@@ -1397,43 +1399,43 @@ test('the hint to compact is on with 150,000 and 100,000 tokens unless the setti
   // The command: "hint off" turns both hints off, "hint on" turns both on, and "status" has a row for each.
   const { env, run } = command('hint-command')
   const out = (...args) => run(args).stdout
-  const row = () => out('status').split('\n').find((l) => l.startsWith('Compaction hint')).replace(/^Compaction hint +/, '')
+  const row = () => out('doctor').split('\n').find((l) => l.startsWith('Compaction hint')).replace(/^Compaction hint +/, '')
   assert.equal(row(), `on, ${words}`)
-  assert.match(out('hint'), /\nCompaction hint on the status line: on, at a break in the work: .*\.\nA break in the work is 60 seconds without a model call\. The hint names \/compact, comes at most once in 30 minutes per session, and stays while the session is idle\. You type the command: nothing changes on its own\.\nTurn both off with "kestrel hint off", and on with "kestrel hint on"\.\n$/)
+  assert.match(out('hint'), /\nCompaction hint on the status line: on, at a break in the work: .*\.\nA break in the work is 60 seconds without a model call\. The hint names \/compact, comes at most once in 30 minutes per session, and stays while the session is idle\. You type the command: nothing changes on its own\.\nTurn both off with "widal hint off", and on with "widal hint on"\.\n$/)
   assert.match(out('hint', 'off'), new RegExp(`^Effort hint on the status line: off \\(when on: .*\\)\\.\\nCompaction hint on the status line: off \\(when on: ${words}\\)\\.\\n$`))
-  assert.deepEqual(ownConfig(env.KESTREL_HOME).compactHint, { on: false, growth: 150000, near: 100000 })
-  assert.equal(ownConfig(env.KESTREL_HOME).hint.on, false)
+  assert.deepEqual(ownConfig(env.WIDAL_HOME).compactHint, { on: false, growth: 150000, near: 100000 })
+  assert.equal(ownConfig(env.WIDAL_HOME).hint.on, false)
   assert.equal(row(), `off (when on: ${words})`)
-  assert.match(out('status'), /^Effort hint +off \(when on: /m)
+  assert.match(out('doctor'), /^Effort hint +off \(when on: /m)
   // Without this tool's status line there is nowhere to show a hint. With it and without a
   // timer, no run of the status line sees a break in the work. Turning the hints on says so.
-  assert.match(out('hint', 'on'), /\nCompaction hint on the status line: on, .*\.\nNote: the hint is shown on the status line\. Run "kestrel install" first\.\n$/)
-  assert.deepEqual(ownConfig(env.KESTREL_HOME).compactHint, { on: true, growth: 150000, near: 100000 })
-  assert.equal(run(['install', '--refresh', '0']).status, 0)
-  assert.match(out('hint', 'on'), /\nNote: the hint to compact comes at a break in the work, and only a status line that runs on a timer sees one\. Run "kestrel install"\.\n$/)
-  assert.equal(run(['install']).status, 0)
+  assert.match(out('hint', 'on'), /\nCompaction hint on the status line: on, .*\.\nNote: the hint is shown on the status line\. Run "widal connect" first\.\n$/)
+  assert.deepEqual(ownConfig(env.WIDAL_HOME).compactHint, { on: true, growth: 150000, near: 100000 })
+  assert.equal(run(['connect', '--refresh', '0']).status, 0)
+  assert.match(out('hint', 'on'), /\nNote: the hint to compact comes at a break in the work, and only a status line that runs on a timer sees one\. Run "widal connect"\.\n$/)
+  assert.equal(run(['connect']).status, 0)
   assert.doesNotMatch(out('hint', 'on'), /Note/)
   // Numbers that were set by hand stay when the hints are turned off and on.
-  writeFileSync(join(env.KESTREL_HOME, 'config.json'), JSON.stringify({ compactHint: { growth: 200000, near: 50000 } }))
+  writeFileSync(join(env.WIDAL_HOME, 'config.json'), JSON.stringify({ compactHint: { growth: 200000, near: 50000 } }))
   out('hint', 'off')
-  assert.deepEqual(ownConfig(env.KESTREL_HOME).compactHint, { on: false, growth: 200000, near: 50000 })
-  assert.match(out('help'), /^  kestrel hint +the hints on the status line \(the effort level, a good moment to compact\), and their settings$/m)
+  assert.deepEqual(ownConfig(env.WIDAL_HOME).compactHint, { on: false, growth: 200000, near: 50000 })
+  assert.match(out('help'), /^  widal hint +the hints on the status line \(the effort level, a good moment to compact\), and their settings$/m)
 })
 
-test('"kestrel statusline" prints the hint, and a run that looks at a log of 100 MB stays well under 100 ms', () => {
+test('"widal statusline" prints the hint, and a run that looks at a log of 100 MB stays well under 100 ms', () => {
   // The command takes the time from the clock, so the session's file is placed by the clock:
   // the status line saw a model call 2 minutes ago, and the context grew from 100,000 tokens.
   const { env, run } = command('statusline-command')
-  mkdirSync(join(env.KESTREL_HOME, 'sessions'), { recursive: true })
+  mkdirSync(join(env.WIDAL_HOME, 'sessions'), { recursive: true })
   // The one line, whose parts this test looks at.
-  writeFileSync(join(env.KESTREL_HOME, 'config.json'), JSON.stringify({ hud: { layout: 'one' } }))
+  writeFileSync(join(env.WIDAL_HOME, 'config.json'), JSON.stringify({ hud: { layout: 'one' } }))
   const now = Date.now()
-  writeFileSync(join(env.KESTREL_HOME, 'sessions', 'one.json'), JSON.stringify({ day: '2026-11-12', cost: 12.4, dayStart: 0, at: now - 30e3, apiMs: 2000, callAt: now - 2 * MIN, ctx: 400000, compactBase: 100000, ctxSeen: 400000 }))
+  writeFileSync(join(env.WIDAL_HOME, 'sessions', 'one.json'), JSON.stringify({ day: '2026-11-12', cost: 12.4, dayStart: 0, at: now - 30e3, apiMs: 2000, callAt: now - 2 * MIN, ctx: 400000, compactBase: 100000, ctxSeen: 400000 }))
   const r = run(['statusline'], JSON.stringify(given(400000, 2000, { rate_limits: undefined })))
   assert.deepEqual([r.status, r.stderr], [0, ''])
   assert.ok(r.stdout.endsWith(' | context 400k: a good moment to /compact'), r.stdout)
   // A session's file that is broken does not break the line.
-  writeFileSync(join(env.KESTREL_HOME, 'sessions', 'one.json'), JSON.stringify({ callAt: 'x', compactBase: {}, ctxSeen: [], compactHint: 'x', apiMs: 2000 }))
+  writeFileSync(join(env.WIDAL_HOME, 'sessions', 'one.json'), JSON.stringify({ callAt: 'x', compactBase: {}, ctxSeen: [], compactHint: 'x', apiMs: 2000 }))
   const broken = run(['statusline'], JSON.stringify(given(400000, 2000, { rate_limits: undefined })))
   assert.deepEqual([broken.status, broken.stderr], [0, ''])
   assert.match(broken.stdout, / \| context 400k \| today \$\d+\.\d\d$/)
@@ -1475,7 +1477,7 @@ test('the notification has two bodies: one for a session that Claude Code compac
   const text = (change = {}) => nudgeText({ project: 'work/repo', until, recache: 527119, mode: 'subscription', ttl: '1h', idleCompaction: undefined, ...change })
   // All three conditions hold: a cache of 1 hour, 200,000 tokens or more, and the setting is not false.
   assert.deepEqual(text(), {
-    title: 'kestrel: work/repo cache ends at 15:02',
+    title: 'widal: work/repo cache ends at 15:02',
     body: 'Soon Claude Code compacts this idle session on its own (527k tokens). To keep the full context, send a message before 15:02. To choose what stays, run /compact with your own words now.',
   })
   // The first condition: the cache lasts 1 hour.
@@ -1494,7 +1496,7 @@ test('the notification has two bodies: one for a session that Claude Code compac
   // The new body gives the tokens also by the token: what counts there is the context, not a price.
   assert.equal(text({ mode: 'usage', coldCost: 8.43 }).body, SOON('15:02'))
   // The title is the same for both, and so is the start when keep-warm has stopped.
-  assert.equal(text({ idleCompaction: false }).title, 'kestrel: work/repo cache ends at 15:02')
+  assert.equal(text({ idleCompaction: false }).title, 'widal: work/repo cache ends at 15:02')
   assert.equal(text({ keepWarmStopped: '3 hours' }).body, `Keep-warm stopped after 3 hours. ${SOON('15:02')}`)
   assert.equal(text({ keepWarmStopped: '3 hours', idleCompaction: false }).body, `Keep-warm stopped after 3 hours. ${AFTER('sends 527k tokens again')}`)
   assert.doesNotMatch(text().body, /[\u2013\u2014]/)
@@ -1513,8 +1515,8 @@ test('the status line gives the notification how long the cache lasts and Claude
     return sent[0]
   }
   // A cache of 1 hour with 527,119 tokens, and no word about it in Claude Code's settings.
-  assert.deepEqual(notified(), ['kestrel: work/repo cache ends at 12:03', SOON('12:03')])
-  assert.deepEqual(notified({ settings: { model: 'claude-fable-5-2' } }), ['kestrel: work/repo cache ends at 12:03', SOON('12:03')])
+  assert.deepEqual(notified(), ['widal: work/repo cache ends at 12:03', SOON('12:03')])
+  assert.deepEqual(notified({ settings: { model: 'claude-fable-5-2' } }), ['widal: work/repo cache ends at 12:03', SOON('12:03')])
   assert.equal(notified({ settings: { idleCompaction: true } })[1], SOON('12:03'))
   // The person turned the idle compaction off in Claude Code: the body is the one it had.
   assert.equal(notified({ settings: { idleCompaction: false } })[1], AFTER('sends 527k tokens again'))
@@ -1523,7 +1525,7 @@ test('the status line gives the notification how long the cache lasts and Claude
   // Under 200,000 tokens, and with a cache of 5 minutes: the body it had.
   assert.equal(notified({ tokens: 200000 })[1], SOON('12:03', '200k'))
   assert.equal(notified({ tokens: 199999 })[1], AFTER('sends 200k tokens again'))
-  assert.deepEqual(notified({ ttl: '5m' }), ['kestrel: work/repo cache ends at 12:01', AFTER('sends 527k tokens again')])
+  assert.deepEqual(notified({ ttl: '5m' }), ['widal: work/repo cache ends at 12:01', AFTER('sends 527k tokens again')])
   // By the token the body it had gives dollars: 150,000 tokens written to the 1 hour cache of
   // Claude Fable 5.2 again cost $2.40. A session that Claude Code compacts gets the tokens.
   const byToken = { env: { ANTHROPIC_API_KEY: 'a-key' }, more: { rate_limits: undefined } }
@@ -1559,8 +1561,8 @@ test('no file of the tool holds an em dash or an en dash: not the guide, the com
   assert.deepEqual(found, [])
   // The check reads the files it is meant to read: this file is one of them, and so are the
   // command, the move from the tool's old name and the tests of both.
-  for (const file of ['test/compact.test.mjs', 'cli/kestrel.mjs', 'src/migrate.mjs', 'test/kestrel.test.mjs', 'test/migrate.test.mjs']) assert.ok(files.includes(file), file)
-  // The folder of the command holds two files: the command, and the small file that runs it
-  // under the tool's old name. Both are read.
-  assert.equal(files.filter((file) => file.startsWith('cli/')).length, 2)
+  for (const file of ['test/compact.test.mjs', 'cli/widal.mjs', 'src/migrate.mjs', 'test/widal.test.mjs', 'test/migrate.test.mjs']) assert.ok(files.includes(file), file)
+  // The folder of the command holds three files: the command, and the two small files that run
+  // it under the tool's old names. All three are read.
+  assert.equal(files.filter((file) => file.startsWith('cli/')).length, 3)
 })

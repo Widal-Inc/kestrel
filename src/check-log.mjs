@@ -8,7 +8,7 @@
 //
 // The privacy rule (the owner allowed a look at the start of a command on 13 Nov 2026, and the
 // rest on 14 Nov 2026). For
-// the actions, Kestrel looks at three things in a tool call: the name of the tool, the path of a
+// the actions, Widal.Code looks at three things in a tool call: the name of the tool, the path of a
 // file, and the words of a shell command, which it splits as a shell does. It compares them with the
 // rules below, and keeps only which rule matched, when, how often, and for a file its path inside
 // the repository. It never keeps, prints or stores a command or any other text. A word that only
@@ -142,7 +142,7 @@ function gitOptions(sub, args) {
 
 /**
  * The rules about commands that a simple command matches: a list of [rule id, label]. The label is
- * Kestrel's own name for what matched, such as "Terraform destroy", never words of the command.
+ * Widal.Code's own name for what matched, such as "Terraform destroy", never words of the command.
  */
 export function commandRules(words) {
   const { program, args } = programOf(words)
@@ -330,7 +330,7 @@ export function checkActions({ transcript, session, repo, frameworks = [] }) {
   return found
 }
 
-// The kinds of secret keys that Kestrel knows without a scanner. Anthropic's keys come before
+// The kinds of secret keys that Widal.Code knows without a scanner. Anthropic's keys come before
 // OpenAI's, because both start with "sk-".
 export const KEY_PATTERNS = [
   ['AWS access key id', /\b(AKIA|ASIA)[A-Z0-9]{16}\b/g],
@@ -418,7 +418,7 @@ export function checkData({ transcript, session, repo, frameworks = [], days }) 
   }
   const where = { session, file: shortPath(transcript), ...(repo && { repo }) }
   const kept = days === undefined ? 'Claude Code keeps it for 30 days unless cleanupPeriodDays says otherwise' : `Claude Code keeps it for ${days} days (cleanupPeriodDays)`
-  const words = (n, what, kinds = '') => `${n === 1 ? `One ${what}` : `${n} ${what}s`}${kinds} in the user messages and tool results of this session. The transcript holds ${n === 1 ? 'it' : 'them'} in plain text at ${shortPath(transcript)}. ${kept}. Shorten that with: kestrel apply transcript-days`
+  const words = (n, what, kinds = '') => `${n === 1 ? `One ${what}` : `${n} ${what}s`}${kinds} in the user messages and tool results of this session. The transcript holds ${n === 1 ? 'it' : 'them'} in plain text at ${shortPath(transcript)}. ${kept}. Shorten that with: widal apply transcript-days`
   const found = []
   if (ssn) found.push(makeFinding('data.us-ssn', { key: session, scope, frameworks, where, detail: words(ssn, 'US social security number') }))
   if (cards) found.push(makeFinding('data.card-number', { key: session, scope, frameworks, where, detail: words(cards, 'card number') }))

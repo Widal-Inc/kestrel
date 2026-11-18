@@ -10,21 +10,21 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-const dir = mkdtempSync(join(tmpdir(), 'kestrel-advice-test-'))
-// Kestrel also reads the config folders of Claude Code in the home folder, so the home folder is a
+const dir = mkdtempSync(join(tmpdir(), 'widal-code-advice-test-'))
+// Widal.Code also reads the config folders of Claude Code in the home folder, so the home folder is a
 // made-up one too.
 process.env.HOME = join(dir, 'person')
-process.env.KESTREL_HOME = join(dir, 'home')
+process.env.WIDAL_HOME = join(dir, 'home')
 process.env.CLAUDE_CONFIG_DIR = join(dir, 'claude')
 process.env.CODEX_HOME = join(dir, 'codex')
 // Cowork's folder too: without this a test would read the real Cowork logs of whoever runs it.
-process.env.KESTREL_COWORK_DIR = join(dir, 'cowork')
+process.env.WIDAL_COWORK_DIR = join(dir, 'cowork')
 mkdirSync(process.env.CLAUDE_CONFIG_DIR, { recursive: true })
 // Two made-up models with prices of the person's own, for the tests on which price decides what
 // a strong model is. Claude Sonnet 5.5 costs $2 per million tokens of input and $10 of output.
 // The first model costs more than that for input and less for output. The second is the other way round.
-mkdirSync(process.env.KESTREL_HOME, { recursive: true })
-writeFileSync(join(process.env.KESTREL_HOME, 'prices.json'), JSON.stringify({
+mkdirSync(process.env.WIDAL_HOME, { recursive: true })
+writeFileSync(join(process.env.WIDAL_HOME, 'prices.json'), JSON.stringify({
   'made-up-dear-input': { in: 9, out: 6, read: 0.9 },
   'made-up-dear-output': { in: 1, out: 30, read: 0.05 },
 }))
@@ -250,7 +250,7 @@ test('the kind of a subagent comes from the meta file next to its log, and the r
   const asJson = (x) => JSON.parse(JSON.stringify(x))
   assert.deepEqual((await load({ since: 0 })).records, asJson(records))
   // A cache file that an older version of the parsers wrote has no kind: it is parsed again.
-  const cache = join(process.env.KESTREL_HOME, 'cache')
+  const cache = join(process.env.WIDAL_HOME, 'cache')
   for (const f of readdirSync(cache)) {
     const entry = JSON.parse(readFileSync(join(cache, f), 'utf8'))
     writeFileSync(join(cache, f), JSON.stringify({ ...entry, v: 6, records: [] }))
@@ -271,9 +271,9 @@ test('a period without subagent calls has no table of subagents, and one without
  */
 function command(name) {
   const own = join(dir, name)
-  const env = { ...process.env, KESTREL_HOME: join(own, 'home'), CLAUDE_CONFIG_DIR: join(own, 'claude'), CODEX_HOME: join(own, 'codex') }
+  const env = { ...process.env, WIDAL_HOME: join(own, 'home'), CLAUDE_CONFIG_DIR: join(own, 'claude'), CODEX_HOME: join(own, 'codex') }
   mkdirSync(env.CLAUDE_CONFIG_DIR, { recursive: true })
-  const run = (...args) => spawnSync(process.execPath, [fileURLToPath(new URL('../cli/kestrel.mjs', import.meta.url)), ...args], { encoding: 'utf8', env })
+  const run = (...args) => spawnSync(process.execPath, [fileURLToPath(new URL('../cli/widal.mjs', import.meta.url)), ...args], { encoding: 'utf8', env })
   return { env, run }
 }
 
@@ -319,8 +319,8 @@ test('the advise command looks at 30 days unless --days says otherwise', () => {
 
 test('the list of commands names the models report with its 30 days', () => {
   const { run } = command('help-command')
-  assert.match(run('help').stdout, /^ {2}kestrel models \[--days 30\] {2,}spend by model, effort level and kind of work$/m)
-  assert.match(run('help').stdout, /^ {2}kestrel advise \[--days 30\] {2,}changes that would have saved money, from a replay of your logs$/m)
+  assert.match(run('help').stdout, /^ {2}widal models \[--days 30\] {2,}spend by model, effort level and kind of work$/m)
+  assert.match(run('help').stdout, /^ {2}widal advise \[--days 30\] {2,}changes that would have saved money, from a replay of your logs$/m)
 })
 
 const { adviseReport, proposals } = await import('../src/advise.mjs')
@@ -366,16 +366,16 @@ test('a kind of subagent whose cost is mostly reading and searching gets a propo
   assert.match(text, /^\d\. Run the "researcher" subagents on a cheaper model: \$0\.08 less, 14% of the total$/m)
   assert.match(text, /Why: {2}60% of what the "researcher" subagents cost is reading and searching: \$0\.09 of \$0\.15\. 5 of their calls ran on a model that costs more than Claude Sonnet 5\.5\. They cost \$0\.15\. The same tokens at Sonnet 5\.5 prices cost \$0\.08\.$/m)
   assert.match(text, /How: {2}One line in the file of that subagent \(\/claude\/agents\/researcher\.md\): "model: claude-sonnet-5-5"\./)
-  assert.match(text, /^ {3}Apply: kestrel apply subagent-model --kind researcher$/m)
+  assert.match(text, /^ {3}Apply: widal apply subagent-model --kind researcher$/m)
   // Subagents without a kind are one group. It can only be changed with the setting for all subagents.
   assert.match(text, /^\d\. Run the subagents whose kind is not logged on a cheaper model: \$0\.08 less, 14% of the total$/m)
-  assert.match(text, /^ {3}Apply: kestrel apply subagent-model\. This changes all subagents\.$/m)
+  assert.match(text, /^ {3}Apply: widal apply subagent-model\. This changes all subagents\.$/m)
   // A kind without a file of its own cannot be changed alone, and the proposal says so.
   const builtIn = adviseReport(records, { days: 30, ownFile: () => undefined })
   assert.match(builtIn, /How: {2}"researcher" has no file of its own, so it cannot be changed alone\. The setting for all subagents does it: "CLAUDE_CODE_SUBAGENT_MODEL": "claude-sonnet-5-5"/)
   assert.doesNotMatch(builtIn, /--kind/)
   // The proposal for all subagents can now be applied by this tool.
-  assert.match(text, /^\d\. Run subagents on a cheaper model: .*\n.*\n.*\n.*\n {3}Apply: kestrel apply subagent-model$/m)
+  assert.match(text, /^\d\. Run subagents on a cheaper model: .*\n.*\n.*\n.*\n {3}Apply: widal apply subagent-model$/m)
   assert.doesNotMatch(text, /[\u2013\u2014]/)
 
   // Under 1% of the total it is not shown.
@@ -402,7 +402,7 @@ test('simple work at high effort gets a proposal for a lower effort, with an amo
   assert.match(text, /Why: {2}110 calls read, searched or ran commands at effort high or above\. Their output, which includes thinking, cost \$4\.82\./)
   assert.match(text, /The largest part: opus-5-5, reading and searching, with a median of 1,000 output tokens per call at high and 300 at medium\. 30 of the calls have no lower effort with 200 calls of your own, so they are not in the amount\.$/m)
   assert.match(text, /How: {2}One setting in Claude Code: "effortLevel": "medium"\. New sessions then start at that effort\./)
-  assert.match(text, /^ {3}Apply: kestrel apply effort-default --level medium$/m)
+  assert.match(text, /^ {3}Apply: widal apply effort-default --level medium$/m)
   // Calls at max that are compared with xhigh, and calls at high that are compared with medium: the level
   // to try is the lowest of the two, so that no call stays at a higher effort than before.
   const mixed = mainSession([
@@ -426,8 +426,8 @@ test('without 200 calls of your own at a lower effort, the proposal for a lower 
   assert.equal(found.args, '--level high') // One level below xhigh, where most of that output was written.
   const text = adviseReport(records, { days: 30 })
   assert.match(text, /^\d\. Start sessions at a lower effort: no amount yet$/m)
-  assert.match(text, /Why: {2}55 calls read, searched or ran commands at effort high or above\. Their output, which includes thinking, cost \$1\.10\. No data of your own at a lower effort yet\. Try it for a week, then run: kestrel measure effort-default$/m)
-  assert.match(text, /^ {3}Apply: kestrel apply effort-default --level high$/m)
+  assert.match(text, /Why: {2}55 calls read, searched or ran commands at effort high or above\. Their output, which includes thinking, cost \$1\.10\. No data of your own at a lower effort yet\. Try it for a week, then run: widal measure effort-default$/m)
+  assert.match(text, /^ {3}Apply: widal apply effort-default --level high$/m)
   // When that output is under 1% of the total, the proposal is not shown.
   assert.deepEqual(only(proposals([...records, ...largeSpend(), ...largeSpend()]), 'effort-lower'), [])
   // No call at high effort that read or ran commands: no proposal.
@@ -472,8 +472,8 @@ const useSettings = (settings) => {
   writeFileSync(settingsFile, JSON.stringify(settings))
   return JSON.stringify(settings)
 }
-const backups = () => readdirSync(join(process.env.KESTREL_HOME, 'backup'))
-const BIN = '/bin/kestrel'
+const backups = () => readdirSync(join(process.env.WIDAL_HOME, 'backup'))
+const BIN = join(process.env.HOME, '.widal', 'bin', 'widal')
 const KEY = 'CLAUDE_CODE_SUBAGENT_MODEL'
 const APPLIED_AT = Date.parse('2026-11-12T12:00:00Z')
 
@@ -483,7 +483,7 @@ test('apply subagent-model sets the model of all subagents inside "env", and und
   let before = useSettings({ env: { OTHER_TOOL: 'on' }, ...other })
   const said = applyAction('subagent-model', BIN, APPLIED_AT)
   assert.match(said[0], /^Set "CLAUDE_CODE_SUBAGENT_MODEL" to claude-sonnet-5-5 in the "env" of Claude Code's settings\./)
-  assert.match(said.join('\n'), /kestrel measure subagent-model\nTake it back with: kestrel undo subagent-model$/)
+  assert.match(said.join('\n'), /widal measure subagent-model\nTake it back with: widal undo subagent-model$/)
   assert.equal(settingsText(), JSON.stringify({ env: { OTHER_TOOL: 'on', [KEY]: 'claude-sonnet-5-5' }, ...other }))
   assert.ok(backups().some((f) => /^settings\..*\.json$/.test(f))) // A copy of the settings was saved first.
   assert.deepEqual(applyAction('subagent-model', BIN), ['subagent-model is already applied.'])
@@ -540,7 +540,7 @@ test('apply subagent-model --kind sets "model:" in the file of that subagent, ke
   assert.equal(text('reviewer'), reviewer.replace('model:  opus', 'model: claude-sonnet-5-5'))
   // The file was copied to the backup folder first.
   const copy = backups().find((f) => /^agent-reviewer\..*\.md$/.test(f))
-  assert.equal(readFileSync(join(process.env.KESTREL_HOME, 'backup', copy), 'utf8'), reviewer)
+  assert.equal(readFileSync(join(process.env.WIDAL_HOME, 'backup', copy), 'utf8'), reviewer)
   assert.deepEqual(applyAction('subagent-model', BIN, APPLIED_AT, ['--kind', 'reviewer']), ['subagent-model is already applied.'])
   // A second kind, with a model of its own. The new line goes to the end of the front matter.
   applyAction('subagent-model', BIN, APPLIED_AT, ['--kind', 'reader', '--model', 'claude-haiku-5-5'])
@@ -549,7 +549,7 @@ test('apply subagent-model --kind sets "model:" in the file of that subagent, ke
 
   // A kind without a file of its own fails with one sentence, and changes nothing.
   assert.throws(() => applyAction('subagent-model', BIN, APPLIED_AT, ['--kind', 'Explore']), (e) => {
-    assert.equal(e.message, `"Explore" has no file of its own in ${agents}, and a built-in kind cannot be changed on its own: use the default for all subagents (kestrel apply subagent-model).`)
+    assert.equal(e.message, `"Explore" has no file of its own in ${agents}, and a built-in kind cannot be changed on its own: use the default for all subagents (widal apply subagent-model).`)
     return true
   })
   assert.throws(() => applyAction('subagent-model', BIN, APPLIED_AT, ['--kind', '../settings']), /a built-in kind cannot be changed on its own/)
@@ -579,14 +579,14 @@ test('the advise report shows a proposal as applied only when its own change was
   const state = (title) => lineAfter(title).exec(report())[1]
 
   // The file of the person's own subagent is found in Claude Code's folder.
-  assert.equal(state('Run the "researcher" subagents on a cheaper model'), 'Apply: kestrel apply subagent-model --kind researcher')
-  assert.equal(state('Run the "scout" subagents on a cheaper model'), 'Apply: kestrel apply subagent-model. This changes all subagents.')
+  assert.equal(state('Run the "researcher" subagents on a cheaper model'), 'Apply: widal apply subagent-model --kind researcher')
+  assert.equal(state('Run the "scout" subagents on a cheaper model'), 'Apply: widal apply subagent-model. This changes all subagents.')
   // One kind applied: only that kind's proposal is applied.
   applyAction('subagent-model', BIN, APPLIED_AT, ['--kind', 'researcher'])
-  const done = `Applied on ${day(APPLIED_AT)}. See: kestrel measure subagent-model. Take it back: kestrel undo subagent-model`
+  const done = `Applied on ${day(APPLIED_AT)}. See: widal measure subagent-model. Take it back: widal undo subagent-model`
   assert.equal(state('Run the "researcher" subagents on a cheaper model'), done)
-  assert.equal(state('Run the "scout" subagents on a cheaper model'), 'Apply: kestrel apply subagent-model. This changes all subagents.')
-  assert.equal(state('Run subagents on a cheaper model'), 'Apply: kestrel apply subagent-model')
+  assert.equal(state('Run the "scout" subagents on a cheaper model'), 'Apply: widal apply subagent-model. This changes all subagents.')
+  assert.equal(state('Run subagents on a cheaper model'), 'Apply: widal apply subagent-model')
   // The default for all subagents covers every kind.
   applyAction('subagent-model', BIN, APPLIED_AT)
   for (const title of ['Run the "researcher" subagents on a cheaper model', 'Run the "scout" subagents on a cheaper model', 'Run subagents on a cheaper model']) assert.equal(state(title), done)
@@ -595,9 +595,9 @@ test('the advise report shows a proposal as applied only when its own change was
   // A proposal for a lower effort is applied when the default effort was set by this tool.
   const effort = mainSession([...many(200, { tools: ['Read'], effort: 'medium', out: 300 }), ...many(50, { tools: ['Read'], effort: 'high', out: 1000 })])
   const effortState = () => lineAfter('Start sessions at a lower effort').exec(adviseReport(effort, { days: 30, applied: appliedActions() }))[1]
-  assert.equal(effortState(), 'Apply: kestrel apply effort-default --level medium')
+  assert.equal(effortState(), 'Apply: widal apply effort-default --level medium')
   applyAction('effort-default', BIN, APPLIED_AT, ['--level', 'medium'])
-  assert.equal(effortState(), `Applied on ${day(APPLIED_AT)}. See: kestrel measure effort-default. Take it back: kestrel undo effort-default`)
+  assert.equal(effortState(), `Applied on ${day(APPLIED_AT)}. See: widal measure effort-default. Take it back: widal undo effort-default`)
   undoAction('effort-default', BIN)
   assert.equal(settingsText(), JSON.stringify({ theme: 'dark' }))
 })
@@ -605,7 +605,7 @@ test('the advise report shows a proposal as applied only when its own change was
 test('apply effort-default sets "effortLevel" to the level asked for, and undo puts back what was there', () => {
   let before = useSettings({ effortLevel: 'high', theme: 'dark', env: { OTHER_TOOL: 'on' } })
   const said = applyAction('effort-default', BIN, APPLIED_AT)
-  assert.deepEqual(said, ['Set "effortLevel" to medium in Claude Code\'s settings.', 'New sessions use it. Check the effect with: kestrel measure effort-default', 'Take it back with: kestrel undo effort-default'])
+  assert.deepEqual(said, ['Set "effortLevel" to medium in Claude Code\'s settings.', 'New sessions use it. Check the effect with: widal measure effort-default', 'Take it back with: widal undo effort-default'])
   assert.equal(settingsText(), JSON.stringify({ effortLevel: 'medium', theme: 'dark', env: { OTHER_TOOL: 'on' } }))
   assert.deepEqual(applyAction('effort-default', BIN), ['effort-default is already applied.'])
   // Another level: the value changes, and undo still goes back to what was there at first.
@@ -721,11 +721,11 @@ test('the apply command passes its arguments on to the change', () => {
   // Folders of its own, so that the command does not see what the other tests applied. A home
   // folder of its own too: "apply" looks there for the link of the command.
   const own = join(dir, 'command')
-  const env = { ...process.env, HOME: own, USERPROFILE: own, KESTREL_HOME: join(own, 'home'), CLAUDE_CONFIG_DIR: join(own, 'claude'), CODEX_HOME: join(own, 'codex') }
+  const env = { ...process.env, HOME: own, USERPROFILE: own, WIDAL_HOME: join(own, 'home'), CLAUDE_CONFIG_DIR: join(own, 'claude'), CODEX_HOME: join(own, 'codex') }
   mkdirSync(env.CLAUDE_CONFIG_DIR, { recursive: true })
   const file = join(env.CLAUDE_CONFIG_DIR, 'settings.json')
   writeFileSync(file, JSON.stringify({ theme: 'dark', effortLevel: 'high' }))
-  const run = (...args) => spawnSync(process.execPath, [fileURLToPath(new URL('../cli/kestrel.mjs', import.meta.url)), ...args], { encoding: 'utf8', env })
+  const run = (...args) => spawnSync(process.execPath, [fileURLToPath(new URL('../cli/widal.mjs', import.meta.url)), ...args], { encoding: 'utf8', env })
   const settings = () => JSON.parse(readFileSync(file, 'utf8'))
 
   assert.match(run('apply', 'effort-default', '--level', 'low').stdout, /^Set "effortLevel" to low in Claude Code's settings\.\n/)
@@ -734,7 +734,7 @@ test('the apply command passes its arguments on to the change', () => {
   assert.deepEqual(settings().env, { CLAUDE_CODE_SUBAGENT_MODEL: 'claude-haiku-5-5' })
   const failed = run('apply', 'subagent-model', '--kind', 'Explore')
   assert.equal(failed.status, 1)
-  assert.match(failed.stderr, /^kestrel: "Explore" has no file of its own in .*, and a built-in kind cannot be changed on its own: use the default for all subagents \(kestrel apply subagent-model\)\.\n$/)
+  assert.match(failed.stderr, /^widal: "Explore" has no file of its own in .*, and a built-in kind cannot be changed on its own: use the default for all subagents \(widal apply subagent-model\)\.\n$/)
   // The list of changes names the two new ones with their arguments.
   assert.match(run('apply').stdout, / {2}subagent-model\n {4}Sets the model that subagents run on: .*--kind <name>.*\n\n {2}effort-default\n {4}Sets "effortLevel" .*--level/)
   run('undo', 'effort-default')
@@ -808,7 +808,7 @@ test('the cache of parsed logs keeps the new numbers, and a cache from before th
   const expected = [[undefined, undefined, [1]], [1, 1, []]]
   assert.deepEqual(await mine(), expected)
   assert.deepEqual(await mine(), expected) // From the cache.
-  const cache = join(process.env.KESTREL_HOME, 'cache')
+  const cache = join(process.env.WIDAL_HOME, 'cache')
   for (const f of readdirSync(cache)) {
     const entry = JSON.parse(readFileSync(join(cache, f), 'utf8'))
     assert.equal(entry.v, 13)
@@ -1015,16 +1015,16 @@ test('measure subagent-cache-1h still prints its old lines, then the new measure
 test('the measure command works for every applied change', () => {
   // Folders of its own, with made-up logs and a made-up list of applied changes.
   const own = join(dir, 'measure-command')
-  const env = { ...process.env, KESTREL_HOME: join(own, 'home'), CLAUDE_CONFIG_DIR: join(own, 'claude'), CODEX_HOME: join(own, 'codex') }
+  const env = { ...process.env, WIDAL_HOME: join(own, 'home'), CLAUDE_CONFIG_DIR: join(own, 'claude'), CODEX_HOME: join(own, 'codex') }
   const project = join(env.CLAUDE_CONFIG_DIR, 'projects', 'work-repo')
   mkdirSync(join(project, 's1', 'subagents'), { recursive: true })
-  mkdirSync(env.KESTREL_HOME, { recursive: true })
+  mkdirSync(env.WIDAL_HOME, { recursive: true })
   const at = (ts) => ({ tools: ['Read'], ts })
   writeFileSync(join(project, 's1.jsonl'), `${[...many(2, at(AT - 86400e3)), call(at(AT + 86400e3))].join('\n')}\n`)
   writeFileSync(join(project, 's1', 'subagents', 'agent-1.jsonl'), `${[call(at(AT - 86400e3)), ...many(3, at(AT + 86400e3))].join('\n')}\n`)
   const state = { at: AT, before: {} }
-  writeFileSync(join(env.KESTREL_HOME, 'actions.json'), JSON.stringify({ 'subagent-cache-1h': state, 'subagent-model': state, 'effort-default': state, 'model-switch-cost': state }))
-  const run = (...args) => spawnSync(process.execPath, [fileURLToPath(new URL('../cli/kestrel.mjs', import.meta.url)), 'measure', ...args], { encoding: 'utf8', env })
+  writeFileSync(join(env.WIDAL_HOME, 'actions.json'), JSON.stringify({ 'subagent-cache-1h': state, 'subagent-model': state, 'effort-default': state, 'model-switch-cost': state }))
+  const run = (...args) => spawnSync(process.execPath, [fileURLToPath(new URL('../cli/widal.mjs', import.meta.url)), 'measure', ...args], { encoding: 'utf8', env })
   const ending = `\nToo early to judge.\n${SIGNS}\n`
 
   // Without a name: the 1 hour cache for subagents, with its old lines first.
@@ -1043,10 +1043,10 @@ test('the measure command works for every applied change', () => {
   }
   const unknown = run('no-such-change')
   assert.equal(unknown.status, 1)
-  assert.match(unknown.stderr, /^kestrel: There is no change "no-such-change"\. The changes are: subagent-cache-1h, model-switch-cost, cold-start-warn, subagent-model, effort-default, keep-warm, compact-keep, autocompact-window, bash-output-cap, no-bypass, deny-secret-files, transcript-days\n$/)
+  assert.match(unknown.stderr, /^widal: There is no change "no-such-change"\. The changes are: subagent-cache-1h, model-switch-cost, cold-start-warn, subagent-model, effort-default, keep-warm, compact-keep, autocompact-window, bash-output-cap, no-bypass, deny-secret-files, transcript-days\n$/)
   // A change that was not applied.
-  writeFileSync(join(env.KESTREL_HOME, 'actions.json'), JSON.stringify({ 'subagent-model': state }))
-  assert.equal(run('effort-default').stdout, 'effort-default is not applied. Apply it with: kestrel apply effort-default\n')
+  writeFileSync(join(env.WIDAL_HOME, 'actions.json'), JSON.stringify({ 'subagent-model': state }))
+  assert.equal(run('effort-default').stdout, 'effort-default is not applied. Apply it with: widal apply effort-default\n')
 })
 
 test('the shares by model and effort, by kind of work and in the closing sentence are each cost as a part of all cost', () => {
@@ -1252,7 +1252,7 @@ test('a subagent log is parsed again when the meta file next to it appears or ch
   assert.deepEqual(await kinds(), ['gamma-3'])
 
   // Nothing changed: the calls come from the cache. To see that, the kind is changed in the cache file.
-  const cacheFile = join(process.env.KESTREL_HOME, 'cache', `${createHash('sha1').update(log).digest('hex')}.json`)
+  const cacheFile = join(process.env.WIDAL_HOME, 'cache', `${createHash('sha1').update(log).digest('hex')}.json`)
   const entry = JSON.parse(readFileSync(cacheFile, 'utf8'))
   assert.deepEqual([entry.metaSize, entry.metaMtimeMs], [JSON.stringify({ agentType: 'gamma-3' }).length, START + 1000])
   writeFileSync(cacheFile, JSON.stringify({ ...entry, records: entry.records.map((r) => ({ ...r, at: 'from the cache' })) }))
@@ -1264,7 +1264,7 @@ test('a subagent log is parsed again when the meta file next to it appears or ch
   const main = join(process.env.CLAUDE_CONFIG_DIR, 'projects', 'meta-repo', 'k1.jsonl')
   writeFileSync(main, `${call()}\n`)
   await load({ since: 0 })
-  const mainCache = join(process.env.KESTREL_HOME, 'cache', `${createHash('sha1').update(main).digest('hex')}.json`)
+  const mainCache = join(process.env.WIDAL_HOME, 'cache', `${createHash('sha1').update(main).digest('hex')}.json`)
   const mainEntry = JSON.parse(readFileSync(mainCache, 'utf8'))
   writeFileSync(mainCache, JSON.stringify({ ...mainEntry, records: mainEntry.records.map((r) => ({ ...r, cwd: '/from/the/cache' })) }))
   writeFileSync(join(process.env.CLAUDE_CONFIG_DIR, 'projects', 'meta-repo', 'k1.meta.json'), JSON.stringify({ agentType: 'alpha' }))
@@ -1380,9 +1380,9 @@ test('the plain lines of the findings, the session, the branch and the live repo
   assert.match(onBranch, /^Folders {2}\[31mRED\]0;PWN\/proj \$0\.\d\d, b\/\[1mother \$0\.\d\d\. A branch with the same name in another repository is counted together with this one\.$/m)
   assert.doesNotMatch(onBranch, control)
   // The name of a branch is printed as it was typed, without them too.
-  assert.equal(branch(records, { days: 7, name: 'gone\x1b[2J\n' }), 'No model calls on the branch "gone[2J" in the last 7 days. See: kestrel branches')
+  assert.equal(branch(records, { days: 7, name: 'gone\x1b[2J\n' }), 'No model calls on the branch "gone[2J" in the last 7 days. See: widal branches')
 
-  // "kestrel live" prints the cells of a call without a table.
+  // "widal live" prints the cells of a call without a table.
   const cells = analyze(records).calls.map(callLine)
   assert.deepEqual(cells[1].slice(1), ['opus-5-5', '53k', '+3.0k', '100%', '1.0k', '$0.03', 'Fetch[31mREDnext'])
   assert.equal(cells.at(-2)[1], 'odd31mmodel')
@@ -1574,7 +1574,7 @@ test('a kind of subagent gets a command to apply only when its name is letters, 
   const report = (kind) => adviseReport(subagent(kind, many(5, { tools: ['Read'] })), { days: 30, ownFile })
   const applyLine = (text, title) => new RegExp(`^\\d\\. ${title}: .*\\n.*\\n.*\\n.*\\n {3}(.*)$`, 'm').exec(text)[1]
   for (const kind of ['researcher', 'code.review_2-B', '-x', '9']) {
-    assert.equal(applyLine(report(kind), `Run the "${kind}" subagents on a cheaper model`), `Apply: kestrel apply subagent-model --kind ${kind}`, kind)
+    assert.equal(applyLine(report(kind), `Run the "${kind}" subagents on a cheaper model`), `Apply: widal apply subagent-model --kind ${kind}`, kind)
   }
   for (const kind of ['my agent', 'a;b', '$(id)', '`id`', 'a"b', "it's", 'a|b', 'a&b', 'a>b', 'café', 'a\\b', '~x', 'a*']) {
     const text = report(kind)
@@ -1627,7 +1627,7 @@ test('the measure command gives the report what the change found before, so that
   const { env, run } = command('measure-kinds')
   const sub = join(env.CLAUDE_CONFIG_DIR, 'projects', 'work-repo', 's1', 'subagents')
   mkdirSync(sub, { recursive: true })
-  mkdirSync(env.KESTREL_HOME, { recursive: true })
+  mkdirSync(env.WIDAL_HOME, { recursive: true })
   const at = (ts) => ({ tools: ['Read'], ts })
   const log = (name, kind, lines) => {
     writeFileSync(join(sub, `${name}.jsonl`), `${lines.join('\n')}\n`)
@@ -1635,7 +1635,7 @@ test('the measure command gives the report what the change found before, so that
   }
   log('agent-1', 'researcher', [...many(2, at(AT - 86400e3)), call(at(AT + 3600e3))])
   log('agent-2', 'builder', [...many(4, at(AT - 86400e3)), ...many(3, at(AT + 3600e3))])
-  const state = (changes) => writeFileSync(join(env.KESTREL_HOME, 'actions.json'), JSON.stringify({ 'subagent-model': { at: AT, before: { changes } } }))
+  const state = (changes) => writeFileSync(join(env.WIDAL_HOME, 'actions.json'), JSON.stringify({ 'subagent-model': { at: AT, before: { changes } } }))
   state([{ kind: 'researcher', model: 'claude-sonnet-5-5' }])
   const one = run('measure', 'subagent-model').stdout
   assert.equal(one.split('\n')[0], `subagent-model, applied on ${when(AT)}. Calls of the "researcher" subagents before and after.`)

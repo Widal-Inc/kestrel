@@ -48,7 +48,7 @@ export function hintConfig(cfg = config()) {
   return h
 }
 
-/** The settings in words, for "kestrel hint" and the row of "kestrel status". */
+/** The settings in words, for "widal hint" and the row of "widal doctor". */
 export function hintSettingsText(h) {
   const when = `from the last ${count(h.calls)} model calls of a session: a lower level when ${Math.round(100 * h.simple)}% or more of them are simple work, a higher level from ${count(h.errors)} tool errors`
   return h.on ? `on, ${when}` : `off (when on: ${when})`

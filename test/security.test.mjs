@@ -1,6 +1,6 @@
 // Tests for the security checks: the catalog of controls, the rules of the settings, the actions,
 // the code and the data, the scanners (with stand-ins), the hooks and the gate, the part of the
-// status line, "kestrel check" and the fixes. With made-up settings, logs and git repositories in
+// status line, "widal check" and the fixes. With made-up settings, logs and git repositories in
 // temp folders. Run: node --test
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
@@ -10,14 +10,16 @@ import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-const dir = realpathSync(mkdtempSync(join(tmpdir(), 'kestrel-security-test-')))
+const dir = realpathSync(mkdtempSync(join(tmpdir(), 'widal-code-security-test-')))
 process.env.HOME = join(dir, 'person')
-process.env.KESTREL_HOME = join(dir, 'home')
+// The link that Claude Code's settings call, in the tool's folder in the made-up home folder.
+const OWN = join(process.env.HOME, '.widal', 'bin', 'widal')
+process.env.WIDAL_HOME = join(dir, 'home')
 process.env.CLAUDE_CONFIG_DIR = join(dir, 'claude')
 process.env.CODEX_HOME = join(dir, 'codex')
-process.env.KESTREL_COWORK_DIR = join(dir, 'cowork')
+process.env.WIDAL_COWORK_DIR = join(dir, 'cowork')
 // The managed settings of the organization: a file that is not there, so that no test reads the real one.
-process.env.KESTREL_MANAGED_SETTINGS = join(dir, 'managed', 'managed-settings.json')
+process.env.WIDAL_MANAGED_SETTINGS = join(dir, 'managed', 'managed-settings.json')
 for (const key of ['CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 'ANTHROPIC_BASE_URL', 'OTEL_LOG_USER_PROMPTS', 'OTEL_LOG_TOOL_DETAILS']) delete process.env[key]
 mkdirSync(process.env.HOME, { recursive: true })
 
@@ -35,7 +37,7 @@ const actions = await import('../src/actions.mjs')
 const { riskPart } = await import('../src/risk.mjs')
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url)).replace(/[/\\]$/, '')
-const KESTREL = join(ROOT, 'cli', 'kestrel.mjs')
+const WIDAL = join(ROOT, 'cli', 'widal.mjs')
 const NOW = Date.parse('2026-11-14T12:00:00')
 
 // Made-up keys and numbers, put together here so that this file holds none of them whole.
@@ -49,10 +51,10 @@ const CARD = ['4111', '1111', '1111', '1111'].join('')
 const SSN = ['123', '45', '6789'].join('-')
 
 let fresh = 0
-/** A fresh state: its own folder of Kestrel, its own config folders of Claude Code and Codex, and no config. */
+/** A fresh state: its own folder of Widal.Code, its own config folders of Claude Code and Codex, and no config. */
 function freshState() {
   const base = join(dir, `state-${++fresh}`)
-  process.env.KESTREL_HOME = join(base, 'kestrel')
+  process.env.WIDAL_HOME = join(base, 'widal')
   process.env.CLAUDE_CONFIG_DIR = join(base, 'claude')
   process.env.CODEX_HOME = join(base, 'codex')
   mkdirSync(process.env.CLAUDE_CONFIG_DIR, { recursive: true })
@@ -64,7 +66,7 @@ const writeSettings = (value) => writeFileSync(SETTINGS(), JSON.stringify(value,
 const readSettings = () => JSON.parse(readFileSync(SETTINGS(), 'utf8'))
 const rules = (findings) => findings.map((f) => f.rule).sort()
 
-/** Every file below a folder, as text: what Kestrel wrote. */
+/** Every file below a folder, as text: what Widal.Code wrote. */
 function allText(folder) {
   if (!existsSync(folder)) return ''
   return readdirSync(folder, { recursive: true }).map((name) => join(folder, name)).filter((p) => statSync(p).isFile()).map((p) => readFileSync(p, 'utf8')).join('\n')
@@ -122,7 +124,7 @@ function cleanPath(extra) {
 }
 /** Runs the command with the test's temp folders, and a PATH without any scanner unless `path` names one. */
 function run(args, { cwd = dir, input, path = cleanPath(), env = {} } = {}) {
-  const r = spawnSync(process.execPath, [KESTREL, ...args], { cwd, input, encoding: 'utf8', env: { ...process.env, PATH: path, NO_COLOR: '1', ...env } })
+  const r = spawnSync(process.execPath, [WIDAL, ...args], { cwd, input, encoding: 'utf8', env: { ...process.env, PATH: path, NO_COLOR: '1', ...env } })
   return { status: r.status, stdout: r.stdout, stderr: r.stderr }
 }
 
@@ -182,7 +184,7 @@ test('bypass mode: defaultMode bypassPermissions or auto in the user or managed 
   writeSettings({ permissions: { defaultMode: 'bypassPermissions' } })
   let [f] = one(settingsCheck(), 'set.bypass-mode')
   assert.equal(f.severity, 'high')
-  assert.deepEqual(f.fix, { action: 'no-bypass', words: 'kestrel apply no-bypass' })
+  assert.deepEqual(f.fix, { action: 'no-bypass', words: 'widal apply no-bypass' })
   assert.match(f.detail, /permissions\.defaultMode is bypassPermissions in .*settings\.json: every tool call runs without a question\./)
   writeSettings({ permissions: { defaultMode: 'auto' } })
   ;[f] = one(settingsCheck(), 'set.bypass-mode')
@@ -201,12 +203,12 @@ test('bypass mode: defaultMode bypassPermissions or auto in the user or managed 
   writeFileSync(join(project, '.claude', 'settings.json'), JSON.stringify({ permissions: { defaultMode: 'bypassPermissions' } }))
   assert.deepEqual(one(settingsCheck({ cwd: project }), 'set.bypass-mode'), [])
   // The managed settings count.
-  mkdirSync(dirname(process.env.KESTREL_MANAGED_SETTINGS), { recursive: true })
-  writeFileSync(process.env.KESTREL_MANAGED_SETTINGS, JSON.stringify({ permissions: { defaultMode: 'bypassPermissions' } }))
+  mkdirSync(dirname(process.env.WIDAL_MANAGED_SETTINGS), { recursive: true })
+  writeFileSync(process.env.WIDAL_MANAGED_SETTINGS, JSON.stringify({ permissions: { defaultMode: 'bypassPermissions' } }))
   try {
     assert.equal(one(settingsCheck(), 'set.bypass-mode').length, 1)
   } finally {
-    writeFileSync(process.env.KESTREL_MANAGED_SETTINGS, '{}')
+    writeFileSync(process.env.WIDAL_MANAGED_SETTINGS, '{}')
   }
 })
 
@@ -295,7 +297,7 @@ test('transcripts kept for long: low, and medium while HIPAA, PCI DSS, 21 CFR Pa
   const [f] = one(settingsCheck(), 'set.transcripts-kept')
   assert.equal(f.severity, 'low')
   assert.equal(f.detail, 'cleanupPeriodDays is not set, so Claude Code keeps transcripts for 30 days. desktopSessionCleanupPeriodDays is not set, so the transcripts of desktop and Cowork sessions are kept without an end. They are plain text on disk.')
-  assert.deepEqual(f.fix, { action: 'transcript-days', words: 'kestrel apply transcript-days' })
+  assert.deepEqual(f.fix, { action: 'transcript-days', words: 'widal apply transcript-days' })
   for (const fw of ['hipaa', 'pci', 'part11', 'gdpr']) assert.equal(one(settingsCheck({ frameworks: [fw] }), 'set.transcripts-kept')[0].severity, 'medium', fw)
   assert.equal(one(settingsCheck({ frameworks: ['soc2'] }), 'set.transcripts-kept')[0].severity, 'low')
   writeSettings({ cleanupPeriodDays: 7, desktopSessionCleanupPeriodDays: 7 })
@@ -402,8 +404,8 @@ test('the actions of a session: secret files read, an agent\'s own config change
   assert.equal(push.scope, 'session:s-1')
   assert.deepEqual(byRule('act.destroy'), [])
   saveFindings(found, { scope: 'session:s-1', kind: 'actions', now: NOW })
-  // No command, no other text of the log, is in a file of Kestrel's.
-  const kept = allText(process.env.KESTREL_HOME)
+  // No command, no other text of the log, is in a file of Widal.Code's.
+  const kept = allText(process.env.WIDAL_HOME)
   for (const text of ['MARKER', 'origin', 'head -3', 'server.log', 'message only']) assert.ok(!kept.includes(text), text)
 })
 
@@ -435,7 +437,7 @@ test('a read or an edit that was denied or failed is no finding; a shell command
 
 // The code.
 
-test('the code rules with Kestrel\'s own patterns, and none of the matches in a file of Kestrel\'s', () => {
+test('the code rules with Widal.Code\'s own patterns, and none of the matches in a file of Widal.Code\'s', () => {
   freshState()
   saveConfig({ security: { frameworks: ['hipaa', 'pci'] } })
   const root = repo({
@@ -451,16 +453,16 @@ test('the code rules with Kestrel\'s own patterns, and none of the matches in a 
   const r = security.runTurn({ cwd: root, now: NOW, env: { PATH: programs() } })
   const found = r.code
   const at = (rule) => found.filter((f) => f.rule === rule).map((f) => `${f.where.file}:${f.where.line}`).sort()
-  assert.deepEqual(found.filter((f) => f.rule === 'code.secret').map((f) => f.detail.replace(/^The kind of key: (.*)\. Found by Kestrel's own patterns\.$/, '$1')).sort(), ['AWS access key id', 'Anthropic API key', 'GitHub token', 'OpenAI API key', 'Slack token', 'private key'])
+  assert.deepEqual(found.filter((f) => f.rule === 'code.secret').map((f) => f.detail.replace(/^The kind of key: (.*)\. Found by Widal.Code's own patterns\.$/, '$1')).sort(), ['AWS access key id', 'Anthropic API key', 'GitHub token', 'OpenAI API key', 'Slack token', 'private key'])
   assert.deepEqual(at('code.tls-off'), ['deploy.sh:1', 'main.go:1', 'src/client.py:1', 'src/server.js:1', 'src/server.js:2'])
   assert.deepEqual(at('code.phi-log'), ['src/client.py:2'])
   assert.deepEqual(at('code.card-number'), ['src/pay.js:1'])
   assert.deepEqual(at('code.http'), ['config/app.yaml:1'])
   assert.ok(found.every((f) => f.source === 'kestrel' && f.scope === `repo:${root}` && f.where.repo === root))
-  assert.deepEqual(r.scanners, ["Kestrel's own rules"])
+  assert.deepEqual(r.scanners, ["Widal.Code's own rules"])
   // The controls are those of the frameworks that are on.
   assert.deepEqual(found.find((f) => f.rule === 'code.card-number').controls.map((c) => `${c.framework} ${c.id}`), ['pci 3'])
-  const kept = allText(process.env.KESTREL_HOME)
+  const kept = allText(process.env.WIDAL_HOME)
   for (const text of [AWS_KEY, GITHUB_TOKEN, ANTHROPIC_KEY, OPENAI_KEY, SLACK_TOKEN, 'PRIVATE KEY', CARD, 'MARKER-PHI', 'date_of_birth', 'api.example.com/v1']) assert.ok(!kept.includes(text), text)
 })
 
@@ -476,7 +478,7 @@ test('the patient field and the card number are checked only while their framewo
   assert.deepEqual(rules(security.runTurn({ cwd: root, now: NOW, env: { PATH: programs() } }).code), ['code.card-number'])
 })
 
-test('Kestrel\'s own rules for Terraform', () => {
+test('Widal.Code\'s own rules for Terraform', () => {
   const tf = `resource "aws_s3_bucket" "logs" {
   bucket = "logs"
   acl    = "public-read"
@@ -552,22 +554,22 @@ test('a scanner stand-in for Checkov, Trivy, KICS and gitleaks: its findings, it
   assert.deepEqual(kics.map((f) => [f.source, f.severity, f.where.file, f.where.line]), [['kics', 'high', 'main.tf', 3]])
   // The first one found counts: Checkov before Trivy.
   assert.deepEqual([...new Set(iac({ checkov: printing(CHECKOV_JSON, 1), trivy: printing(TRIVY_JSON) }).map((f) => f.source))], ['checkov'])
-  // gitleaks: the secret findings are its own, and Kestrel's patterns do not run on the files it checked.
+  // gitleaks: the secret findings are its own, and Widal.Code's patterns do not run on the files it checked.
   const r = security.runTurn({ cwd: root, now: NOW, env: { PATH: programs({ gitleaks: `case "$*" in *keys.py*) printf '%s\\n' '${GITLEAKS_JSON}'; exit 1;; *) echo '[]';; esac` }) } })
   assert.deepEqual(r.code.filter((f) => f.rule === 'code.secret').map((f) => [f.source, f.where.file, f.where.line, f.detail]), [['gitleaks', 'keys.py', 2, 'The kind of key: AWS access key id. Found by gitleaks.']])
   assert.ok(r.scanners.includes('gitleaks'))
-  const kept = allText(process.env.KESTREL_HOME)
+  const kept = allText(process.env.WIDAL_HOME)
   for (const text of ['MARKER', AWS_KEY, 'code_block', 'REDACTED']) assert.ok(!kept.includes(text), text)
 })
 
-test('a scanner that runs past the time limit is stopped, and Kestrel\'s own rules stand in', () => {
+test('a scanner that runs past the time limit is stopped, and Widal.Code\'s own rules stand in', () => {
   freshState()
   const root = repo({ 'main.tf': TF })
   const start = Date.now()
   const r = checkCode({ root, env: { PATH: programs({ checkov: 'while :; do :; done' }) }, limits: { files: 200, bytes: 2 * 1024 * 1024, ms: 300 } })
   assert.ok(Date.now() - start < 3000, `took ${Date.now() - start} ms`)
   assert.deepEqual(r.findings.map((f) => [f.rule, f.source, f.detail.split(',')[0]]).sort(), [['code.iac', 'kestrel', 'An S3 bucket has a public ACL'], ['code.iac', 'kestrel', 'An S3 bucket has no encryption set']])
-  // A slow gitleaks: the files it did not reach get Kestrel's own patterns.
+  // A slow gitleaks: the files it did not reach get Widal.Code's own patterns.
   const keys = repo({ 'k.py': `aws = "${AWS_KEY}"\n` })
   const slow = checkCode({ root: keys, env: { PATH: programs({ gitleaks: 'while :; do :; done' }) }, limits: { files: 200, bytes: 2 * 1024 * 1024, ms: 300 } })
   assert.deepEqual(slow.findings.map((f) => [f.rule, f.source]), [['code.secret', 'kestrel']])
@@ -604,10 +606,10 @@ test('the data check is off until it is switched on, and keeps the kind and the 
   writeSettings({ cleanupPeriodDays: 14 })
   const on = security.runTurn({ session: 'data-session', transcript, cwd: root, now: NOW, env: { PATH: programs() } }).data
   assert.deepEqual(on.map((f) => [f.rule, f.severity]), [['data.us-ssn', 'high'], ['data.card-number', 'high'], ['data.secret', 'high']])
-  assert.match(on[0].detail, /^2 US social security numbers in the user messages and tool results of this session\. The transcript holds them in plain text at .*data-session\.jsonl\. Claude Code keeps it for 14 days \(cleanupPeriodDays\)\. Shorten that with: kestrel apply transcript-days$/)
+  assert.match(on[0].detail, /^2 US social security numbers in the user messages and tool results of this session\. The transcript holds them in plain text at .*data-session\.jsonl\. Claude Code keeps it for 14 days \(cleanupPeriodDays\)\. Shorten that with: widal apply transcript-days$/)
   assert.match(on[2].detail, /^2 secret keys \(AWS access key id\) in the user/)
-  assert.deepEqual(on[0].fix, { action: 'transcript-days', words: 'kestrel apply transcript-days' })
-  const kept = allText(process.env.KESTREL_HOME)
+  assert.deepEqual(on[0].fix, { action: 'transcript-days', words: 'widal apply transcript-days' })
+  const kept = allText(process.env.WIDAL_HOME)
   for (const text of [SSN, CARD, '4111 1111', AWS_KEY, 'my number']) assert.ok(!kept.includes(text), text)
 })
 
@@ -649,7 +651,7 @@ test('the hook at a session\'s start starts the settings check in the background
   const s = spawner()
   assert.equal(security.sessionStartHook({ cwd: '/work/app', session_id: 'a' }, { now: NOW, spawner: s }), true)
   assert.deepEqual(s.starts.map((x) => [x.cmd, x.args.slice(1), x.opts]), [[process.execPath, ['security-run', '--what', 'settings', '--cwd', '/work/app'], { detached: true, stdio: 'ignore' }]])
-  assert.equal(s.starts[0].args[0], KESTREL)
+  assert.equal(s.starts[0].args[0], WIDAL)
   assert.equal(security.sessionStartHook({ cwd: '/work/other' }, { now: NOW + 30e3, spawner: s }), false)
   assert.equal(security.sessionStartHook({ cwd: '/work/other' }, { now: NOW + 61e3, spawner: s }), true)
   assert.equal(security.sessionStartHook({ cwd: 'relative' }, { now: NOW + 200e3, spawner: s }), true)
@@ -714,7 +716,7 @@ test('the gate asks before git push, gh pr create and gh pr merge only while a h
   assert.equal(ask('git push'), undefined)
   highIn(root)
   const answer = ask('git push origin main')
-  assert.deepEqual(answer, { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: 'Kestrel: 1 high risk is open in this repository: A secret key is in the code. See them with kestrel check.' } })
+  assert.deepEqual(answer, { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: 'Widal.Code: 1 high risk is open in this repository: A secret key is in the code. See them with widal check.' } })
   for (const command of ['gh pr create --fill', 'gh pr merge 12 --squash', 'npm test && git push']) assert.equal(ask(command)?.hookSpecificOutput.permissionDecision, 'ask', command)
   for (const command of ['git status', 'git commit -m "then git push"', 'echo git push', 'gh pr view 12', 'git pushd']) assert.equal(ask(command), undefined, command)
   // git's own options before "push", and the repository that -C or a cd names.
@@ -726,7 +728,7 @@ test('the gate asks before git push, gh pr create and gh pr merge only while a h
   assert.ok(ask('git push', join(root, 'src')))
   // A high finding of the actions counts too, and the reason names both.
   highIn(root, 'actions', 'act.destroy')
-  assert.equal(ask('git push').hookSpecificOutput.permissionDecisionReason, 'Kestrel: 2 high risks are open in this repository: An agent ran a command that deletes infrastructure or data, or deploys to production; A secret key is in the code. See them with kestrel check.')
+  assert.equal(ask('git push').hookSpecificOutput.permissionDecisionReason, 'Widal.Code: 2 high risks are open in this repository: An agent ran a command that deletes infrastructure or data, or deploys to production; A secret key is in the code. See them with widal check.')
   // A high finding of the settings does not count: it is not of this repository.
   freshState()
   saveFindings([makeFinding('set.bypass-mode', { key: 'x', scope: 'settings', where: { file: 'settings.json' } })], { scope: 'settings', kind: 'settings', now: NOW })
@@ -749,7 +751,7 @@ test('the gate asks before git push, gh pr create and gh pr merge only while a h
 test('a broken findings file never breaks a hook or the status line', () => {
   freshState()
   const root = repo()
-  mkdirSync(process.env.KESTREL_HOME, { recursive: true })
+  mkdirSync(process.env.WIDAL_HOME, { recursive: true })
   writeFileSync(findingsFile(), '{ not json')
   assert.equal(security.gateHook({ tool_name: 'Bash', tool_input: { command: 'git push' }, cwd: root }), undefined)
   assert.equal(riskPart(root), undefined)
@@ -768,7 +770,7 @@ test('the plugin\'s security hooks do not act twice: silent while the settings h
   highIn(root)
   const input = JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'git push' }, cwd: root })
   assert.notEqual(run(['hook', 'push-gate', '--plugin'], { cwd: root, input }).stdout, '')
-  writeSettings({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: `${join(process.env.KESTREL_HOME, 'bin', 'kestrel')} hook push-gate`, timeout: 5 }] }] } })
+  writeSettings({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: `${join(process.env.WIDAL_HOME, 'bin', 'widal')} hook push-gate`, timeout: 5 }] }] } })
   assert.equal(run(['hook', 'push-gate', '--plugin'], { cwd: root, input }).stdout, '')
   assert.notEqual(run(['hook', 'push-gate'], { cwd: root, input }).stdout, '')
   writeSettings({})
@@ -776,31 +778,31 @@ test('the plugin\'s security hooks do not act twice: silent while the settings h
   assert.equal(run(['hook', 'push-gate', '--plugin'], { cwd: root, input }).stdout, '')
 })
 
-test('"kestrel install" adds the three hooks, a change of the limit or of keep-warm keeps them, and "uninstall" takes them out', () => {
+test('"widal connect" adds the three hooks, a change of the limit or of keep-warm keeps them, and "uninstall" takes them out', () => {
   const base = freshState()
   const home = join(base, 'person')
   mkdirSync(home, { recursive: true })
   const env = { HOME: home, USERPROFILE: home }
   writeSettings({ theme: 'dark', hooks: { Stop: [{ hooks: [{ type: 'command', command: '/x/other-stop.sh' }] }] } })
-  const r = run(['install'], { env })
+  const r = run(['connect'], { env })
   assert.equal(r.status, 0)
-  assert.match(r.stdout, /^Added the hooks of the security checks to Claude Code: at the start of a session, at the end of a turn, and before a push\. See the findings with: kestrel check$/m)
-  const link = join(process.env.KESTREL_HOME, 'bin', 'kestrel')
+  assert.match(r.stdout, /^Added the hooks of the security checks to Claude Code: at the start of a session, at the end of a turn, and before a push\. See the findings with: widal check$/m)
+  const link = join(process.env.WIDAL_HOME, 'bin', 'widal')
   const hook = (name) => ({ type: 'command', command: `${link} hook ${name}`, timeout: 5 })
   assert.deepEqual(readSettings().hooks, {
     Stop: [{ hooks: [{ type: 'command', command: '/x/other-stop.sh' }] }, { hooks: [hook('check-turn')] }],
     SessionStart: [{ hooks: [hook('check-settings')] }],
     PreToolUse: [{ matcher: 'Bash', hooks: [hook('push-gate')] }],
   })
-  assert.match(run(['install'], { env }).stdout, /^The hooks of the security checks were already set\./m)
+  assert.match(run(['connect'], { env }).stdout, /^The hooks of the security checks were already set\./m)
   // A limit adds its own hook and takes it out again, and the gate stays.
   assert.equal(run(['limit', '--session', '50'], { env }).status, 0)
   assert.equal(readSettings().hooks.PreToolUse.length, 2)
-  assert.match(run(['status'], { env }).stdout, /^Claude Code limit hook +set$/m)
+  assert.match(run(['doctor'], { env }).stdout, /^Claude Code limit hook +set$/m)
   assert.equal(run(['limit', '--off'], { env }).status, 0)
   assert.deepEqual(readSettings().hooks.PreToolUse, [{ matcher: 'Bash', hooks: [hook('push-gate')] }])
-  assert.match(run(['status'], { env }).stdout, /^Claude Code limit hook +not set/m)
-  assert.equal(run(['uninstall'], { env }).status, 0)
+  assert.match(run(['doctor'], { env }).stdout, /^Claude Code limit hook +not set/m)
+  assert.equal(run(['disconnect'], { env }).status, 0)
   assert.deepEqual(readSettings().hooks, { Stop: [{ hooks: [{ type: 'command', command: '/x/other-stop.sh' }] }] })
 })
 
@@ -852,9 +854,9 @@ test('with 500 findings the part of the status line takes well under 100 ms', ()
   assert.ok(performance.now() - t < 100, `${performance.now() - t} ms`)
 })
 
-// "kestrel check".
+// "widal check".
 
-test('"kestrel check": the frameworks that are on, the open findings by kind with their controls and fixes, and the sentence at the end; --json as the contract says', () => {
+test('"widal check": the frameworks that are on, the open findings by kind with their controls and fixes, and the sentence at the end; --json as the contract says', () => {
   freshState()
   saveConfig({ security: { frameworks: ['hipaa', 'soc2'] } })
   const root = repo()
@@ -866,9 +868,9 @@ test('"kestrel check": the frameworks that are on, the open findings by kind wit
   assert.equal(lines[0], 'Frameworks that are on: HIPAA, SOC 2.')
   assert.ok(text.includes('\nOpen findings: 1 high, 0 medium, 1 low.\n'))
   assert.ok(text.indexOf('\nSettings\n') < text.indexOf('\nCode\n'))
-  assert.ok(text.includes('  high    Claude Code may run tool calls without asking you\n          where: ~/.claude/settings.json\n          controls: HIPAA 164.312(a) Access control; SOC 2 CC6.1 Logical access security (id to check)\n          fix: kestrel apply no-bypass\n'))
+  assert.ok(text.includes('  high    Claude Code may run tool calls without asking you\n          where: ~/.claude/settings.json\n          controls: HIPAA 164.312(a) Access control; SOC 2 CC6.1 Logical access security (id to check)\n          fix: widal apply no-bypass\n'))
   assert.ok(text.includes(`  low     A config file names a plain http:// address on another host\n          where: c.yaml:2, in ${root}\n`))
-  assert.equal(lines.at(-1), 'Kestrel checks technical controls and flags risks. It does not make a company compliant or certify it.')
+  assert.equal(lines.at(-1), 'Widal.Code checks technical controls and flags risks. It does not make a company compliant or certify it.')
   // The code findings of the repository with its own frameworks show those.
   mkdirSync(join(root, '.claude'))
   writeFileSync(join(root, '.claude', 'loobster-frameworks.json'), JSON.stringify({ frameworks: ['pci'] }))
@@ -878,13 +880,13 @@ test('"kestrel check": the frameworks that are on, the open findings by kind wit
   assert.deepEqual(data.counts, { high: 1, medium: 0, low: 1, info: 0 })
   assert.deepEqual(data.findings.map((f) => f.rule), ['set.bypass-mode', 'code.http'])
   assert.deepEqual(data.findings[1].controls.map((c) => `${c.framework} ${c.id}`), ['pci 4'])
-  assert.equal(data.note, 'Kestrel checks technical controls and flags risks. It does not make a company compliant or certify it.')
+  assert.equal(data.note, 'Widal.Code checks technical controls and flags risks. It does not make a company compliant or certify it.')
   assert.ok(Number.isFinite(data.at))
   assert.match(run(['check'], { cwd: root }).stdout, new RegExp(`\\nFor ${root.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}: PCI DSS, from .*loobster-frameworks\\.json\\.\\n`))
-  assert.match(run(['help']).stdout, /^ {2}kestrel check \[--run\] \[--json\] {3}the open security findings/m)
+  assert.match(run(['help']).stdout, /^ {2}widal check \[--run\] \[--json\] {3}the open security findings/m)
 })
 
-test('"kestrel check --run" runs the settings, the actions of this folder\'s sessions and the code now', () => {
+test('"widal check --run" runs the settings, the actions of this folder\'s sessions and the code now', () => {
   freshState()
   const root = repo({ 'client.py': 'requests.get(u, verify=False)\n' })
   writeSettings({ permissions: { allow: ['Bash'] } })
@@ -894,14 +896,14 @@ test('"kestrel check --run" runs the settings, the actions of this folder\'s ses
   writeFileSync(join(folder, 'run-session.jsonl'), `${assistant([use('Read', { file_path: join(root, '.env') })])}\n`)
   const r = run(['check', '--run'], { cwd: root })
   assert.equal(r.status, 0)
-  assert.ok(r.stdout.includes(`The code: 1 changed file in ${root}, checked with Kestrel's own rules.`), r.stdout)
+  assert.ok(r.stdout.includes(`The code: 1 changed file in ${root}, checked with Widal.Code's own rules.`), r.stdout)
   assert.ok(r.stdout.includes('The sessions: 1 of this folder in the last 7 days.'))
-  assert.ok(r.stdout.includes('Off: data (kestrel settings set security.checks.<name> on).'))
+  assert.ok(r.stdout.includes('Off: data (widal settings set security.checks.<name> on).'))
   assert.deepEqual([...new Set(readFindings().map((f) => f.kind))].sort(), ['actions', 'code', 'settings'])
   for (const rule of ['set.allow-any-shell', 'act.read-secret-file', 'code.tls-off']) assert.ok(r.stdout.includes(RULES[rule].title), rule)
 })
 
-test('the desktop tool security_check shows the controls that "kestrel check" shows, from the rule and not from what was stored', () => {
+test('the desktop tool security_check shows the controls that "widal check" shows, from the rule and not from what was stored', () => {
   freshState()
   saveConfig({ security: { frameworks: ['hipaa'] } })
   const root = repo()
@@ -912,7 +914,7 @@ test('the desktop tool security_check shows the controls that "kestrel check" sh
     { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test', version: '1' } } },
     { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'security_check', arguments: {} } },
   ]
-  const r = run(['mcp'], { input: `${asks.map((a) => JSON.stringify(a)).join('\n')}\n` })
+  const r = run(['desktop-mcp'], { input: `${asks.map((a) => JSON.stringify(a)).join('\n')}\n` })
   const answer = r.stdout.trim().split('\n').map((l) => JSON.parse(l)).find((m) => m.id === 2)
   const text = answer.result.content[0].text
   assert.match(text, /\n {2}Controls: HIPAA 164\.312\(e\) Transmission security/)
@@ -920,7 +922,7 @@ test('the desktop tool security_check shows the controls that "kestrel check" sh
   assert.ok(check.includes('hipaa 164.312(e)'))
 })
 
-test('"kestrel check --export" writes the open and the resolved findings with their dates and controls, for an audit', () => {
+test('"widal check --export" writes the open and the resolved findings with their dates and controls, for an audit', () => {
   freshState()
   saveConfig({ security: { frameworks: ['hipaa'] } })
   const root = repo()
@@ -929,11 +931,11 @@ test('"kestrel check --export" writes the open and the resolved findings with th
   const file = join(dir, 'audit.csv')
   const r = run(['check', '--export', file])
   assert.equal(r.status, 0)
-  assert.match(r.stdout, new RegExp(`^Wrote 2 findings, open and resolved, to ${file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\(\\d{4}-\\d\\d-\\d\\d\\)\\.\\nKestrel checks technical controls`))
+  assert.match(r.stdout, new RegExp(`^Wrote 2 findings, open and resolved, to ${file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\(\\d{4}-\\d\\d-\\d\\d\\)\\.\\nWidal.Code checks technical controls`))
   const rows = readFileSync(file, 'utf8').trimEnd().split('\n')
   assert.equal(rows[0], 'id,rule,kind,severity,status,title,detail,where,controls,fix,source,first seen,last seen,resolved')
   assert.equal(rows.length, 4)
-  assert.equal(rows[3], 'Kestrel checks technical controls and flags risks. It does not make a company compliant or certify it.')
+  assert.equal(rows[3], 'Widal.Code checks technical controls and flags risks. It does not make a company compliant or certify it.')
   assert.ok(rows[1].includes(',code.tls-off,code,high,open,The code turns off the check of TLS certificates,,"a, ""b"".py:3, in '))
   assert.ok(rows[1].includes(',HIPAA 164.312(e) Transmission security,,kestrel,2026-11-14T'))
   assert.ok(rows[2].includes(',code.secret,code,high,resolved,'))
@@ -950,55 +952,55 @@ test('no-bypass: apply, undo, and the other settings stay; the finding resolves'
   writeSettings({ theme: 'dark', skipDangerousModePermissionPrompt: true, permissions: { allow: ['Read'], defaultMode: 'bypassPermissions' } })
   security.runSettings({ now: NOW })
   assert.ok(readFindings().some((f) => f.rule === 'set.bypass-mode' && f.status === 'open'))
-  const said = actions.apply('no-bypass', '/bin/kestrel', NOW)
+  const said = actions.apply('no-bypass', OWN, NOW)
   assert.equal(said[0], 'Sets "permissions.disableBypassPermissionsMode" to "disable" in Claude Code\'s settings, and takes out "skipDangerousModePermissionPrompt". Bypass mode, in which every tool call runs without a question, can then no longer start.')
   assert.deepEqual(readSettings(), { theme: 'dark', permissions: { allow: ['Read'], defaultMode: 'bypassPermissions', disableBypassPermissionsMode: 'disable' } })
   security.runSettings({ now: NOW + 1000 })
   assert.equal(readFindings().find((f) => f.rule === 'set.bypass-mode').status, 'resolved')
-  assert.deepEqual(actions.apply('no-bypass', '/bin/kestrel', NOW), ['no-bypass is already applied.'])
-  assert.deepEqual(actions.undo('no-bypass', '/bin/kestrel'), ['no-bypass is taken back. Bypass mode can start again, as before.'])
+  assert.deepEqual(actions.apply('no-bypass', OWN, NOW), ['no-bypass is already applied.'])
+  assert.deepEqual(actions.undo('no-bypass', OWN), ['no-bypass is taken back. Bypass mode can start again, as before.'])
   assert.deepEqual(readSettings(), { theme: 'dark', skipDangerousModePermissionPrompt: true, permissions: { allow: ['Read'], defaultMode: 'bypassPermissions' } })
   // Without "permissions" before, undo leaves none behind. A value changed by hand stays.
   writeSettings({ theme: 'light' })
-  actions.apply('no-bypass', '/bin/kestrel', NOW)
-  actions.undo('no-bypass', '/bin/kestrel')
+  actions.apply('no-bypass', OWN, NOW)
+  actions.undo('no-bypass', OWN)
   assert.deepEqual(readSettings(), { theme: 'light' })
-  actions.apply('no-bypass', '/bin/kestrel', NOW)
+  actions.apply('no-bypass', OWN, NOW)
   writeSettings({ ...readSettings(), permissions: { disableBypassPermissionsMode: 'other' } })
-  assert.match(actions.undo('no-bypass', '/bin/kestrel').join('\n'), /^no-bypass is taken back, except for one setting\.\n"permissions\.disableBypassPermissionsMode" in Claude Code's settings was not put back/)
+  assert.match(actions.undo('no-bypass', OWN).join('\n'), /^no-bypass is taken back, except for one setting\.\n"permissions\.disableBypassPermissionsMode" in Claude Code's settings was not put back/)
   // A backup of the file was saved before each change.
-  assert.ok(readdirSync(join(process.env.KESTREL_HOME, 'backup')).length >= 3)
+  assert.ok(readdirSync(join(process.env.WIDAL_HOME, 'backup')).length >= 3)
 })
 
 test('deny-secret-files: apply adds only the rules that are missing, undo takes out only those, and the other settings stay', () => {
   freshState()
   writeSettings({ theme: 'dark', permissions: { deny: ['Bash(rm -rf *)', 'Read(./.env)'], allow: ['Read'] } })
-  actions.apply('deny-secret-files', '/bin/kestrel', NOW)
+  actions.apply('deny-secret-files', OWN, NOW)
   assert.deepEqual(readSettings().permissions, { deny: ['Bash(rm -rf *)', 'Read(./.env)', 'Read(./.env.*)', 'Read(**/*.pem)', 'Read(**/id_rsa*)', 'Read(**/.aws/credentials)'], allow: ['Read'] })
   assert.deepEqual(one(settingsCheck(), 'set.no-secret-deny'), [])
-  assert.deepEqual(actions.undo('deny-secret-files', '/bin/kestrel'), ['deny-secret-files is taken back. The deny rules that this tool added are out. Your other rules stay.'])
+  assert.deepEqual(actions.undo('deny-secret-files', OWN), ['deny-secret-files is taken back. The deny rules that this tool added are out. Your other rules stay.'])
   assert.deepEqual(readSettings(), { theme: 'dark', permissions: { deny: ['Bash(rm -rf *)', 'Read(./.env)'], allow: ['Read'] } })
   writeSettings({})
-  actions.apply('deny-secret-files', '/bin/kestrel', NOW)
-  actions.undo('deny-secret-files', '/bin/kestrel')
+  actions.apply('deny-secret-files', OWN, NOW)
+  actions.undo('deny-secret-files', OWN)
   assert.deepEqual(readSettings(), {})
   writeSettings({ permissions: { deny: 'all' } })
-  assert.throws(() => actions.apply('deny-secret-files', '/bin/kestrel', NOW), /"permissions\.deny" in .* is not a list, so this tool does not change it\./)
+  assert.throws(() => actions.apply('deny-secret-files', OWN, NOW), /"permissions\.deny" in .* is not a list, so this tool does not change it\./)
   writeSettings({ permissions: [] })
-  assert.throws(() => actions.apply('no-bypass', '/bin/kestrel', NOW), /"permissions" in .* is not an object/)
+  assert.throws(() => actions.apply('no-bypass', OWN, NOW), /"permissions" in .* is not an object/)
 })
 
 test('transcript-days: 7 days or --days, both keys, undo puts back what was there, and the other settings stay', () => {
   freshState()
   writeSettings({ theme: 'dark', cleanupPeriodDays: 30 })
-  assert.deepEqual(actions.apply('transcript-days', '/bin/kestrel', NOW).slice(0, 1), ['Set "cleanupPeriodDays" and "desktopSessionCleanupPeriodDays" to 7 in Claude Code\'s settings. Claude Code deletes transcripts that are older than 7 days.'])
+  assert.deepEqual(actions.apply('transcript-days', OWN, NOW).slice(0, 1), ['Set "cleanupPeriodDays" and "desktopSessionCleanupPeriodDays" to 7 in Claude Code\'s settings. Claude Code deletes transcripts that are older than 7 days.'])
   assert.deepEqual(readSettings(), { theme: 'dark', cleanupPeriodDays: 7, desktopSessionCleanupPeriodDays: 7 })
   assert.deepEqual(one(settingsCheck({ frameworks: ['hipaa'] }), 'set.transcripts-kept'), [])
-  actions.apply('transcript-days', '/bin/kestrel', NOW, ['--days', '3'])
+  actions.apply('transcript-days', OWN, NOW, ['--days', '3'])
   assert.deepEqual(readSettings(), { theme: 'dark', cleanupPeriodDays: 3, desktopSessionCleanupPeriodDays: 3 })
-  assert.match(actions.undo('transcript-days', '/bin/kestrel')[0], /^transcript-days is taken back\./)
+  assert.match(actions.undo('transcript-days', OWN)[0], /^transcript-days is taken back\./)
   assert.deepEqual(readSettings(), { theme: 'dark', cleanupPeriodDays: 30 })
-  for (const bad of ['0', '366', 'week']) assert.throws(() => actions.apply('transcript-days', '/bin/kestrel', NOW, ['--days', bad]), /--days is a whole number of days from 1 to 365\./)
+  for (const bad of ['0', '366', 'week']) assert.throws(() => actions.apply('transcript-days', OWN, NOW, ['--days', bad]), /--days is a whole number of days from 1 to 365\./)
   assert.deepEqual(readSettings(), { theme: 'dark', cleanupPeriodDays: 30 })
   // Through the command: the reports' own --days must not take the option before "apply" sees it.
   const r = run(['apply', 'transcript-days', '--days', '14'])

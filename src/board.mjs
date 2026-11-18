@@ -1,25 +1,25 @@
-// The Kestrel board: linking this computer to a team's board, and sending what Kestrel records.
+// The Widal.Code board: linking this computer to a team's board, and sending what Widal.Code records.
 //
-// The board is a web app for a team (its own repository, kestrel-board). "kestrel board login
-// <address>" links this computer with a device code, as "gh auth login" does: Kestrel prints an
+// The board is a web app for a team, in a repository of its own. "widal board login
+// <address>" links this computer with a device code, as "gh auth login" does: Widal.Code prints an
 // address and a code, the person approves the code on the board, and the board gives a machine
-// token. From then on Kestrel sends what it records, on its own, with no further question: the
+// token. From then on Widal.Code sends what it records, on its own, with no further question: the
 // model calls with their tokens and cost, the sessions, the commits made during a session, the
 // security findings, the plan's limits, the accounts, the settings and the proposals. It never
-// sends the text of a prompt, an answer, a tool result or a file. Kestrel never keeps that text.
+// sends the text of a prompt, an answer, a tool result or a file. Widal.Code never keeps that text.
 //
-// The token is the one secret Kestrel keeps. It is in ~/.kestrel/board.json with mode 600, and it
+// The token is the one secret Widal.Code keeps. It is in ~/.widal/board.json with mode 600, and it
 // is never printed in full.
 //
-// When Kestrel sends:
-//   - right after the link, and on "kestrel board sync";
+// When Widal.Code sends:
+//   - right after the link, and on "widal board sync";
 //   - in the background. The status line, and the hooks at the start of a session and at the end
-//     of a turn, start "kestrel board sync --quiet" when the last sync is 10 minutes old or more.
+//     of a turn, start "widal board sync --quiet" when the last sync is 10 minutes old or more.
 //     They read two small files and never wait: the status line itself never uses the network.
 //     A lock file keeps two syncs from running at once.
 //
-// The format follows the board's design (docs/design.md in kestrel-board, "Linking a machine" and
-// "What Kestrel sends"). The board runs on Vercel, which refuses a body over 4.5 MB. So a request
+// The format follows the board's design (docs/design.md in the board's repository, "Linking a machine" and
+// "What Widal.Code sends"). The board runs on Vercel, which refuses a body over 4.5 MB. So a request
 // holds at most 2000 calls, and a body that is still over 3.5 MB once packed is split in half until
 // it fits.
 //
@@ -36,7 +36,7 @@ import { version } from './app.mjs'
 import { readJson, writeJson } from './config.mjs'
 import { count, plain, table, when } from './format.mjs'
 import { repoOf } from './git.mjs'
-import { home, realPath } from './paths.mjs'
+import { envSetting, home, realPath } from './paths.mjs'
 import { cost } from './prices.mjs'
 import { ticketOf } from './ticket.mjs'
 
@@ -72,7 +72,7 @@ const TOKEN = /^kbm_[A-Za-z0-9_-]{20,200}$/
 const LOCAL = new Set(['localhost', '127.0.0.1', '[::1]'])
 
 // The command's file, started in the background.
-const COMMAND = fileURLToPath(new URL('../cli/kestrel.mjs', import.meta.url))
+const COMMAND = fileURLToPath(new URL('../cli/widal.mjs', import.meta.url))
 
 const isObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v)
 /** A time in milliseconds that the board takes: from 2020 to 2100. */
@@ -110,7 +110,7 @@ function writeBoard(b) {
 
 /**
  * Sets fields of board.json, but only while it still holds the same token. A sync that ends after
- * "kestrel board logout" or a new link must not bring the old link back. A field set to undefined
+ * "widal board logout" or a new link must not bring the old link back. A field set to undefined
  * is taken out.
  */
 function updateBoard(token, fields) {
@@ -118,6 +118,28 @@ function updateBoard(token, fields) {
   if (!b || b.token !== token) return false
   writeBoard(JSON.parse(JSON.stringify({ ...b, ...fields })))
   return true
+}
+
+/**
+ * The board's address until 17 Nov 2026, and the address of the same board since then. The same
+ * board answers at both, with the same database, so a token stays valid. But a request to the old
+ * address can get a move to the new one, and `request` follows no move. So the move to the new
+ * name (migrate.mjs) changes a saved old address to the new one.
+ */
+export const OLD_ADDRESS = 'https://kestrel.widal.com'
+export const ADDRESS = 'https://code.widal.com'
+
+/**
+ * Changes the board's address in board.json from the old address to the new one, with the same
+ * path after it. Everything else in the file stays. Returns what it did as `{ did }`, or `{}` when
+ * the computer is not linked or is linked to another address.
+ */
+export function moveBoardAddress() {
+  const b = readBoard()
+  if (!b || !(b.url === OLD_ADDRESS || b.url.startsWith(`${OLD_ADDRESS}/`))) return {}
+  const url = `${ADDRESS}${b.url.slice(OLD_ADDRESS.length)}`
+  writeBoard({ ...b, url })
+  return { did: `Changed the board's address in ${boardFile()} from ${b.url} to ${url}: it is the same board at its new address, and the link stays valid.` }
 }
 
 /** The token as it may be shown: its start and its last 4 characters. */
@@ -189,8 +211,8 @@ export function syncDue(now = Date.now(), board = readBoard()) {
 }
 
 /**
- * Starts "kestrel board sync --quiet" in the background when a sync is due, the same way the
- * status line starts "kestrel refresh-today". The time of the start is saved first, so that a sync
+ * Starts "widal board sync --quiet" in the background when a sync is due, the same way the
+ * status line starts "widal refresh-today". The time of the start is saved first, so that a sync
  * that fails (no network) is not started again on every run. It reads small files only, never
  * waits and never throws. `spawner` stands in for `spawn` in a test. Returns whether it started one.
  */
@@ -222,15 +244,15 @@ class BoardError extends Error {
  * (localhost, 127.0.0.1), because the token would cross the network unprotected.
  */
 export function boardAddress(given) {
-  if (typeof given !== 'string' || !given.trim()) throw new Error(`Give the board's address, for example: kestrel board login ${EXAMPLE}`)
+  if (typeof given !== 'string' || !given.trim()) throw new Error(`Give the board's address, for example: widal board login ${EXAMPLE}`)
   const typed = given.trim()
   let u
   try {
     u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(typed) ? typed : `https://${typed}`)
   } catch {
-    throw new Error(`"${plain(typed)}" is not a web address. For example: kestrel board login ${EXAMPLE}`)
+    throw new Error(`"${plain(typed)}" is not a web address. For example: widal board login ${EXAMPLE}`)
   }
-  if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error(`The board's address starts with https://. For example: kestrel board login ${EXAMPLE}`)
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error(`The board's address starts with https://. For example: widal board login ${EXAMPLE}`)
   if (u.username || u.password) throw new Error('The address must not hold a name or a password.')
   if (u.protocol === 'http:' && !LOCAL.has(u.hostname)) throw new Error(`The board must use https://, so that the token cannot be read on the way. Plain http:// is allowed only for a test board on this computer (localhost or 127.0.0.1).`)
   return `${u.origin}${u.pathname.replace(/\/+$/, '')}`
@@ -242,6 +264,7 @@ export function boardAddress(given) {
  * the token must go to the address the person linked, and nowhere else.
  */
 async function request(url, path, { method = 'GET', token, body, gzipped = false, timeout = REQUEST_MS } = {}) {
+  // The board reads the user agent kestrel/<version>, so it stays as it was before the change of name.
   const headers = { accept: 'application/json', 'user-agent': `kestrel/${version() ?? 'unknown'}` }
   if (token) headers.authorization = `Bearer ${token}`
   if (body !== undefined) headers['content-type'] = 'application/json'
@@ -266,12 +289,12 @@ async function request(url, path, { method = 'GET', token, body, gzipped = false
 function refusal(r, url) {
   const said = text(r.json?.error, 300)
   if (r.status === 401 || r.status === 403) {
-    return new BoardError(`The board does not take this computer's token any more: the computer was removed on the board, or the link is no longer valid. Background sync is off now. Link it again with: kestrel board login ${url}`, r.status)
+    return new BoardError(`The board does not take this computer's token any more: the computer was removed on the board, or the link is no longer valid. Background sync is off now. Link it again with: widal board login ${url}`, r.status)
   }
-  if (r.status >= 300 && r.status < 400) return new BoardError(`The board answered with a move to ${text(r.location, 300) ?? 'another address'}. Link again with the right address: kestrel board login <address>`, r.status)
+  if (r.status >= 300 && r.status < 400) return new BoardError(`The board answered with a move to ${text(r.location, 300) ?? 'another address'}. Link again with the right address: widal board login <address>`, r.status)
   if (r.status === 413) return new BoardError('The board refused a request as too big. Nothing was saved. The next sync tries again.', r.status)
-  if (r.status === 429) return new BoardError('The board asks Kestrel to wait: too many requests. Nothing was saved. The next sync tries again.', r.status)
-  if (r.status === 400) return new BoardError(`The board refused the data${said ? `: ${said}` : ''}. That is a fault in Kestrel. Nothing was saved.`, r.status)
+  if (r.status === 429) return new BoardError('The board asks Widal.Code to wait: too many requests. Nothing was saved. The next sync tries again.', r.status)
+  if (r.status === 400) return new BoardError(`The board refused the data${said ? `: ${said}` : ''}. That is a fault in Widal.Code. Nothing was saved.`, r.status)
   return new BoardError(`The board answered ${r.status}${said ? `: ${said}` : ''}. Nothing was saved. The next sync tries again.`, r.status)
 }
 
@@ -282,7 +305,7 @@ function computerName() {
 
 /** Opens a page in the browser: `open` on macOS, `xdg-open` on Linux. Nothing on another system, or when it fails. */
 function openBrowser(url) {
-  if (process.env.KESTREL_NO_BROWSER) return false
+  if (envSetting('NO_BROWSER')) return false
   const program = process.platform === 'darwin' ? 'open' : process.platform === 'linux' ? 'xdg-open' : undefined
   if (!program) return false
   try {
@@ -310,7 +333,7 @@ const seconds = (v, fallback, min, max) => Math.min(max, Math.max(min, Number.is
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /**
- * "kestrel board login <address>": links this computer to a board with a device code, saves
+ * "widal board login <address>": links this computer to a board with a device code, saves
  * board.json, and runs the first sync. `out` prints a line, `open` opens a page in the browser,
  * `sleep` waits; tests stand in for them. Returns the result of the first sync, or undefined when
  * it did not work.
@@ -324,13 +347,13 @@ export async function login(given, { out = console.log, open = openBrowser, slee
   }
   const page = onBoard(start.json.verification_uri, url) ?? `${url}/device`
   out(`To link this computer to the board, open ${page} and enter the code ${code}.`)
-  out('Kestrel opens that page in your browser now, and waits until you approve or deny the link there (Ctrl-C stops).')
+  out('Widal.Code opens that page in your browser now, and waits until you approve or deny the link there (Ctrl-C stops).')
   open(onBoard(start.json.verification_uri_complete, url) ?? page)
   let interval = seconds(start.json.interval, 5, 1, 60)
   const until = Date.now() + seconds(start.json.expires_in, 900, 60, 3600) * 1000
   let answer
   while (!answer) {
-    if (Date.now() > until) throw new BoardError('The code has expired. Nothing was saved. Run "kestrel board login" again for a new one.')
+    if (Date.now() > until) throw new BoardError('The code has expired. Nothing was saved. Run "widal board login" again for a new one.')
     await sleep(interval * 1000)
     let r
     try {
@@ -343,9 +366,9 @@ export async function login(given, { out = console.log, open = openBrowser, slee
     else if (error === 'authorization_pending') continue
     else if (error === 'slow_down') interval = Number.isFinite(r.json.interval) && r.json.interval > interval ? seconds(r.json.interval, interval + 5, 1, 60) : Math.min(60, interval + 5)
     else if (error === 'access_denied') throw new BoardError('The link was denied on the board. Nothing was saved.', r.status)
-    else if (error === 'expired_token') throw new BoardError('The code has expired or was used. Nothing was saved. Run "kestrel board login" again for a new one.', r.status)
+    else if (error === 'expired_token') throw new BoardError('The code has expired or was used. Nothing was saved. Run "widal board login" again for a new one.', r.status)
     else if (r.status === 429 || r.status >= 500) continue
-    else throw new BoardError(`The board gave an answer Kestrel does not know (${r.status}). Nothing was saved.`, r.status)
+    else throw new BoardError(`The board gave an answer Widal.Code does not know (${r.status}). Nothing was saved.`, r.status)
   }
   const old = readBoard()
   const board = {
@@ -368,7 +391,7 @@ export async function login(given, { out = console.log, open = openBrowser, slee
     const told = await request(old.url, '/api/v1/logout', { method: 'POST', token: old.token, timeout: 10e3 }).then((r) => r.status === 200, () => false)
     out(told ? `The earlier link to ${old.url} is removed there.` : `The earlier link to ${old.url} is replaced. Remove that computer there with Revoke, if it is still listed.`)
   }
-  out(`From now on Kestrel sends what it records to the board, on its own, about every 10 minutes while you work: the model calls with their tokens and cost, the sessions, the commits, the security findings, the plan's limits, the accounts, the settings and the proposals. It never sends the text of prompts, answers, tool results or files. Stop it with: kestrel board logout`)
+  out(`From now on Widal.Code sends what it records to the board, on its own, about every 10 minutes while you work: the model calls with their tokens and cost, the sessions, the commits, the security findings, the plan's limits, the accounts, the settings and the proposals. It never sends the text of prompts, answers, tool results or files. Stop it with: widal board logout`)
   out('The first sync runs now.')
   try {
     const result = await sync()
@@ -376,7 +399,7 @@ export async function login(given, { out = console.log, open = openBrowser, slee
     return result
   } catch (e) {
     out(`The first sync did not work: ${e.message}`)
-    if (!(e.status === 401 || e.status === 403)) out('Kestrel tries again in the background, or run: kestrel board sync')
+    if (!(e.status === 401 || e.status === 403)) out('Widal.Code tries again in the background, or run: widal board sync')
     return undefined
   }
 }
@@ -603,6 +626,7 @@ function findingOf(f) {
     id: idText(f.id).slice(0, 500), rule: text(f.rule, 200), kind: f.kind, severity: f.severity,
     title: text(f.title, 1000), detail: text(f.detail, 5000), where, controls, fix,
     status: text(f.status, 20), firstSeen: isTime(f.firstSeen) ? f.firstSeen : null, lastSeen: isTime(f.lastSeen) ? f.lastSeen : null,
+    // The board reads the source "kestrel" as this tool's own checks, so it stays as it was.
     scope: text(f.scope, 500), source: text(f.source, 60) ?? 'kestrel',
   }
 }
@@ -678,7 +702,7 @@ export async function buildPayload(board, { days, now = Date.now() } = {}) {
     return !!(r?.five || r?.week)
   }
   // The price of each account's plan a month: the person's own price ("set"), else the public
-  // price of a plan that Kestrel knows ("table"), else null. A Claude account and the Cowork
+  // price of a plan that Widal.Code knows ("table"), else null. A Claude account and the Cowork
   // account with the same id run on one plan, so both carry the same price.
   const priceOf = (key) => {
     const p = planPrice(key, state)
@@ -688,6 +712,7 @@ export async function buildPayload(board, { days, now = Date.now() } = {}) {
 
   return {
     from,
+    // The board reads the version from the field "kestrel", so the field keeps that name.
     machine: { os: process.platform, kestrel: version() ?? null, names },
     calls: ok,
     sessions: [...sessions.values()],
@@ -764,7 +789,7 @@ export function bodies(payload, { maxCalls = MAX_CALLS, maxBody = MAX_BODY } = {
 }
 
 /**
- * "kestrel board sync": builds what Kestrel recorded and sends it. The time of the sync, what it
+ * "widal board sync": builds what Widal.Code recorded and sends it. The time of the sync, what it
  * sent and the start of the next window are saved only after the board took every request. A
  * failure keeps them: the next sync sends the same again. A refused token (401, 403) turns
  * background sync off. Gives what was sent, or `{ busy: true }` when another sync runs.
@@ -772,7 +797,7 @@ export function bodies(payload, { maxCalls = MAX_CALLS, maxBody = MAX_BODY } = {
  */
 export async function sync({ days, now = Date.now(), maxCalls, maxBody } = {}) {
   const board = readBoard()
-  if (!board) throw new Error(`This computer is not linked to a board. Link it with: kestrel board login ${EXAMPLE}`)
+  if (!board) throw new Error(`This computer is not linked to a board. Link it with: widal board login ${EXAMPLE}`)
   if (!takeLock(now)) return { busy: true }
   try {
     const payload = await buildPayload(board, { days, now })
@@ -801,12 +826,12 @@ export async function sync({ days, now = Date.now(), maxCalls, maxBody } = {}) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// "kestrel board status" and "kestrel board logout".
+// "widal board status" and "widal board logout".
 
-/** "kestrel board status": the link, the last sync, background sync, and what the board says about this computer. */
+/** "widal board status": the link, the last sync, background sync, and what the board says about this computer. */
 export async function status() {
   const b = readBoard()
-  if (!b) return `This computer is not linked to a Kestrel board. Link it with: kestrel board login ${EXAMPLE}`
+  if (!b) return `This computer is not linked to a Widal.Code board. Link it with: widal board login ${EXAMPLE}`
   let check
   try {
     const r = await request(b.url, '/api/v1/me', { token: b.token, timeout: 15e3 })
@@ -816,7 +841,7 @@ export async function status() {
       if (b.stopped) updateBoard(b.token, { stopped: undefined })
       b.stopped = undefined
     } else if (r.status === 401 || r.status === 403) {
-      check = `the board removed this computer, or the link is no longer valid. Link it again with: kestrel board login ${b.url}`
+      check = `the board removed this computer, or the link is no longer valid. Link it again with: widal board login ${b.url}`
       updateBoard(b.token, { stopped: { at: Date.now(), status: r.status } })
       b.stopped = { at: Date.now(), status: r.status }
     } else check = `the board answered ${r.status}`
@@ -837,12 +862,12 @@ export async function status() {
     ['Last sync', last],
   ]
   if (isObject(b.lastTry) && isTime(b.lastTry.at) && !(b.lastSyncAt > b.lastTry.at)) rows.push(['Last try', `${when(b.lastTry.at)}, failed: ${b.lastTry.error ?? 'no reason given'}`])
-  rows.push(['Background sync', b.stopped ? `off: the board refused the token on ${when(b.stopped.at)}. Link again with: kestrel board login ${b.url}` : 'on: the status line and the hooks start a sync when the last one is 10 minutes old or more'])
+  rows.push(['Background sync', b.stopped ? `off: the board refused the token on ${when(b.stopped.at)}. Link again with: widal board login ${b.url}` : 'on: the status line and the hooks start a sync when the last one is 10 minutes old or more'])
   rows.push(['Board check', check])
-  return [table(rows), '', 'Kestrel sends the model calls, sessions, commits, findings, limits, accounts, settings and proposals. Never the text of prompts, answers, tool results or files.', 'Stop it with: kestrel board logout'].join('\n')
+  return [table(rows), '', 'Widal.Code sends the model calls, sessions, commits, findings, limits, accounts, settings and proposals. Never the text of prompts, answers, tool results or files.', 'Stop it with: widal board logout'].join('\n')
 }
 
-/** "kestrel board logout": tells the board, which stops taking the token, and deletes board.json. A board that cannot be reached does not stop it. */
+/** "widal board logout": tells the board, which stops taking the token, and deletes board.json. A board that cannot be reached does not stop it. */
 export async function logout() {
   const b = readBoard()
   if (!b) {
@@ -866,25 +891,25 @@ export async function logout() {
       // Gone already.
     }
   }
-  const after = 'The link on this computer is deleted. Kestrel sends nothing more.'
+  const after = 'The link on this computer is deleted. Widal.Code sends nothing more.'
   if (r?.status === 200) return `The board at ${b.url} removed this computer. ${after}`
   if (r?.status === 401 || r?.status === 403) return `The board at ${b.url} had removed this computer already. ${after}`
   return `${after} The board at ${b.url} could not be told: remove the computer there with Revoke on the Machines page.`
 }
 
-const HELP = `kestrel board: send what Kestrel records on this computer to your team's Kestrel board.
+const HELP = `widal board: send what Widal.Code records on this computer to your team's Widal.Code board.
 
-  kestrel board login <address>    link this computer, for example: kestrel board login ${EXAMPLE}
-  kestrel board status             the board, the team, the last sync, and whether the board still knows this computer
-  kestrel board sync [--days N]    send now (it also runs on its own, every 10 minutes while you work)
-  kestrel board logout             unlink this computer: Kestrel sends nothing more
+  widal board login <address>    link this computer, for example: widal board login ${EXAMPLE}
+  widal board status             the board, the team, the last sync, and whether the board still knows this computer
+  widal board sync [--days N]    send now (it also runs on its own, every 10 minutes while you work)
+  widal board logout             unlink this computer: Widal.Code sends nothing more
 
-Kestrel sends the model calls with their tokens and cost, the sessions, the commits, the security
+Widal.Code sends the model calls with their tokens and cost, the sessions, the commits, the security
 findings, the plan's limits, the accounts, the settings and the proposals. It never sends the text
 of prompts, answers, tool results or files.`
 
 /**
- * The command "kestrel board". `args` are the words after "board". `days` and `quiet` are the
+ * The command "widal board". `args` are the words after "board". `days` and `quiet` are the
  * options --days and --quiet. With `quiet` a sync prints nothing and never fails: the status line
  * and the hooks start it that way. Returns what to print.
  */
@@ -892,11 +917,11 @@ export async function boardCommand(args, { days, quiet = false } = {}) {
   const [word, ...rest] = args
   if (word === undefined || word === 'help') return HELP
   if (word === 'login') {
-    if (rest.length !== 1) throw new Error(`Use: kestrel board login <address>, for example: kestrel board login ${EXAMPLE}`)
+    if (rest.length !== 1) throw new Error(`Use: widal board login <address>, for example: widal board login ${EXAMPLE}`)
     await login(rest[0])
     return undefined
   }
-  if (rest.length) throw new Error(`"kestrel board ${word}" takes no more words, and "${plain(rest[0])}" was given.`)
+  if (rest.length) throw new Error(`"widal board ${word}" takes no more words, and "${plain(rest[0])}" was given.`)
   if (word === 'status') return status()
   if (word === 'logout') return logout()
   if (word === 'sync') {
@@ -909,7 +934,7 @@ export async function boardCommand(args, { days, quiet = false } = {}) {
       try {
         await sync({ days: n })
       } catch {
-        // Nothing: the next start tries again. What failed is in board.json for "kestrel board status".
+        // Nothing: the next start tries again. What failed is in board.json for "widal board status".
       }
       return undefined
     }

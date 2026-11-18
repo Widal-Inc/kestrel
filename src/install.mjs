@@ -11,34 +11,40 @@
 // shape Claude Code writes is not changed, and a number is written back as it was read.
 import { chmodSync, constants, copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
-import { OLD_NAME, claudeDir, home } from './paths.mjs'
+import { KESTREL_NAME, NAME, OLD_NAME, claudeDir, home } from './paths.mjs'
 import { otherProgramAt, ownRest } from './links.mjs'
 
 /** The file of Claude Code's user settings. */
 export const settingsFile = () => join(claudeDir(), 'settings.json')
 const isObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v)
 
-// This tool's own command in Claude Code's settings: the program "kestrel" or
-// "kestrel.mjs", then "statusline", or "hook" and the name of a hook. The program is the first
-// word of the command, with or without a folder in front, or the word after "node" (as in
-// "node /x/cli/kestrel.mjs hook"). That covers every form the tool ever wrote: the link on the
-// PATH, the link in the tool's own folder, the bare name and "node" with the command's file. A
-// program whose name only ends in "kestrel", for example "other-kestrel", and a command that has
-// the name only in an argument, for example "other-tool kestrel hook", belong to another tool.
-// Their entries are never changed or taken out.
+// This tool's own command in Claude Code's settings: the program "widal" or "widal.mjs", then
+// "statusline", or "hook" and the name of a hook. The program is the first word of the command,
+// with or without a folder in front, or the word after "node" (as in
+// "node /x/cli/widal.mjs hook"). A program whose name only ends in the name, for example
+// "other-widal", and a command that has the name only in an argument, for example
+// "other-tool widal hook", belong to another tool. Their entries are never changed or taken out.
 //
-// The program can also have the name the tool had before it was called Kestrel. An entry from
-// that time is this tool's own as well. So a change that was applied under the old name is still
-// shown as applied and can still be taken back, before and after "kestrel migrate" has run.
-const OURS = new RegExp(`^(node )?(\\S*[/\\\\])?(kestrel|${OLD_NAME})(\\.mjs)? (statusline|hook( [a-z-]+)?)$`)
-// A program with this tool's name in another folder, such as /opt/other/kestrel, is this tool's
-// only when no other program is at that path. A package named kestrel exists on npm, so another
-// program with the name can be on the machine. The places this tool itself uses (see ownRest in
-// links.mjs) always count.
+// The program can also have a name the tool had before it was called Widal.Code: kestrel, or
+// agent-spend. An entry from that time is this tool's own as well, in every form the tool ever
+// wrote: the link on the PATH, the link in the tool's own folder, the bare name and "node" with
+// the command's file. So a change that was applied under an old name is still shown as applied
+// and can still be taken back, before and after the move to the new name.
+const OURS = new RegExp(`^(node )?(\\S*[/\\\\])?(${NAME}|${KESTREL_NAME}|${OLD_NAME})(\\.mjs)? (statusline|hook( [a-z-]+)?)$`)
+// A program with an old name in another folder, such as /opt/other/kestrel, is this tool's only
+// when no other program is at that path. A package named kestrel exists on npm, so another program
+// with the name can be on the machine. The places this tool itself uses (see ownRest in links.mjs)
+// always count.
+//
+// A program named widal is this tool's only at those places: the link in the tool's own folder,
+// its own link on the PATH, and its own command file. Widal.Factory has a command named widal
+// too, and can write entries of its own, such as "widal hook ..." with the bare word. Such an
+// entry, and one with a path where nothing is, is never changed or taken out.
 function ours(command) {
   if (typeof command !== 'string' || !OURS.test(command)) return false
   if (ownRest(command) !== undefined) return true
   const program = command.replace(/^node /, '').split(' ')[0]
+  if (new RegExp(`(^|[/\\\\])${NAME}(\\.mjs)?$`).test(program)) return false
   return !/[/\\]/.test(program) || !otherProgramAt(program)
 }
 
@@ -197,7 +203,7 @@ export function setHook(bin, on) {
   return true
 }
 
-/** Takes the status line and this tool's hooks out again. Settings it changed stay: undo those with "kestrel undo". */
+/** Takes the status line and this tool's hooks out again. Settings it changed stay: undo those with "widal undo". */
 export function uninstall() {
   const s = read()
   let changed = false
@@ -232,7 +238,7 @@ export function installed() {
 }
 
 /**
- * The hooks of the security checks, which "kestrel install" puts into Claude Code's settings: the
+ * The hooks of the security checks, which "widal connect" puts into Claude Code's settings: the
  * check of the settings when a session starts, the checks of a turn when it ends, and the gate before
  * a shell command. Each is [event, name, matcher]. The plugin carries the same three.
  */

@@ -1,8 +1,8 @@
-// "kestrel accounts": the spend and the plan's limits of each account, one row per account.
+// "widal accounts": the spend and the plan's limits of each account, one row per account.
 //
 // The rows come from the calls of the period, each with the key of its account (see
 // accounts.mjs), and from accounts.json and limits.json. "--json" gives the same as one object,
-// which the Kestrel pane in Claude Code reads:
+// which the Widal.Code pane in Claude Code reads:
 //
 // {
 //   days: 7,
@@ -18,7 +18,7 @@
 //
 // `cost` is dollars at list prices. `dollars` says what they are: on a subscription "API value"
 // (what the same use would cost by the token), by the token "spend" (the real bill), and "list
-// prices" when Kestrel does not know how the account pays. `price` is the price of the account's
+// prices" when Widal.Code does not know how the account pays. `price` is the price of the account's
 // plan a month (see plans.mjs). The rows hold numbers, ids, organisation names and the person's
 // own labels. Never an email address or a person's name.
 import { currentAccount, labelOf, shortKey, updateAccounts } from './accounts.mjs'
@@ -43,7 +43,7 @@ const tokensOf = (r) => r.in + r.w5 + r.w1 + r.cr + r.out
 const round = (x) => Math.round(x * 1e4) / 1e4
 
 /**
- * The rows of "kestrel accounts", as the object of "--json". `records` are the calls of the last
+ * The rows of "widal accounts", as the object of "--json". `records` are the calls of the last
  * `days` days, and `metas` what `load()` gives next to them. It first brings accounts.json up to
  * date, with the name of the account signed in now. The newest account comes first.
  */
@@ -93,7 +93,7 @@ function limitsText(a, now) {
 }
 
 /**
- * The text of "kestrel accounts": one row per account, with its short key below its name, and
+ * The text of "widal accounts": one row per account, with its short key below its name, and
  * which account is signed in now. Then what the dollars are (spend by the token, API value on a
  * subscription) and the block of plans.
  */
@@ -107,7 +107,7 @@ export function accountsText(data, now = Date.now()) {
       `  ${a.label}`, a.tool, a.plan ? `${a.kind}, ${a.plan}` : a.kind, limitsText(a, now),
       tok(a.today.tokens), money(a.today.cost), tok(a.period.tokens), money(a.period.cost), a.dollars ?? DOLLARS.unknown, String(a.period.sessions), when(a.lastSeen),
     ])
-    // The short key below the name, for "kestrel accounts label". A name that is the short key already is not said twice.
+    // The short key below the name, for "widal accounts label". A name that is the short key already is not said twice.
     if (current || a.label !== shortKey(a.key)) rows.push([`    ${shortKey(a.key)}${current}`])
   }
   const kindOfDollars = Object.fromEntries(Object.entries(DOLLARS).map(([k, v]) => [v, k]))
@@ -122,8 +122,8 @@ export function accountsText(data, now = Date.now()) {
   const plans = plansLines(accounts, { key: (a) => a.key, cost: (a) => a.period.cost, days, now })
   if (plans.length) out.push('', ...plans)
   out.push('')
-  if (accounts.length === 1) out.push(`Kestrel found one account in the last ${days} days.`)
-  out.push('Give an account your own name with: kestrel accounts label <key> "<label>"')
-  out.push("Set the price of an account's plan with: kestrel accounts price <key> <dollars a month>")
+  if (accounts.length === 1) out.push(`Widal.Code found one account in the last ${days} days.`)
+  out.push('Give an account your own name with: widal accounts label <key> "<label>"')
+  out.push("Set the price of an account's plan with: widal accounts price <key> <dollars a month>")
   return out.join('\n')
 }

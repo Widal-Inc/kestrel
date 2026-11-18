@@ -1,4 +1,4 @@
-// Tests for the link to a Kestrel board: "kestrel board login", what a sync sends and in how many
+// Tests for the link to a Widal.Code board: "widal board login", what a sync sends and in how many
 // requests, the cursor and its one hour of overlap, failures, a refused token, logout, and the
 // start in the background. A stand-in board answers on a free port of this computer. No test
 // contacts a real server, and every folder the tool reads or writes is a made-up one. Run: node --test
@@ -12,12 +12,12 @@ import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { gunzipSync } from 'node:zlib'
 
-const dir = mkdtempSync(join(tmpdir(), 'kestrel-board-test-'))
+const dir = mkdtempSync(join(tmpdir(), 'widal-code-board-test-'))
 // Git reads no config of the person who runs the tests.
 writeFileSync(join(dir, 'gitconfig'), '')
 process.env.GIT_CONFIG_GLOBAL = join(dir, 'gitconfig')
 process.env.GIT_CONFIG_NOSYSTEM = '1'
-process.env.KESTREL_NO_BROWSER = '1'
+process.env.WIDAL_NO_BROWSER = '1'
 for (const name of ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 'NO_COLOR', 'GIT_DIR', 'GIT_WORK_TREE']) delete process.env[name]
 
 let computers = 0
@@ -27,15 +27,15 @@ let computers = 0
  */
 function computer() {
   const root = join(dir, `computer-${++computers}`)
-  const c = { root, home: join(root, 'person'), kestrel: join(root, 'kestrel') }
+  const c = { root, home: join(root, 'person'), widal: join(root, 'widal') }
   c.claude = join(c.home, '.claude')
   mkdirSync(c.claude, { recursive: true })
   process.env.HOME = c.home
   process.env.USERPROFILE = c.home
-  process.env.KESTREL_HOME = c.kestrel
+  process.env.WIDAL_HOME = c.widal
   process.env.CLAUDE_CONFIG_DIR = c.claude
   process.env.CODEX_HOME = join(root, 'codex')
-  process.env.KESTREL_COWORK_DIR = join(root, 'cowork')
+  process.env.WIDAL_COWORK_DIR = join(root, 'cowork')
   return c
 }
 computer()
@@ -45,7 +45,7 @@ const { boardAddress, bodies, githubName, login, logout, readBoard, startBoardSy
 const { saveConfig } = await import('../src/config.mjs')
 const { statusLine } = await import('../src/claude-code.mjs')
 
-const BIN = fileURLToPath(new URL('../cli/kestrel.mjs', import.meta.url))
+const BIN = fileURLToPath(new URL('../cli/widal.mjs', import.meta.url))
 const MIN = 60e3
 const HOUR = 3600e3
 const DAY = 86400e3
@@ -136,10 +136,10 @@ const approved = { status: 200, json: { token: TOKEN, machine: { id: 7, name: 't
 
 /** Links the made-up computer to a board without the device flow: board.json as a login writes it. */
 function link(url, fields = {}) {
-  mkdirSync(process.env.KESTREL_HOME, { recursive: true })
-  writeFileSync(join(process.env.KESTREL_HOME, 'board.json'), JSON.stringify({ url, token: TOKEN, machine: { id: 7, name: 'test-mac' }, team: 'Acme', user: 'octo', linkedAt: Date.now() - DAY, ...fields }))
+  mkdirSync(process.env.WIDAL_HOME, { recursive: true })
+  writeFileSync(join(process.env.WIDAL_HOME, 'board.json'), JSON.stringify({ url, token: TOKEN, machine: { id: 7, name: 'test-mac' }, team: 'Acme', user: 'octo', linkedAt: Date.now() - DAY, ...fields }))
 }
-const boardJson = () => JSON.parse(readFileSync(join(process.env.KESTREL_HOME, 'board.json'), 'utf8'))
+const boardJson = () => JSON.parse(readFileSync(join(process.env.WIDAL_HOME, 'board.json'), 'utf8'))
 /** Every call that the board got, over all its requests. */
 const callsSent = (b) => b.ingests().flatMap((e) => e.body.calls ?? [])
 
@@ -163,7 +163,7 @@ test('the board address: https:// is added, a slash at the end goes, and plain h
   assert.throws(() => boardAddress('http://192.168.1.5:8787'), /https:\/\//)
   assert.throws(() => boardAddress('https://me:secret@kestrel.widal.com'), /name or a password/)
   assert.throws(() => boardAddress('ftp://kestrel.widal.com'), /https:\/\//)
-  assert.throws(() => boardAddress(''), /kestrel board login https:\/\/kestrel\.widal\.com/)
+  assert.throws(() => boardAddress(''), /widal board login https:\/\/kestrel\.widal\.com/)
 })
 
 test('the GitHub name of a remote, in its usual forms, and none for another host', () => {
@@ -193,7 +193,7 @@ test('board login: prints the address and the code, polls every interval, slows 
     assert.deepEqual(opened, [`${b.url}/device?code=BCDF-GHJK`])
     assert.match(lines[0], new RegExp(`open ${b.url}/device and enter the code BCDF-GHJK`))
 
-    const file = join(process.env.KESTREL_HOME, 'board.json')
+    const file = join(process.env.WIDAL_HOME, 'board.json')
     assert.equal(statSync(file).mode & 0o777, 0o600)
     const saved = boardJson()
     assert.deepEqual({ url: saved.url, token: saved.token, machine: saved.machine, team: saved.team, user: saved.user }, { url: b.url, token: TOKEN, machine: { id: 7, name: 'test-mac' }, team: 'Acme', user: 'octo' })
@@ -221,9 +221,9 @@ test('board login: a denied link and an expired code save nothing', async () => 
   const expired = await standIn({ poll: [{ status: 428, json: { error: 'authorization_pending' } }, { status: 400, json: { error: 'expired_token' } }] })
   await assert.rejects(login(expired.url, quiet), /expired/)
   await expired.close()
-  assert.equal(existsSync(join(process.env.KESTREL_HOME, 'board.json')), false)
+  assert.equal(existsSync(join(process.env.WIDAL_HOME, 'board.json')), false)
   // An address on plain http:// that is not this computer is refused before anything is sent.
-  await assert.rejects(login('http://kestrel.example.com', quiet), /https:\/\//)
+  await assert.rejects(login('http://board.example.com', quiet), /https:\/\//)
 })
 
 test('a sync sends the calls, sessions, commits, findings, limits, accounts, settings and proposals in the board format, with ~ for the home folder and no text of a session', async () => {
@@ -245,13 +245,13 @@ test('a sync sends the calls, sessions, commits, findings, limits, accounts, set
   write(join(dirname(logFile(c, widget, 's1')), 's1', 'subagents', 'agent-x1.jsonl'), [call('c4', t0 + 15 * MIN, at)])
   writeFileSync(join(dirname(logFile(c, widget, 's1')), 's1', 'subagents', 'agent-x1.meta.json'), JSON.stringify({ agentType: 'Explore' }))
   write(logFile(c, scratch, 's2'), [owner(), prompt(now - HOUR), call('c5', now - HOUR, { cwd: scratch })])
-  mkdirSync(c.kestrel, { recursive: true })
-  writeFileSync(join(c.kestrel, 'findings.json'), JSON.stringify({ at: now, findings: [{
+  mkdirSync(c.widal, { recursive: true })
+  writeFileSync(join(c.widal, 'findings.json'), JSON.stringify({ at: now, findings: [{
     id: `code.secret:${widget}:a.txt:1`, rule: 'code.secret', kind: 'code', severity: 'high', title: 'A secret in a file',
     where: { repo: widget, file: 'a.txt', line: 1 }, scope: `repo:${widget}`, controls: [], fix: null, source: 'kestrel', status: 'open', firstSeen: now - HOUR, lastSeen: now,
   }] }))
   const reading = { pct: 13, resetsAt: now + 2 * HOUR, at: now - MIN }
-  writeFileSync(join(c.kestrel, 'limits.json'), JSON.stringify({ [`claude:${ACCOUNT}`]: { five: reading } }))
+  writeFileSync(join(c.widal, 'limits.json'), JSON.stringify({ [`claude:${ACCOUNT}`]: { five: reading } }))
 
   const b = await standIn()
   link(b.url)
@@ -282,7 +282,7 @@ test('a sync sends the calls, sessions, commits, findings, limits, accounts, set
     assert.match(byId.c1.tools[0][1], /^[0-9a-f]{8}$/)
     // The tool's result entered before the second call: its size, never its text.
     assert.deepEqual(byId.c2.added, [['Bash', `${MARKER} output`.length]])
-    // Kestrel keeps the program of a shell command on this computer: here the first word of the
+    // Widal.Code keeps the program of a shell command on this computer: here the first word of the
     // command is the marker. The board gets the tool and the size only, so the marker is not sent.
     const { load } = await import('../src/store.mjs')
     const kept = (await load({ since: 0 })).records.find((r) => r.id === 'c2').add[0]
@@ -316,22 +316,22 @@ test('a sync sends the calls, sessions, commits, findings, limits, accounts, set
     assert.equal(saved.cursor, now)
     assert.deepEqual(saved.lastSent, sent)
     assert.equal(saved.proposalsAt, now)
-    assert.equal(statSync(join(c.kestrel, 'board.json')).mode & 0o777, 0o600)
+    assert.equal(statSync(join(c.widal, 'board.json')).mode & 0o777, 0o600)
   } finally {
     await b.close()
   }
 })
 
-test('each account sent to the board has the price of its plan: the person\'s own, else a public price that Kestrel knows, else null', async () => {
+test('each account sent to the board has the price of its plan: the person\'s own, else a public price that Widal.Code knows, else null', async () => {
   const c = computer()
   const now = Date.now()
   const B = 'bbbbbbbb-2222-4222-8222-222222222222'
   const C = 'cccccccc-3333-4333-8333-333333333333'
-  mkdirSync(c.kestrel, { recursive: true })
+  mkdirSync(c.widal, { recursive: true })
   // A: Claude Max (tier 5x), with no price of the person's own. B: a Team seat, priced by the
   // person. C: a Team seat without a price. D: Claude Ultra (Max tier 20x). E: the Max type
   // without a tier, which could be Max or Ultra. Cowork with A's id shares A's plan. Codex on ChatGPT Plus.
-  writeFileSync(join(c.kestrel, 'accounts.json'), JSON.stringify({
+  writeFileSync(join(c.widal, 'accounts.json'), JSON.stringify({
     accounts: {
       [`claude:${ACCOUNT}`]: { organizationType: 'claude_max', billingType: 'stripe_subscription', maxTier: '5x' },
       'claude:dddddddd-4444-4444-8444-444444444444': { organizationType: 'claude_max', maxTier: '20x' },
@@ -430,8 +430,8 @@ test('with names off, no tasks and no agents are sent, and machine.names says so
     call('l1', now - 10 * MIN, { cwd: work, tools: [['TodoWrite', todos], ['Agent', { subagent_type: 'Explore', description: 'Look around' }]] }),
   ])
   // The file that the status line keeps for an open session: it ran 10 seconds ago, after a model call.
-  mkdirSync(join(c.kestrel, 'sessions'), { recursive: true })
-  writeFileSync(join(c.kestrel, 'sessions', 'live1.json'), JSON.stringify({ at: now - 10e3, callAt: now - 5e3, project: 'work/x' }))
+  mkdirSync(join(c.widal, 'sessions'), { recursive: true })
+  writeFileSync(join(c.widal, 'sessions', 'live1.json'), JSON.stringify({ at: now - 10e3, callAt: now - 5e3, project: 'work/x' }))
 
   const b = await standIn()
   link(b.url)
@@ -504,7 +504,7 @@ test('a refused token (401) turns background sync off and says to link again', a
   const b = await standIn({ ingest: () => ({ status: 401, json: { error: 'This machine token is not known to the board.' } }), me: () => ({ status: 403, json: { error: 'removed' } }) })
   link(b.url, { lastSyncAt: Date.now() - HOUR })
   try {
-    await assert.rejects(sync(), /kestrel board login/)
+    await assert.rejects(sync(), /widal board login/)
     assert.equal(boardJson().stopped.status, 401)
     const spawned = []
     assert.equal(startBoardSync(Date.now(), (...args) => spawned.push(args)), false)
@@ -526,7 +526,7 @@ test('board logout tells the board and deletes board.json, also when the board c
     const told = b.seen.find((e) => e.path === '/api/v1/logout')
     assert.equal(told.method, 'POST')
     assert.equal(told.headers.authorization, `Bearer ${TOKEN}`)
-    assert.equal(existsSync(join(process.env.KESTREL_HOME, 'board.json')), false)
+    assert.equal(existsSync(join(process.env.WIDAL_HOME, 'board.json')), false)
     assert.equal(readBoard(), undefined)
   } finally {
     await b.close()
@@ -534,7 +534,7 @@ test('board logout tells the board and deletes board.json, also when the board c
   // A board that is gone: the link on this computer is deleted all the same.
   link(b.url)
   assert.match(await logout(), /could not be told/)
-  assert.equal(existsSync(join(process.env.KESTREL_HOME, 'board.json')), false)
+  assert.equal(existsSync(join(process.env.WIDAL_HOME, 'board.json')), false)
   assert.match(await logout(), /not linked/)
 })
 
@@ -561,7 +561,7 @@ test('the background start: at most every 10 minutes, never while a sync holds t
   // A lock held by a running sync stops a start. A lock older than 10 minutes does not.
   computer()
   link('https://kestrel.widal.com', { lastSyncAt: now - HOUR })
-  const lock = join(process.env.KESTREL_HOME, 'board.lock')
+  const lock = join(process.env.WIDAL_HOME, 'board.lock')
   writeFileSync(lock, JSON.stringify({ pid: 1, at: now - 2 * MIN }))
   assert.equal(startBoardSync(now, spawner), false)
   writeFileSync(lock, JSON.stringify({ pid: 1, at: now - 11 * MIN }))
@@ -579,7 +579,7 @@ test('a sync waits for no lock: while another sync holds it, nothing is sent; a 
   computer()
   const b = await standIn()
   link(b.url)
-  const lock = join(process.env.KESTREL_HOME, 'board.lock')
+  const lock = join(process.env.WIDAL_HOME, 'board.lock')
   try {
     writeFileSync(lock, JSON.stringify({ pid: 1, at: Date.now() }))
     assert.deepEqual(await sync(), { busy: true })
@@ -603,10 +603,10 @@ test('the hook at the end of a turn starts the background sync when it is due', 
   const r = await run(['hook', 'check-turn', '--plugin'], '{}')
   assert.equal(r.code, 0)
   assert.equal(r.stdout, '')
-  assert.ok(existsSync(join(process.env.KESTREL_HOME, 'board.start')))
+  assert.ok(existsSync(join(process.env.WIDAL_HOME, 'board.start')))
 })
 
-test('the commands: login, status and logout through kestrel, and the board in the help', async () => {
+test('the commands: login, status and logout through widal, and the board in the help', async () => {
   computer()
   const b = await standIn({ interval: 1, poll: [approved] })
   try {
@@ -616,7 +616,7 @@ test('the commands: login, status and logout through kestrel, and the board in t
     assert.match(login.stdout, /Linked this computer \(test-mac\) to the team Acme/)
     assert.match(login.stdout, /Sent to http:\/\/127\.0\.0\.1:\d+: /)
     assert.ok(!login.stdout.includes(TOKEN))
-    assert.equal(statSync(join(process.env.KESTREL_HOME, 'board.json')).mode & 0o777, 0o600)
+    assert.equal(statSync(join(process.env.WIDAL_HOME, 'board.json')).mode & 0o777, 0o600)
 
     const shown = await run(['board', 'status'])
     assert.equal(shown.code, 0, shown.stderr)
@@ -625,7 +625,7 @@ test('the commands: login, status and logout through kestrel, and the board in t
     assert.match(shown.stdout, /the board knows this computer/)
     assert.match(shown.stdout, /Background sync +on/)
     assert.ok(!shown.stdout.includes(TOKEN))
-    assert.match((await run(['status'])).stdout, /Kestrel board +linked to http:\/\/127\.0\.0\.1:\d+ \(Acme\), last sync/)
+    assert.match((await run(['doctor'])).stdout, /Widal.Code board +linked to http:\/\/127\.0\.0\.1:\d+ \(Acme\), last sync/)
 
     const days = await run(['board', 'sync', '--days', '0'])
     assert.equal(days.code, 1)
@@ -635,14 +635,14 @@ test('the commands: login, status and logout through kestrel, and the board in t
 
     const out = await run(['board', 'logout'])
     assert.match(out.stdout, /removed this computer/)
-    assert.equal(existsSync(join(process.env.KESTREL_HOME, 'board.json')), false)
+    assert.equal(existsSync(join(process.env.WIDAL_HOME, 'board.json')), false)
   } finally {
     await b.close()
   }
-  const plain = await run(['board', 'login', 'http://kestrel.example.com'])
+  const plain = await run(['board', 'login', 'http://board.example.com'])
   assert.equal(plain.code, 1)
   assert.match(plain.stderr, /must use https:\/\//)
   const help = await run(['--help'])
-  assert.match(help.stdout, /kestrel board login https:\/\/kestrel\.widal\.com/)
-  assert.match((await run(['board'])).stdout, /kestrel board logout/)
+  assert.match(help.stdout, /widal board login https:\/\/kestrel\.widal\.com/)
+  assert.match((await run(['board'])).stdout, /widal board logout/)
 })

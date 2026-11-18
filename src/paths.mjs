@@ -3,35 +3,53 @@ import { existsSync, readdirSync, realpathSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 
-/** The name this tool had before it was called Kestrel. Its command and its folder had that name. */
-export const OLD_NAME = 'agent-spend'
+/** The name of this tool's command. */
+export const NAME = 'widal'
 
-/** This tool's folder in a person's home folder, and the folder it had under its old name. */
-export const newHome = () => join(homedir(), '.kestrel')
+/**
+ * The names this tool had before it was called Widal.Code: agent-spend until 13 Nov 2026, then
+ * Kestrel until 17 Nov 2026. Its command and its folder had those names. The command "kestrel"
+ * keeps working for one release.
+ */
+export const OLD_NAME = 'agent-spend'
+export const KESTREL_NAME = 'kestrel'
+
+/** This tool's folder in a person's home folder, and the folders it had under its old names. */
+export const newHome = () => join(homedir(), '.widal')
+export const kestrelHome = () => join(homedir(), `.${KESTREL_NAME}`)
 export const oldHome = () => join(homedir(), `.${OLD_NAME}`)
 
-// Whether this process has seen the folder ~/.kestrel. Once it is there it stays, so the disk is
+/**
+ * A setting from the environment: WIDAL_<name>, else KESTREL_<name>. The names with KESTREL_
+ * are read for one release after the change of name, so that a setting made before it keeps
+ * working. An empty value counts as not set.
+ */
+export const envSetting = (name, env = process.env) => env[`WIDAL_${name}`] || env[`KESTREL_${name}`] || undefined
+
+// Whether this process has seen the folder ~/.widal. Once it is there it stays, so the disk is
 // asked for it only until then.
 let seen = false
 
 /**
  * This tool's own folder: its settings, its cache of parsed logs and its backups. It is
- * ~/.kestrel, or the folder that KESTREL_HOME names.
+ * ~/.widal, or the folder that WIDAL_HOME names (or KESTREL_HOME, for one release).
  *
- * An install from before the change of name has its files in ~/.agent-spend until
- * "kestrel migrate" has moved them. Until then the old folder has to keep working. So while
- * ~/.kestrel is not there and ~/.agent-spend is, the folder is ~/.agent-spend.
+ * An install from before the change of name has its files in ~/.kestrel, or in ~/.agent-spend,
+ * until the move has brought them to ~/.widal (see migrate.mjs). Until then the old folder has
+ * to keep working. So while ~/.widal is not there, the folder is ~/.kestrel when that is there,
+ * else ~/.agent-spend when that is there.
  *
- * The status line asks for this folder many times in one run. With KESTREL_HOME the disk is not
- * asked at all. Without it, one look finds ~/.kestrel, and the calls after that ask nothing.
- * Only an install that has not been moved yet takes two looks per call.
+ * The status line asks for this folder many times in one run. With WIDAL_HOME the disk is not
+ * asked at all. Without it, one look finds ~/.widal, and the calls after that ask nothing.
+ * Only an install that has not been moved yet takes more looks per call.
  */
 export function home() {
-  if (process.env.KESTREL_HOME) return process.env.KESTREL_HOME
+  const named = envSetting('HOME')
+  if (named) return named
   const now = newHome()
   if (seen || (seen = existsSync(now))) return now
-  const old = oldHome()
-  return existsSync(old) ? old : now
+  for (const old of [kestrelHome(), oldHome()]) if (existsSync(old)) return old
+  return now
 }
 
 /** A path for a person to read: with "~" for the home folder, else as it is. */
@@ -53,7 +71,7 @@ export function realPath(path) {
 }
 
 /**
- * Every config folder of Claude Code that Kestrel knows, each once. A person can run Claude Code
+ * Every config folder of Claude Code that Widal.Code knows, each once. A person can run Claude Code
  * with another folder (CLAUDE_CONFIG_DIR=~/.claude-work claude), for example for a second account.
  * Its logs are then in that folder's projects/. The folders are, in this order: the one that
  * CLAUDE_CONFIG_DIR names, ~/.claude, every folder in the home folder whose name starts with
@@ -108,7 +126,8 @@ export const codexDir = () => process.env.CODEX_HOME || join(homedir(), '.codex'
  * environment, so that a test can ask for the folder of each system.
  */
 export function coworkDir({ platform = process.platform, home = homedir(), env = process.env } = {}) {
-  if (env.KESTREL_COWORK_DIR) return env.KESTREL_COWORK_DIR
+  const named = envSetting('COWORK_DIR', env)
+  if (named) return named
   const app =
     platform === 'darwin' ? join(home, 'Library', 'Application Support', 'Claude')
     : platform === 'win32' ? join(env.APPDATA || join(home, 'AppData', 'Roaming'), 'Claude')

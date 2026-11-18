@@ -1,8 +1,8 @@
-// Today's numbers of all agents on this computer, in one small file: ~/.kestrel/today.json.
+// Today's numbers of all agents on this computer, in one small file: ~/.widal/today.json.
 //
 // Working them out means reading the logs, which takes too long for the status line. So the
-// command "kestrel refresh-today" works them out and writes this file, and the status line and
-// "kestrel top" only read it. The status line starts that command in the background when the
+// command "widal refresh-today" works them out and writes this file, and the status line and
+// "widal top" only read it. The status line starts that command in the background when the
 // file is missing or older than REFRESH_EVERY, and never waits for it.
 //
 // The file holds numbers, session ids, ticket names, project folder names and the keys of
@@ -25,7 +25,7 @@ import { join } from 'node:path'
 import { readJson, writeJson } from './config.mjs'
 import { home } from './paths.mjs'
 
-/** How old the file may get before the status line starts a new "kestrel refresh-today". */
+/** How old the file may get before the status line starts a new "widal refresh-today". */
 export const REFRESH_EVERY = 5 * 60e3
 
 export const todayFile = () => join(home(), 'today.json')

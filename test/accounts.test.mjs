@@ -1,5 +1,5 @@
 // Tests for spend and limits per account: the account of each call, the config folders of Claude
-// Code, the names and labels of accounts, the plan's limits per account, "kestrel accounts", the
+// Code, the names and labels of accounts, the plan's limits per account, "widal accounts", the
 // status line and the desktop tool. Each test makes its own computer: a home folder with made-up
 // logs of three accounts, and the folders of the tool inside it. Run: node --test
 import assert from 'node:assert/strict'
@@ -11,14 +11,14 @@ import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-const dir = mkdtempSync(join(tmpdir(), 'kestrel-accounts-test-'))
+const dir = mkdtempSync(join(tmpdir(), 'widal-code-accounts-test-'))
 // Every folder the tool reads or writes is a made-up one, before any module of the tool is loaded.
 process.env.HOME = join(dir, 'person')
 process.env.USERPROFILE = process.env.HOME
-process.env.KESTREL_HOME = join(dir, 'home')
+process.env.WIDAL_HOME = join(dir, 'home')
 process.env.CLAUDE_CONFIG_DIR = join(dir, 'claude')
 process.env.CODEX_HOME = join(dir, 'codex')
-process.env.KESTREL_COWORK_DIR = join(dir, 'cowork')
+process.env.WIDAL_COWORK_DIR = join(dir, 'cowork')
 for (const name of ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 'CLAUDE_CODE_USE_FOUNDRY', 'CLAUDE_CODE_USE_MANTLE', 'NO_COLOR']) delete process.env[name]
 
 const { load, logFiles } = await import('../src/store.mjs')
@@ -30,9 +30,9 @@ const { statusLine } = await import('../src/claude-code.mjs')
 const { localDay, readToday, writeToday } = await import('../src/today-file.mjs')
 const { updateAccounts } = await import('../src/accounts.mjs')
 const { config, saveConfig } = await import('../src/config.mjs')
-const readAccountsFile = () => { try { return JSON.parse(readFileSync(join(process.env.KESTREL_HOME, 'accounts.json'), 'utf8')) } catch { return {} } }
+const readAccountsFile = () => { try { return JSON.parse(readFileSync(join(process.env.WIDAL_HOME, 'accounts.json'), 'utf8')) } catch { return {} } }
 
-const BIN = fileURLToPath(new URL('../cli/kestrel.mjs', import.meta.url))
+const BIN = fileURLToPath(new URL('../cli/widal.mjs', import.meta.url))
 const MIN = 60e3
 const HOUR = 3600e3
 const DAY = 86400e3
@@ -59,12 +59,12 @@ function machine() {
   mkdirSync(home, { recursive: true })
   const m = {
     home,
-    kestrel: join(home, '.kestrel'),
+    widal: join(home, '.widal'),
     claude: join(home, '.claude'),
     codex: join(home, '.codex'),
     cowork: join(home, 'cowork'),
   }
-  m.env = { PATH: process.env.PATH, HOME: home, USERPROFILE: home, NO_COLOR: '1', KESTREL_HOME: m.kestrel, CODEX_HOME: m.codex, KESTREL_COWORK_DIR: m.cowork }
+  m.env = { PATH: process.env.PATH, HOME: home, USERPROFILE: home, NO_COLOR: '1', WIDAL_HOME: m.widal, CODEX_HOME: m.codex, WIDAL_COWORK_DIR: m.cowork }
   return m
 }
 
@@ -195,8 +195,8 @@ test('the logs of every config folder are read: CLAUDE_CONFIG_DIR, ~/.claude, ~/
   // The same folders again through links, and in the setting.
   symlinkSync(m.claude, join(m.home, '.claude-link'))
   symlinkSync(join(m.home, 'elsewhere'), join(m.home, 'elsewhere-link'))
-  mkdirSync(m.kestrel, { recursive: true })
-  writeFileSync(join(m.kestrel, 'config.json'), JSON.stringify({ claudeDirs: ['~/elsewhere', join(m.home, 'elsewhere-link'), '~/.claude'] }))
+  mkdirSync(m.widal, { recursive: true })
+  writeFileSync(join(m.widal, 'config.json'), JSON.stringify({ claudeDirs: ['~/elsewhere', join(m.home, 'elsewhere-link'), '~/.claude'] }))
   m.env.CLAUDE_CONFIG_DIR = join(m.home, 'named-by-env')
   use(m)
   assert.deepEqual(claudeDirs({ more: ['~/elsewhere', join(m.home, 'elsewhere-link')] }), [join(m.home, 'named-by-env'), m.claude, join(m.home, '.claude-work'), join(m.home, 'elsewhere')])
@@ -233,7 +233,7 @@ function claudeJson(file, account, org, orgName, more = {}) {
 }
 
 /** What accounts.json holds. */
-const accountsJson = (m) => JSON.parse(readFileSync(join(m.kestrel, 'accounts.json'), 'utf8'))
+const accountsJson = (m) => JSON.parse(readFileSync(join(m.widal, 'accounts.json'), 'utf8'))
 
 /** Every file below a folder, as text. */
 const filesText = (folder) => readdirSync(folder, { recursive: true, withFileTypes: true }).filter((e) => e.isFile()).map((e) => readFileSync(join(e.parentPath, e.name), 'utf8')).join('\n')
@@ -266,10 +266,10 @@ test('accounts.json learns the name of the account signed in now, keeps it after
   // Claude names a personal organisation after its person. Such a name is not kept.
   for (const orgName of [`${EMAIL}'s Organization`, "HERONFULL Person's Organization", "heronmail's Organization", 'HERONDISPLAY']) {
     claudeJson(join(m.home, '.claude.json'), 'cccccccc-3333-4333-8333-333333333333', ORG_B, orgName)
-    run(m, ['status'])
+    run(m, ['doctor'])
     assert.equal(accountsJson(m).accounts['claude:cccccccc-3333-4333-8333-333333333333'].org, undefined, orgName)
   }
-  const all = filesText(m.kestrel)
+  const all = filesText(m.widal)
   for (const word of [...PERSONAL, MARKER, 'default_raven', 'numStartups', 'allowedTools']) assert.ok(!all.includes(word), word)
 })
 
@@ -289,12 +289,12 @@ test('labels: set by the whole key or its short form, taken away with --clear, a
   assert.deepEqual(label('claude:aaaaaaaa', 'Work, the big one'), [0, 'The account claude:aaaaaaaa is now called "Work, the big one".'])
   assert.deepEqual(label('bbbbbbbb', 'Home'), [0, 'The account claude:bbbbbbbb is now called "Home".'])
   assert.deepEqual(label('plus', 'ChatGPT'), [0, 'The account codex:plus is now called "ChatGPT".'])
-  assert.deepEqual(label('aaaaaaaa', 'Both'), [1, 'kestrel: "aaaaaaaa" fits more than one account: claude:aaaaaaaa, cowork:aaaaaaaa. Give more of the key.'])
-  assert.deepEqual(label('zzzz', 'None'), [1, 'kestrel: There is no account "zzzz". The accounts are: claude:aaaaaaaa, claude:bbbbbbbb, codex:plus, codex:unknown, cowork:aaaaaaaa, cowork:cw-accou.'])
-  assert.deepEqual(label('bbbbbbbb', 'x'.repeat(61)), [1, 'kestrel: A label has 1 to 60 characters.'])
-  assert.deepEqual(label('bbbbbbbb', '   '), [1, 'kestrel: A label has 1 to 60 characters.'])
-  assert.match(label('bbbbbbbb')[1], /^kestrel: Use "kestrel accounts label <key>/)
-  assert.match(label('bbbbbbbb', 'Home', '--clear')[1], /^kestrel: Use "kestrel accounts label <key>/)
+  assert.deepEqual(label('aaaaaaaa', 'Both'), [1, 'widal: "aaaaaaaa" fits more than one account: claude:aaaaaaaa, cowork:aaaaaaaa. Give more of the key.'])
+  assert.deepEqual(label('zzzz', 'None'), [1, 'widal: There is no account "zzzz". The accounts are: claude:aaaaaaaa, claude:bbbbbbbb, codex:plus, codex:unknown, cowork:aaaaaaaa, cowork:cw-accou.'])
+  assert.deepEqual(label('bbbbbbbb', 'x'.repeat(61)), [1, 'widal: A label has 1 to 60 characters.'])
+  assert.deepEqual(label('bbbbbbbb', '   '), [1, 'widal: A label has 1 to 60 characters.'])
+  assert.match(label('bbbbbbbb')[1], /^widal: Use "widal accounts label <key>/)
+  assert.match(label('bbbbbbbb', 'Home', '--clear')[1], /^widal: Use "widal accounts label <key>/)
   // Without a label, the organisation's name shows, else the short key.
   assert.deepEqual(label('claude:aaaaaaaa', '--clear'), [0, 'The account claude:aaaaaaaa has no label now. It shows as "Widal, Inc.".'])
   assert.deepEqual(label('bbbbbbbb', '--clear'), [0, 'The account claude:bbbbbbbb has no label now. It shows as "claude:bbbbbbbb".'])
@@ -303,11 +303,11 @@ test('labels: set by the whole key or its short form, taken away with --clear, a
   assert.deepEqual(label(`cowork:${A}`, '--clear'), [0, 'The account cowork:aaaaaaaa has no label now. It shows as "Widal, Inc.".'])
   // With no account known yet.
   const empty = machine()
-  assert.deepEqual([run(empty, ['accounts', 'label', 'x', 'y']).status, run(empty, ['accounts', 'label', 'x', 'y']).stderr.trim()], [1, 'kestrel: Kestrel knows no account yet. Run "kestrel accounts" first.'])
+  assert.deepEqual([run(empty, ['accounts', 'label', 'x', 'y']).status, run(empty, ['accounts', 'label', 'x', 'y']).stderr.trim()], [1, 'widal: Widal.Code knows no account yet. Run "widal accounts" first.'])
 })
 
 /** What the status line keeps about one session. */
-const kept = (m, id) => JSON.parse(readFileSync(join(m.kestrel, 'sessions', `${id}.json`), 'utf8'))
+const kept = (m, id) => JSON.parse(readFileSync(join(m.widal, 'sessions', `${id}.json`), 'utf8'))
 /** What Claude Code gives the status line of a session, with a reading of the week when `week` is a percent. */
 const given = (id, path, { week, resets = NOON + 3 * DAY, api } = {}) => ({
   session_id: id, transcript_path: path, cwd: '/work/app', model: { id: 'claude-opus-5-5', display_name: 'Opus 5.5' },
@@ -335,7 +335,7 @@ test('the plan\'s limits per account: two sessions of two accounts each save and
   // A run without a reading of its own shows the reading of its own account, not the newest of the computer.
   assert.match(oneLine(given('sA', logA), NOON + MIN), /^week 9% used/)
   assert.match(oneLine(given('sB', logB), NOON + MIN), /^week 70% used/)
-  assert.deepEqual(Object.keys(JSON.parse(readFileSync(join(m.kestrel, 'limits.json'), 'utf8'))).sort(), [`claude:${A}`, `claude:${B}`])
+  assert.deepEqual(Object.keys(JSON.parse(readFileSync(join(m.widal, 'limits.json'), 'utf8'))).sort(), [`claude:${A}`, `claude:${B}`])
   assert.equal(readLimits(NOW_ANY, `claude:${A}`).week.pct, 9)
   // The 24 hour rule of the billing mode holds per account: a session of an account that was
   // never seen with limits does not count as a subscription because of another account's reading.
@@ -370,7 +370,7 @@ test('the plan\'s limits per account: a fresh reading wins only within its own a
   assert.equal(readLimits(NOW_ANY, `claude:${B}`).week.pct, 71)
 
   // A file from before: one reading for the whole computer. It is the reading of "unknown".
-  const file = join(m.kestrel, 'limits.json')
+  const file = join(m.widal, 'limits.json')
   writeFileSync(file, JSON.stringify({ week: { pct: 40, resetsAt: NOON + 2 * DAY, at: NOON - MIN } }))
   assert.deepEqual(readLimits(NOW_ANY), { week: { pct: 40, resetsAt: NOON + 2 * DAY, at: NOON - MIN } })
   assert.deepEqual(readLimits(NOW_ANY, `claude:${A}`), {})
@@ -441,7 +441,7 @@ test('the status line reads the first 8 KB of the session\'s log once, and then 
   assert.equal(kept(m, 'later').account, `claude:${B}`)
 })
 
-test('"kestrel status" lists the last reading of each account, with its name', async () => {
+test('"widal doctor" lists the last reading of each account, with its name', async () => {
   const m = use(machine())
   const { logA, logB } = twoSessions(m)
   const now = Date.now()
@@ -450,7 +450,7 @@ test('"kestrel status" lists the last reading of each account, with its name', a
   // A reading of a window that has ended.
   saveLimits({ five_hour: { used_percentage: 50, resets_at: sec(now + 30e3) } }, now, { account: 'unknown' })
   claudeJson(join(m.home, '.claude.json'), A, ORG_A, 'Widal, Inc.')
-  const r = run(m, ['status'], { TZ: 'UTC' })
+  const r = run(m, ['doctor'], { TZ: 'UTC' })
   assert.equal(r.status, 0, r.stderr)
   assert.match(r.stdout, /^Plan limits of Widal, Inc\. +week 9% used, 57% of the week gone$/m)
   assert.match(r.stdout, /^Plan limits of claude:bbbbbbbb +week 70% used, 57% of the week gone: full about [\d.]+ days? early$/m)
@@ -461,13 +461,13 @@ test('"kestrel status" lists the last reading of each account, with its name', a
 /** Whether the made-up calls of the last `minutes` minutes are all of today, so that the numbers of today can be checked. */
 const allToday = (now, minutes) => new Date(now - minutes * MIN).toDateString() === new Date(now).toDateString()
 
-test('"kestrel accounts" shows one row per account, the newest first, with its short key, kind, plan, limits and spend, and --json has the shape that the pane reads', () => {
+test('"widal accounts" shows one row per account, the newest first, with its short key, kind, plan, limits and spend, and --json has the shape that the pane reads', () => {
   const m = machine()
   const now = Date.now()
   writeLogs(m, now, MIN)
   claudeJson(join(m.home, '.claude.json'), A, ORG_A, 'Widal, Inc.')
-  mkdirSync(m.kestrel, { recursive: true })
-  writeFileSync(join(m.kestrel, 'limits.json'), JSON.stringify({ [`claude:${A}`]: { week: { pct: 9, resetsAt: now + 3 * DAY, at: now - MIN }, five: { pct: 33, resetsAt: now + 2 * HOUR, at: now - MIN } } }))
+  mkdirSync(m.widal, { recursive: true })
+  writeFileSync(join(m.widal, 'limits.json'), JSON.stringify({ [`claude:${A}`]: { week: { pct: 9, resetsAt: now + 3 * DAY, at: now - MIN }, five: { pct: 33, resetsAt: now + 2 * HOUR, at: now - MIN } } }))
   const r = run(m, ['accounts'])
   assert.equal(r.status, 0, r.stderr)
   const text = r.stdout
@@ -486,14 +486,14 @@ test('"kestrel accounts" shows one row per account, the newest first, with its s
   // The newest first: B, then A, then Cowork, then Codex.
   const order = ['claude:bbbbbbbb', 'Widal, Inc.', 'cowork:cw-accou', 'codex:'].map((label) => text.indexOf(`\n  ${label}`))
   assert.deepEqual([...order].sort((x, y) => x - y), order)
-  assert.ok(!text.includes('Kestrel found one account'))
+  assert.ok(!text.includes('Widal.Code found one account'))
   // On a subscription the dollars are API value. Accounts whose way to pay is not known stand apart.
   assert.match(text, /\nOn subscriptions: \$1\.77 of API value \(what the same use would cost by the token\)\nNot known how it is paid: \$0\.72 at list prices\n/)
   assert.doesNotMatch(text, /spend for this|Spend:/)
   // The plans, with the limits first, and the line that says how to set a price.
-  assert.match(text, /\nPlans\n {2}Widal, Inc\. \(claude:aaaaaaaa\): team_tier_1\n {4}Limits now: week 9% used, \d+% of the week gone; 5 hour limit 33% used, \d+% of its time gone\n {4}API value in 7 days: \$1\.26\. Price not set: kestrel accounts price claude:aaaaaaaa <dollars>\n/)
+  assert.match(text, /\nPlans\n {2}Widal, Inc\. \(claude:aaaaaaaa\): team_tier_1\n {4}Limits now: week 9% used, \d+% of the week gone; 5 hour limit 33% used, \d+% of its time gone\n {4}API value in 7 days: \$1\.26\. Price not set: widal accounts price claude:aaaaaaaa <dollars>\n/)
   assert.match(text, /\n {2}codex:plus: ChatGPT Plus, \$20 a month \(the plan's public price\)\n {4}API value in 7 days: \$0\.30\. The plan's price for 7 days: \$4\.67\. That is 0\.1 times the plan's price\.\n/)
-  assert.match(text, /\nGive an account your own name with: kestrel accounts label <key> "<label>"\nSet the price of an account's plan with: kestrel accounts price <key> <dollars a month>\n$/)
+  assert.match(text, /\nGive an account your own name with: widal accounts label <key> "<label>"\nSet the price of an account's plan with: widal accounts price <key> <dollars a month>\n$/)
 
   const json = run(m, ['accounts', '--json'])
   assert.equal(json.status, 0, json.stderr)
@@ -528,18 +528,18 @@ test('"kestrel accounts" shows one row per account, the newest first, with its s
   assert.match(run(m, ['accounts']).stdout, /\n {2}Home +Claude Code .+\n {4}claude:bbbbbbbb\n/)
   assert.equal(JSON.parse(run(m, ['accounts', '--json', '--days', '30']).stdout).accounts[0].label, 'Home')
   assert.equal(JSON.parse(run(m, ['accounts', '--json', '--days', '30']).stdout).days, 30)
-  assert.equal(run(m, ['accounts', '--days', '0']).stderr, 'kestrel: --days is a whole number of days, 1 or more.\n')
-  assert.equal(run(m, ['accounts', 'more']).stderr, 'kestrel: "kestrel accounts" takes --days, --json, label or price, and "more" was given.\n')
+  assert.equal(run(m, ['accounts', '--days', '0']).stderr, 'widal: --days is a whole number of days, 1 or more.\n')
+  assert.equal(run(m, ['accounts', 'more']).stderr, 'widal: "widal accounts" takes --days, --json, label or price, and "more" was given.\n')
 })
 
-test('"kestrel accounts price" sets the price of a plan, wins over the table, is shared by Cowork, and --clear takes it away', async () => {
+test('"widal accounts price" sets the price of a plan, wins over the table, is shared by Cowork, and --clear takes it away', async () => {
   const m = use(machine())
   const now = Date.now()
   writeLogs(m, now, MIN)
   // Account A on Claude Max: the table knows its price.
   claudeJson(join(m.home, '.claude.json'), A, ORG_A, 'Acme', { organizationType: 'claude_max', seatTier: undefined })
-  mkdirSync(m.kestrel, { recursive: true })
-  writeFileSync(join(m.kestrel, 'limits.json'), JSON.stringify({ [`claude:${A}`]: { week: { pct: 40, resetsAt: now + 3 * DAY, at: now - MIN } } }))
+  mkdirSync(m.widal, { recursive: true })
+  writeFileSync(join(m.widal, 'limits.json'), JSON.stringify({ [`claude:${A}`]: { week: { pct: 40, resetsAt: now + 3 * DAY, at: now - MIN } } }))
   const price = (...args) => {
     const r = run(m, ['accounts', 'price', ...args])
     return [r.status, (r.stdout + r.stderr).trim()]
@@ -564,17 +564,17 @@ test('"kestrel accounts price" sets the price of a plan, wins over the table, is
   // A Cowork account with A's id runs on A's plan, and has its price.
   assert.deepEqual(planPrice(`cowork:${A}`, readAccounts()), { monthly: 19.99, source: 'set' })
   // Wrong prices and words change nothing.
-  for (const bad of ['-5', 'abc', '100001', '1e3', '12.345', '']) assert.deepEqual(price('aaaaaaaa', bad), [1, 'kestrel: A price is a number of dollars a month from 0 to 100,000, such as 100 or 19.99.'], bad)
-  assert.match(price('aaaaaaaa')[1], /^kestrel: Use "kestrel accounts price <key> <dollars a month>"/)
-  assert.match(price('aaaaaaaa', '5', '--clear')[1], /^kestrel: Use "kestrel accounts price <key>/)
-  assert.match(price('zzzz', '5')[1], /^kestrel: There is no account "zzzz"\./)
+  for (const bad of ['-5', 'abc', '100001', '1e3', '12.345', '']) assert.deepEqual(price('aaaaaaaa', bad), [1, 'widal: A price is a number of dollars a month from 0 to 100,000, such as 100 or 19.99.'], bad)
+  assert.match(price('aaaaaaaa')[1], /^widal: Use "widal accounts price <key> <dollars a month>"/)
+  assert.match(price('aaaaaaaa', '5', '--clear')[1], /^widal: Use "widal accounts price <key>/)
+  assert.match(price('zzzz', '5')[1], /^widal: There is no account "zzzz"\./)
   assert.equal(accountsJson(m).accounts[`claude:${A}`].price, 19.99)
   // --clear: the table's price is back.
   assert.deepEqual(price('aaaaaaaa', '--clear'), [0, 'The account claude:aaaaaaaa has no price of yours now.'])
   assert.equal(accountsJson(m).accounts[`claude:${A}`].price, undefined)
   assert.match(planOfA(), /\$100 a month \(the plan's public price\)/)
   // A price that the file holds in a wrong shape is not used.
-  const file = join(m.kestrel, 'accounts.json')
+  const file = join(m.widal, 'accounts.json')
   const saved = JSON.parse(readFileSync(file, 'utf8'))
   saved.accounts[`claude:${A}`].price = 'a lot'
   writeFileSync(file, JSON.stringify(saved))
@@ -586,7 +586,7 @@ test('the words for the dollars: spend by the token, API value on a subscription
   assert.deepEqual(paidLines({ token: 12.5, subscription: 0, unknown: 0 }), ['Spend: $12.50, paid by the token, at list prices.'])
   assert.deepEqual(paidLines({ token: 0, subscription: 412.3, unknown: 0 }), ["On subscriptions: $412 of API value. That is what the same use would cost by the token. You pay your plan's price, not this."])
   assert.deepEqual(paidLines({ token: 12.5, subscription: 412.3, unknown: 0 }), ['Paid by the token: $12.50 (spend, at list prices)', 'On subscriptions: $412 of API value (what the same use would cost by the token)'])
-  assert.match(paidLines({ token: 0, subscription: 0, unknown: 3 })[0], /^\$3\.00 at list prices\. Kestrel does not know how this is paid\./)
+  assert.match(paidLines({ token: 0, subscription: 0, unknown: 3 })[0], /^\$3\.00 at list prices\. Widal.Code does not know how this is paid\./)
   assert.deepEqual(paidLines({ token: 0, subscription: 0, unknown: 0 }), [])
   // How each kind of account pays.
   const state = { accounts: new Map([['claude:x', { organizationType: 'claude_pro' }], ['claude:y', {}]]), signedIn: new Map() }
@@ -600,21 +600,21 @@ test('the words for the dollars: spend by the token, API value on a subscription
   assert.equal(pay('claude:y'), 'unknown')
   assert.equal(pay('claude:y', {}, new Map([['claude:y', { week: {} }]])), 'subscription')
   assert.equal(pay('unknown', {}, new Map([['unknown', { week: {} }]])), 'subscription')
-  // An account whose way to pay is not known follows "kestrel plan" when it is set by hand.
+  // An account whose way to pay is not known follows "widal plan" when it is set by hand.
   assert.equal(pay('claude:y', { plan: 'subscription' }), 'subscription')
   assert.equal(pay('claude:y', { plan: 'usage' }), 'token')
   assert.equal(pay('api', { plan: 'subscription' }), 'token')
   assert.deepEqual(DOLLARS, { subscription: 'API value', token: 'spend', unknown: 'list prices' })
 })
 
-test('"kestrel accounts" with one account has one row and says that Kestrel found one account, and "kestrel summary" has "By account" only with more than one', () => {
+test('"widal accounts" with one account has one row and says that Widal.Code found one account, and "widal summary" has "By account" only with more than one', () => {
   const one = machine()
   const now = Date.now()
   write(join(one.claude, 'projects', '-work-app', 'sA.jsonl'), [owner(A, ORG_A), call('a1', now - 2 * MIN)])
   const text = run(one, ['accounts']).stdout
   assert.equal(text.split('\n').filter((line) => /^ {2}\S/.test(line)).length, 2) // The head and one row.
   assert.match(text, /\n {2}claude:aaaaaaaa +Claude Code +unknown +none seen +/)
-  assert.match(text, /\nKestrel found one account in the last 7 days\.\n/)
+  assert.match(text, /\nWidal.Code found one account in the last 7 days\.\n/)
   assert.doesNotMatch(run(one, ['summary']).stdout, /By account/)
   assert.equal(JSON.parse(run(one, ['accounts', '--json']).stdout).current, null)
   assert.equal(run(machine(), ['accounts']).stdout, 'No model calls in the last 7 days.\n')
@@ -637,14 +637,14 @@ test('today\'s numbers have the tokens of each account', async () => {
     [`claude:${A}`]: { tokens: 303000, cacheRead: 0 }, [`claude:${B}`]: { tokens: 101000, cacheRead: 0 },
     'cowork:cw-account': { tokens: 101000, cacheRead: 0 }, 'codex:plus': { tokens: 110000, cacheRead: 0 }, 'codex:unknown': { tokens: 110000, cacheRead: 0 },
   })
-  assert.ok(!filesText(m.kestrel).includes(MARKER))
+  assert.ok(!filesText(m.widal).includes(MARKER))
 })
 
 test('line "plan" starts with the name of the session\'s account only when more than one account was used in the last 7 days', () => {
   const m = use(machine())
   const { logA, logB } = twoSessions(m)
-  mkdirSync(m.kestrel, { recursive: true })
-  writeFileSync(join(m.kestrel, 'config.json'), JSON.stringify({ hud: { lines: ['plan'] } }))
+  mkdirSync(m.widal, { recursive: true })
+  writeFileSync(join(m.widal, 'config.json'), JSON.stringify({ hud: { lines: ['plan'] } }))
   claudeJson(join(m.home, '.claude.json'), A, ORG_A, 'Widal, Inc.')
   updateAccounts({ signedIn: true })
   const today = (accounts) => writeToday({ day: localDay(NOON), at: NOON, tokens: 303000, cacheRead: 0, coldStarts: 0, coldTokens: 0, sessions: {}, tickets: {}, accounts })
@@ -660,7 +660,7 @@ test('line "plan" starts with the name of the session\'s account only when more 
   // now: its limits come from that account.
   assert.match(plan(given('sB', logB, { week: 9 })), /^Widal, Inc\. · week /)
   // Without a known account signed in, the session's own account counts. B has no name: its short key.
-  const accountsPath = join(m.kestrel, 'accounts.json')
+  const accountsPath = join(m.widal, 'accounts.json')
   const before = JSON.parse(readFileSync(accountsPath, 'utf8'))
   writeFileSync(accountsPath, JSON.stringify({ ...before, signedIn: {} }))
   assert.match(plan(given('sB', logB, { week: 9 })), /^claude:bbbbbbbb · week /)
@@ -668,7 +668,7 @@ test('line "plan" starts with the name of the session\'s account only when more 
   // The second account only in accounts.json: used 6 days ago counts, 8 days ago does not.
   today({ [`claude:${A}`]: { tokens: 303000, cacheRead: 0 } })
   const seen = (ago) => {
-    const file = join(m.kestrel, 'accounts.json')
+    const file = join(m.widal, 'accounts.json')
     const saved = JSON.parse(readFileSync(file, 'utf8'))
     saved.accounts[`claude:${B}`] = { lastSeen: NOON - ago }
     writeFileSync(file, JSON.stringify(saved))
@@ -684,9 +684,9 @@ test('line "plan" starts with the name of the session\'s account only when more 
   assert.equal(oneLine(given('sA', logA, { week: 9 })), 'week 9% used, 57% of the week gone')
 })
 
-/** Starts "kestrel mcp" on a made-up computer and opens it. `call` gives a tool's result, `close` ends it. */
+/** Starts "widal desktop-mcp" on a made-up computer and opens it. `call` gives a tool's result, `close` ends it. */
 async function server(env) {
-  const child = spawn(process.execPath, [BIN, 'mcp'], { env, stdio: ['pipe', 'pipe', 'pipe'] })
+  const child = spawn(process.execPath, [BIN, 'desktop-mcp'], { env, stdio: ['pipe', 'pipe', 'pipe'] })
   const waiting = new Map()
   const lines = []
   let rest = ''
@@ -722,13 +722,13 @@ async function server(env) {
   }
 }
 
-test('the desktop tool spend_by_account gives the text of "kestrel accounts", checks "days", and plan_limits names each account', async () => {
+test('the desktop tool spend_by_account gives the text of "widal accounts", checks "days", and plan_limits names each account', async () => {
   const m = machine()
   const now = Date.now()
   writeLogs(m, now, MIN)
   claudeJson(join(m.home, '.claude.json'), A, ORG_A, 'Widal, Inc.')
-  mkdirSync(m.kestrel, { recursive: true })
-  writeFileSync(join(m.kestrel, 'limits.json'), JSON.stringify({
+  mkdirSync(m.widal, { recursive: true })
+  writeFileSync(join(m.widal, 'limits.json'), JSON.stringify({
     [`claude:${A}`]: { week: { pct: 9, resetsAt: now + 3 * DAY, at: now - MIN } },
     [`claude:${B}`]: { week: { pct: 70, resetsAt: now + 3 * DAY, at: now - 2 * MIN } },
   }))
@@ -760,7 +760,7 @@ test('the desktop tool spend_by_account gives the text of "kestrel accounts", ch
   const end = await s.close()
   assert.equal(end.code, 0)
   for (const line of end.lines) for (const word of [...PERSONAL, MARKER]) assert.ok(!line.includes(word), word)
-  for (const word of [...PERSONAL, MARKER]) assert.ok(!filesText(m.kestrel).includes(word), word)
+  for (const word of [...PERSONAL, MARKER]) assert.ok(!filesText(m.widal).includes(word), word)
 })
 
 test('two config folders whose "projects" folders are the same folder through a link: its logs are read once', () => {
@@ -789,9 +789,9 @@ test('after a sign-in in the middle of a session, the status line saves and show
   const log = join(dir, 'midway-session.jsonl')
   // The session started on account "old"; its log keeps naming that account.
   writeFileSync(log, `${JSON.stringify({ type: 'session-owner', accountUuid: 'old-acct-0000-0000', organizationUuid: 'org-old', sessionId: 'midway' })}\n`)
-  // Kestrel saw that the account signed in now in this config folder is "new".
+  // Widal.Code saw that the account signed in now in this config folder is "new".
   const state = readAccountsFile()
-  writeFileSync(join(process.env.KESTREL_HOME, 'accounts.json'), JSON.stringify({ accounts: { ...(state.accounts ?? {}), 'claude:new-acct-0000-0000': { org: 'New Org' } }, signedIn: { ...(state.signedIn ?? {}), [realPath(process.env.CLAUDE_CONFIG_DIR)]: 'claude:new-acct-0000-0000' } }))
+  writeFileSync(join(process.env.WIDAL_HOME, 'accounts.json'), JSON.stringify({ accounts: { ...(state.accounts ?? {}), 'claude:new-acct-0000-0000': { org: 'New Org' } }, signedIn: { ...(state.signedIn ?? {}), [realPath(process.env.CLAUDE_CONFIG_DIR)]: 'claude:new-acct-0000-0000' } }))
   const input = {
     session_id: 'midway', cwd: '/work/repo', transcript_path: log, model: { id: 'claude-opus-5-5' },
     cost: { total_cost_usd: 1, total_duration_ms: 60000, total_api_duration_ms: 1000 },

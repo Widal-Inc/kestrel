@@ -1,6 +1,6 @@
-// "kestrel refresh-today": works out today's numbers of all agents on this computer, from the logs
-// of Claude Code, Codex and Cowork, and writes them to ~/.kestrel/today.json. The status line and
-// "kestrel top" only read that file: see today-file.mjs for its shape.
+// "widal refresh-today": works out today's numbers of all agents on this computer, from the logs
+// of Claude Code, Codex and Cowork, and writes them to ~/.widal/today.json. The status line and
+// "widal top" only read that file: see today-file.mjs for its shape.
 //
 // The status line starts this command in the background, at most every 5 minutes. So it prints
 // nothing. It reads the logs through the store's cache, as the reports do, so a run after the

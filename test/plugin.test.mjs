@@ -1,5 +1,5 @@
-// Tests for Kestrel as a plugin for Claude Code and Cowork: the layout of the repo, the plugin's
-// files, the hooks that the plugin carries, the setup from a plugin's folder, and the bird.
+// Tests for Widal.Code as a plugin for Claude Code and Cowork: the layout of the repo, the plugin's
+// files, the hooks that the plugin carries, the setup from a plugin's folder, and the name line.
 // With made-up home folders. Run: node --test
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
@@ -9,20 +9,20 @@ import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-const dir = mkdtempSync(join(tmpdir(), 'kestrel-plugin-test-'))
-// Kestrel also reads the config folders of Claude Code in the home folder, so the home folder is a
+const dir = mkdtempSync(join(tmpdir(), 'widal-code-plugin-test-'))
+// Widal.Code also reads the config folders of Claude Code in the home folder, so the home folder is a
 // made-up one too.
 process.env.HOME = join(dir, 'person')
-process.env.KESTREL_HOME = join(dir, 'home')
+process.env.WIDAL_HOME = join(dir, 'home')
 process.env.CLAUDE_CONFIG_DIR = join(dir, 'claude')
 process.env.CODEX_HOME = join(dir, 'codex')
 // Cowork's folder too: without this a test would read the real Cowork logs of whoever runs it.
-process.env.KESTREL_COWORK_DIR = join(dir, 'cowork')
+process.env.WIDAL_COWORK_DIR = join(dir, 'cowork')
 mkdirSync(process.env.CLAUDE_CONFIG_DIR, { recursive: true })
 
 // The folder of the repo, which is also the folder of the plugin.
 const ROOT = fileURLToPath(new URL('..', import.meta.url)).replace(/[/\\]$/, '')
-const KESTREL = join(ROOT, 'cli', 'kestrel.mjs')
+const WIDAL = join(ROOT, 'cli', 'widal.mjs')
 
 /** A JSON file of the repo as a value. */
 const json = (...path) => JSON.parse(readFileSync(join(ROOT, ...path), 'utf8'))
@@ -30,7 +30,7 @@ const json = (...path) => JSON.parse(readFileSync(join(ROOT, ...path), 'utf8'))
 /**
  * A made-up machine: the empty home folder of a person, below `name`. Returns the folder and a
  * function that runs the command there. The command gets nothing of the real environment but
- * the PATH. KESTREL_HOME is not set, so that the command looks for its folder in the home
+ * the PATH. WIDAL_HOME is not set, so that the command looks for its folder in the home
  * folder, as it does on a real machine. `more` sets further variables for every run.
  *
  * `run` takes the arguments of the command, and then `bin` (the file to run, the command in the
@@ -39,11 +39,11 @@ const json = (...path) => JSON.parse(readFileSync(join(ROOT, ...path), 'utf8'))
  */
 function machine(name, more = {}) {
   const home = join(dir, name)
-  const env = { PATH: process.env.PATH, HOME: home, USERPROFILE: home, CLAUDE_CONFIG_DIR: join(home, '.claude'), CODEX_HOME: join(home, '.codex'), KESTREL_COWORK_DIR: join(home, 'cowork'), NO_COLOR: '1', ...more }
+  const env = { PATH: process.env.PATH, HOME: home, USERPROFILE: home, CLAUDE_CONFIG_DIR: join(home, '.claude'), CODEX_HOME: join(home, '.codex'), WIDAL_COWORK_DIR: join(home, 'cowork'), NO_COLOR: '1', ...more }
   mkdirSync(env.CLAUDE_CONFIG_DIR, { recursive: true })
   // The command reaches into the home folder. A test must only ever reach the made-up one.
   assert.equal(spawnSync(process.execPath, ['-e', 'process.stdout.write(require("node:os").homedir())'], { encoding: 'utf8', env }).stdout, home)
-  const run = (args, { bin = KESTREL, input, env: forRun = {} } = {}) => spawnSync(process.execPath, [bin, ...args], { encoding: 'utf8', input, env: { ...env, ...forRun } })
+  const run = (args, { bin = WIDAL, input, env: forRun = {} } = {}) => spawnSync(process.execPath, [bin, ...args], { encoding: 'utf8', input, env: { ...env, ...forRun } })
   return { home, env, run }
 }
 
@@ -52,32 +52,39 @@ const result = (r) => [r.status, r.stdout, r.stderr]
 
 test('package.json names the package, its version and its command, and the tool has no dependencies', () => {
   const pkg = json('package.json')
-  assert.equal(pkg.name, '@widal/kestrel')
+  assert.equal(pkg.name, '@widal/widal-code')
   assert.equal(pkg.version, '0.2.0')
   assert.equal(pkg.private, true)
   assert.equal(pkg.type, 'module')
-  assert.deepEqual(pkg.bin, { kestrel: 'cli/kestrel.mjs' })
+  // The command, and for one release the command under the name before.
+  assert.deepEqual(pkg.bin, { widal: 'cli/widal.mjs', kestrel: 'cli/kestrel.mjs' })
   assert.deepEqual(pkg.engines, { node: '>=22' })
   assert.deepEqual(pkg.scripts, { test: 'node --test', 'build:desktop': 'node scripts/build-desktop.mjs' })
   assert.equal(typeof pkg.description, 'string')
   assert.ok(pkg.description.length > 0)
   for (const key of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies']) assert.equal(pkg[key], undefined, key)
-  // The file that "bin" names is the command, and it can be run as a program.
-  assert.ok(existsSync(join(ROOT, pkg.bin.kestrel)))
-  assert.match(readFileSync(join(ROOT, pkg.bin.kestrel), 'utf8'), /^#!\/usr\/bin\/env node\n/)
+  // The files that "bin" names can be run as programs.
+  for (const file of Object.values(pkg.bin)) {
+    assert.ok(existsSync(join(ROOT, file)), file)
+    assert.match(readFileSync(join(ROOT, file), 'utf8'), /^#!\/usr\/bin\/env node\n/, file)
+    assert.ok(statSync(join(ROOT, file)).mode & 0o100, file)
+  }
 })
 
-test('the repo has no top-level "bin" folder: the command and the file for its old name are in "cli"', () => {
+test('the repo has no top-level "bin" folder: the command and the files for its old names are in "cli"', () => {
   // Cowork does not install a plugin that has a top-level "bin" folder.
   assert.equal(existsSync(join(ROOT, 'bin')), false)
-  assert.deepEqual(readdirSync(join(ROOT, 'cli')).sort(), ['agent-spend.mjs', 'kestrel.mjs'])
+  assert.deepEqual(readdirSync(join(ROOT, 'cli')).sort(), ['agent-spend.mjs', 'kestrel.mjs', 'widal.mjs'])
 })
 
-test('"kestrel --version" prints the version that package.json holds, also under the old name of the command', () => {
+/** The note on stderr for a command typed under an old name. */
+const note = (old) => `${old} is now called widal. Type widal in place of ${old}. The name ${old} stops working with the next release.\n`
+
+test('"widal --version" prints the version that package.json holds, also under the old names of the command, which add the note', () => {
   const m = machine('version')
   const { version } = json('package.json')
   assert.deepEqual(result(m.run(['--version'])), [0, `${version}\n`, ''])
-  assert.deepEqual(result(m.run(['--version'], { bin: join(ROOT, 'cli', 'agent-spend.mjs') })), [0, `${version}\n`, ''])
+  for (const old of ['kestrel', 'agent-spend']) assert.deepEqual(result(m.run(['--version'], { bin: join(ROOT, 'cli', `${old}.mjs`) })), [0, `${version}\n`, note(old)], old)
   // It reads nothing else and makes nothing: the home folder holds only what the test put there.
   assert.deepEqual(readdirSync(m.home), ['.claude'])
   assert.deepEqual(readdirSync(m.env.CLAUDE_CONFIG_DIR), [])
@@ -98,36 +105,38 @@ function linksToBin(name) {
   return m
 }
 
-test('"migrate" and "install" point both links on the PATH from the old "bin" folder at "cli", and leave a link to another folder alone', () => {
+test('"migrate" and "connect" point both links on the PATH from the old "bin" folder at "cli", add the new name, and leave a link to another folder alone', () => {
   const cli = (command) => join(realpathSync(ROOT), 'cli', `${command}.mjs`)
   const pointed = (m, command) => `Pointed the command ${linkIn(m.home, command)} at ${cli(command)}, where the command's files are now.`
   const moved = linksToBin('links-migrate')
-  const own = join(moved.home, '.kestrel', 'bin', 'kestrel')
+  const own = join(moved.home, '.widal', 'bin', 'widal')
   assert.deepEqual(result(moved.run(['migrate'])), [0, [
-    `Made the link ${own} to ${cli('kestrel')}: Claude Code's settings call this tool through it.`,
+    `Made the link ${own} to ${cli('widal')}: Claude Code's settings call this tool through it.`,
+    `Added the command ${linkIn(moved.home, 'widal')}, and left the old commands ${linkIn(moved.home, 'kestrel')} and ${linkIn(moved.home, 'agent-spend')} in place so that open sessions keep working.`,
     pointed(moved, 'kestrel'),
     pointed(moved, 'agent-spend'),
     '',
   ].join('\n'), ''])
-  for (const command of ['kestrel', 'agent-spend']) assert.equal(readlinkSync(linkIn(moved.home, command)), cli(command), command)
-  // Both names run the program again.
-  for (const command of ['kestrel', 'agent-spend']) assert.deepEqual(result(moved.run(['--version'], { bin: linkIn(moved.home, command) })), [0, `${json('package.json').version}\n`, ''], command)
+  for (const command of ['widal', 'kestrel', 'agent-spend']) assert.equal(readlinkSync(linkIn(moved.home, command)), cli(command), command)
+  // Each name runs the program again. The old names add the note.
+  const version = `${json('package.json').version}\n`
+  for (const command of ['widal', 'kestrel', 'agent-spend']) assert.deepEqual(result(moved.run(['--version'], { bin: linkIn(moved.home, command) })), [0, version, command === 'widal' ? '' : note(command)], command)
   // A second run finds nothing to change.
   assert.deepEqual(result(moved.run(['migrate'])), [0, 'Nothing was left to do.\n', ''])
 
-  // "install" runs the same steps first.
+  // "connect" runs the same steps first.
   const installed = linksToBin('links-install')
-  const r = installed.run(['install'])
+  const r = installed.run(['connect'])
   assert.deepEqual([r.status, r.stderr], [0, ''])
   assert.ok(r.stdout.includes(pointed(installed, 'agent-spend')))
-  for (const command of ['kestrel', 'agent-spend']) assert.equal(readlinkSync(linkIn(installed.home, command)), cli(command), command)
+  for (const command of ['widal', 'kestrel', 'agent-spend']) assert.equal(readlinkSync(linkIn(installed.home, command)), cli(command), command)
 
   // A link to the "bin" folder of another place is not this tool's. It stays, and the move says so.
   const other = machine('links-other')
   mkdirSync(join(other.home, '.local', 'bin'), { recursive: true })
   const elsewhere = join(dir, 'elsewhere', 'bin', 'kestrel.mjs')
   symlinkSync(elsewhere, linkIn(other.home, 'kestrel'))
-  const left = `Another program named kestrel is at ${linkIn(other.home, 'kestrel')}, so it was left as it is, and this tool can be run as ${cli('kestrel')}.`
+  const left = `Another program named kestrel is at ${linkIn(other.home, 'kestrel')}, so it was left as it is, and this tool can be run as ${cli('widal')}.`
   assert.deepEqual(result(other.run(['migrate'])), [0, `${left}\nNothing was left to do.\n`, ''])
   assert.equal(readlinkSync(linkIn(other.home, 'kestrel')), elsewhere)
 
@@ -156,16 +165,16 @@ function markdown(...path) {
 }
 
 // How a command file and the skill run the tool: node with the command's file in the plugin's folder.
-const TOOL = 'node "${CLAUDE_PLUGIN_ROOT}/cli/kestrel.mjs"'
+const TOOL = 'node "${CLAUDE_PLUGIN_ROOT}/cli/widal.mjs"'
 
 // The commands of the plugin, and the words each one gives the tool. "open" and "settings" open the
-// Kestrel pane where a mod can draw it. The mod answers them then, and these words run only where
+// Widal.Code pane where a mod can draw it. The mod answers them then, and these words run only where
 // no pane can show (see pane.test.mjs).
-const COMMANDS = { advise: 'advise', compactions: 'compactions', findings: 'findings', open: 'top --once --no-names', report: 'summary', session: 'session', settings: 'settings', setup: 'install', status: 'status' }
+const COMMANDS = { advise: 'advise', compactions: 'compactions', connect: 'connect', doctor: 'doctor', findings: 'findings', open: 'top --once --no-names', report: 'summary', session: 'session', settings: 'settings' }
 
 test('the plugin\'s manifest and marketplace are valid, name files that exist, and carry the version of package.json', () => {
   const plugin = json('.claude-plugin', 'plugin.json')
-  assert.equal(plugin.name, 'kestrel')
+  assert.equal(plugin.name, 'widal')
   // One place holds the version. The manifest has to say the same, or Claude Code would show another one.
   assert.equal(plugin.version, json('package.json').version)
   assert.match(plugin.description, /^[A-Z][^.]*\.$/)
@@ -176,11 +185,11 @@ test('the plugin\'s manifest and marketplace are valid, name files that exist, a
   assert.ok(existsSync(join(ROOT, plugin.icon)))
 
   const market = json('.claude-plugin', 'marketplace.json')
-  assert.equal(market.name, 'kestrel')
+  assert.equal(market.name, 'widal')
   assert.deepEqual(market.owner, { name: 'Widal, Inc.', email: 'hello@widal.com' })
   assert.equal(market.plugins.length, 1)
   const [entry] = market.plugins
-  // The entry's name is what the person installs: kestrel@kestrel. It has to be the manifest's name.
+  // The entry's name is what the person installs: widal@widal. It has to be the manifest's name.
   assert.equal(entry.name, plugin.name)
   // The plugin's root is the repo's root.
   assert.equal(entry.source, './')
@@ -202,7 +211,7 @@ test('each command of the plugin runs the tool from the plugin\'s folder and ask
     assert.equal(body, `\n!\`${TOOL} ${words}\`\n\nShow the output above to the person exactly as it is, in one code block. Add no summary and no comment.\n`, name)
   }
   // The file that the commands name is there, in the plugin's folder.
-  assert.ok(existsSync(join(ROOT, 'cli', 'kestrel.mjs')))
+  assert.ok(existsSync(join(ROOT, 'cli', 'widal.mjs')))
 })
 
 test('each command line of the plugin runs in a made-up home folder and ends without an error', () => {
@@ -215,23 +224,23 @@ test('each command line of the plugin runs in a made-up home folder and ends wit
 })
 
 test('the skill says when to use the tool, names only reports and the plugin\'s folder, and forbids reading a session log', () => {
-  const { fields, body } = markdown('skills', 'kestrel', 'SKILL.md')
-  assert.equal(fields.name, 'kestrel')
+  const { fields, body } = markdown('skills', 'widal', 'SKILL.md')
+  assert.equal(fields.name, 'widal')
   assert.match(fields.description, /spend/)
   assert.match(fields.description, /how to spend less/)
   assert.match(body, /\*\*Never open, read or quote a session log\.\*\*/)
   assert.match(body, /The tool reads the logs itself and prints only numbers\./)
   // Every command it names is a report of the tool, run from the plugin's folder. The view of the
   // sessions that run now is named without the names of tasks.
-  const named = [...body.matchAll(/`node "\$\{CLAUDE_PLUGIN_ROOT\}\/cli\/kestrel\.mjs" ([a-z]+(?: --[a-z-]+)*)`/g)].map(([, words]) => words)
-  assert.deepEqual(named, ['summary', 'findings', 'session', 'models', 'compactions', 'advise', 'branches', 'tickets', 'accounts', 'top --once --no-names', 'status', 'check'])
+  const named = [...body.matchAll(/`node "\$\{CLAUDE_PLUGIN_ROOT\}\/cli\/widal\.mjs" ([a-z]+(?: --[a-z-]+)*)`/g)].map(([, words]) => words)
+  assert.deepEqual(named, ['summary', 'findings', 'session', 'models', 'compactions', 'advise', 'branches', 'tickets', 'accounts', 'top --once --no-names', 'doctor', 'check'])
   assert.equal(body.split('node "').length - 1, named.length)
 })
 
 test('no file of the tool holds an en dash or an em dash', () => {
   // The dashes are built from their codes, so that this file holds none either.
   const dashes = new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)}]`)
-  const files = ['package.json', 'README.md', '.claude-plugin', 'cli', 'commands', 'hooks', 'skills', 'src', 'test', join('assets', 'bird-grid.txt')]
+  const files = ['package.json', 'README.md', '.claude-plugin', 'cli', 'commands', 'hooks', 'skills', 'src', 'test']
     .filter((path) => existsSync(join(ROOT, path)))
     .flatMap(walk)
     // Claude Code writes its type files for mods into .claude-plugin/types when it loads the plugin from this folder. They are not the tool's, and git ignores them.
@@ -279,11 +288,11 @@ const HOOK_CASES = {
       mkdirSync(join(folder, 'sessions'), { recursive: true })
       writeFileSync(join(folder, 'sessions', 'cold.json'), JSON.stringify({ cacheUntil: Date.parse('2026-11-12T10:00:00'), ctx: 400000, recache: 400000, billing: 'subscription' }))
     },
-    acted: (out) => /^kestrel: this session's cache ended at \d\d:\d\d\. This prompt sent 400k tokens again\./.test(JSON.parse(out).systemMessage),
+    acted: (out) => /^widal: this session's cache ended at \d\d:\d\d\. This prompt sent 400k tokens again\./.test(JSON.parse(out).systemMessage),
   },
   'model-switch': {
     input: JSON.stringify({ estimated_cache_write_usd: 0.2, from_model: 'claude-opus-5-5', to_model: 'claude-sonnet-5-5', context_tokens: 300000, pricing: 'catalog', source: 'picker' }),
-    acted: (out) => /^kestrel: a switch from opus-5-5 to sonnet-5-5 sends the whole context/.test(JSON.parse(out).systemMessage),
+    acted: (out) => /^widal: a switch from opus-5-5 to sonnet-5-5 sends the whole context/.test(JSON.parse(out).systemMessage),
   },
 }
 
@@ -297,7 +306,7 @@ test('hooks/hooks.json carries the three hooks, the one for the stable copy and 
   assert.deepEqual(Object.keys(lines).sort(), Object.keys(ALL_HOOKS).sort())
   for (const [name, event] of Object.entries(ALL_HOOKS)) {
     assert.equal(lines[name].event, event, name)
-    assert.equal(lines[name].command, `command -v node >/dev/null 2>&1 && node "\${CLAUDE_PLUGIN_ROOT}/cli/kestrel.mjs" hook ${name} --plugin 2>/dev/null; exit 0`, name)
+    assert.equal(lines[name].command, `command -v node >/dev/null 2>&1 && node "\${CLAUDE_PLUGIN_ROOT}/cli/widal.mjs" hook ${name} --plugin 2>/dev/null; exit 0`, name)
     // A copy of a few files may take longer than a check.
     assert.equal(lines[name].timeout, name === 'refresh-copy' ? 10 : 5, name)
     // A shell runs the line, so it has no "args".
@@ -314,13 +323,13 @@ function shellRun(m, command, { path, input }) {
 
 test('each plugin hook\'s command line prints nothing and exits 0 where there is no node, and runs the tool where there is', () => {
   // A PATH with no program in it at all. The shell is started by its full path.
-  const empty = mkdtempSync(join(tmpdir(), 'kestrel-no-node-'))
+  const empty = mkdtempSync(join(tmpdir(), 'widal-code-no-node-'))
   const withNode = dirname(process.execPath)
   const lines = hookLines()
   for (const [name, event] of Object.entries(PLUGIN_HOOKS)) {
     const c = HOOK_CASES[name]
     const m = machine(`hook-line-${name}`)
-    c.ready?.(join(m.home, '.kestrel'))
+    c.ready?.(join(m.home, '.widal'))
     assert.deepEqual(result(shellRun(m, lines[name].command, { path: empty, input: c.input })), [0, '', ''], name)
     const r = shellRun(m, lines[name].command, { path: withNode, input: c.input })
     assert.deepEqual([r.status, r.stderr], [0, ''], name)
@@ -337,7 +346,7 @@ test('a plugin hook does not act twice: it is silent when the settings hold the 
     // One made-up machine for each case, run through the command with --plugin.
     const run = (label, set = () => {}) => {
       const m = machine(`twice-${name}-${label}`)
-      const folder = join(m.home, '.kestrel')
+      const folder = join(m.home, '.widal')
       c.ready?.(folder)
       set(m, folder)
       const r = m.run(['hook', name, '--plugin'], { input: c.input })
@@ -346,14 +355,15 @@ test('a plugin hook does not act twice: it is silent when the settings hold the 
     }
     const settings = (value) => (m) => writeFileSync(join(m.env.CLAUDE_CONFIG_DIR, 'settings.json'), typeof value === 'string' ? value : JSON.stringify(value))
     const withHook = (command) => settings({ hooks: { [event]: [{ hooks: [{ type: 'command', command, timeout: 5 }] }] } })
-    // The settings hold the tool's own hook for that event, put there by "apply" or "install": the plugin's hook is silent.
-    assert.equal(run('own', (m) => withHook(`${join(m.home, '.kestrel', 'bin', 'kestrel')} hook ${name}`)(m)), '', name)
-    // An entry from before the change of name is the tool's own as well.
+    // The settings hold the tool's own hook for that event, put there by "apply" or "connect": the plugin's hook is silent.
+    assert.equal(run('own', (m) => withHook(`${join(m.home, '.widal', 'bin', 'widal')} hook ${name}`)(m)), '', name)
+    // An entry from before a change of name is the tool's own as well.
+    assert.equal(run('own-kestrel', (m) => withHook(`${join(m.home, '.kestrel', 'bin', 'kestrel')} hook ${name}`)(m)), '', name)
     assert.equal(run('own-old', (m) => withHook(`${linkIn(m.home, 'agent-spend')} hook ${name}`)(m)), '', name)
     // Only another tool's hook for that event: the plugin's hook acts.
     assert.ok(c.acted(run('other', withHook('/x/other-tool before'))), name)
     // The tool's own hook for another event does not count.
-    assert.ok(c.acted(run('elsewhere', (m) => settings({ hooks: { Stop: [{ hooks: [{ type: 'command', command: `${join(m.home, '.kestrel', 'bin', 'kestrel')} hook ${name}` }] }] } })(m))), name)
+    assert.ok(c.acted(run('elsewhere', (m) => settings({ hooks: { Stop: [{ hooks: [{ type: 'command', command: `${join(m.home, '.widal', 'bin', 'widal')} hook ${name}` }] }] } })(m))), name)
     // No settings file: it acts.
     assert.ok(c.acted(run('none')), name)
     // Turned off by the person: it is silent.
@@ -368,8 +378,8 @@ test('a plugin hook does not act twice: it is silent when the settings hold the 
 
 test('the plugin\'s hook before a compaction prints the default text when the tool\'s config is broken or its folder is missing', () => {
   const m = machine('keep-broken')
-  mkdirSync(join(m.home, '.kestrel'))
-  writeFileSync(join(m.home, '.kestrel', 'config.json'), '{ broken')
+  mkdirSync(join(m.home, '.widal'))
+  writeFileSync(join(m.home, '.widal', 'config.json'), '{ broken')
   assert.deepEqual(result(m.run(['hook', 'compact-keep', '--plugin'], { input: '{}' })), [0, DEFAULT_KEEP, ''])
   // The hook from the settings prints nothing then, so that the default never stands in for the person's own text without a word.
   assert.deepEqual(result(m.run(['hook', 'compact-keep'], { input: '{}' })), [0, '', ''])
@@ -381,9 +391,9 @@ test('the plugin\'s hook before a compaction prints the default text when the to
   assert.deepEqual(result(none.run(['hook', 'keep-warm', '--plugin'], { input: '{}' })), [0, '', ''])
 })
 
-test('"kestrel hooks" shows where each plugin hook runs from, and "hooks off" and "hooks on" keep the choice in the config', () => {
+test('"widal hooks" shows where each plugin hook runs from, and "hooks off" and "hooks on" keep the choice in the config', () => {
   const m = machine('hooks-command')
-  const config = () => JSON.parse(readFileSync(join(m.home, '.kestrel', 'config.json'), 'utf8'))
+  const config = () => JSON.parse(readFileSync(join(m.home, '.widal', 'config.json'), 'utf8'))
   const shown = () => Object.fromEntries(m.run(['hooks']).stdout.split('\n').filter((line) => line.startsWith('  ')).map((line) => [line.trim().split(' ')[0], line.replace(/^ +\S+ +(before a compaction|when you send a prompt|before a change of model|when a session starts|when an agent's turn ends|before a shell command) +/, '')]))
   const ALL_PLUGIN = {
     'compact-keep': 'runs from the plugin', 'cold-start': 'runs from the plugin', 'model-switch': 'runs from the plugin',
@@ -392,7 +402,7 @@ test('"kestrel hooks" shows where each plugin hook runs from, and "hooks off" an
   // On by default.
   assert.deepEqual(shown(), ALL_PLUGIN)
   assert.match(m.run(['hooks']).stdout, /^The hooks that the plugin carries:\n\n {2}compact-keep +before a compaction +runs from the plugin\n/)
-  assert.match(m.run(['hooks']).stdout, /\nTurn a plugin hook off with "kestrel hooks off <name>", and on with "kestrel hooks on <name>"\.\n$/)
+  assert.match(m.run(['hooks']).stdout, /\nTurn a plugin hook off with "widal hooks off <name>", and on with "widal hooks on <name>"\.\n$/)
 
   assert.deepEqual(result(m.run(['hooks', 'off', 'cold-start'])), [0, 'The plugin\'s hook cold-start is off.\n', ''])
   assert.deepEqual(config(), { pluginHooks: { 'cold-start': false } })
@@ -401,7 +411,7 @@ test('"kestrel hooks" shows where each plugin hook runs from, and "hooks off" an
   // A hook that "apply" put into the settings runs from there, whatever the plugin's hook does.
   assert.equal(m.run(['apply', 'compact-keep']).status, 0)
   assert.deepEqual(shown(), { ...ALL_PLUGIN, 'compact-keep': 'runs from Claude Code\'s settings', 'cold-start': 'off' })
-  assert.deepEqual(result(m.run(['hooks', 'off', 'compact-keep'])), [0, 'The plugin\'s hook compact-keep is off.\nClaude Code\'s settings hold this hook too, and it runs from there. Take it out of the settings with: kestrel undo compact-keep\n', ''])
+  assert.deepEqual(result(m.run(['hooks', 'off', 'compact-keep'])), [0, 'The plugin\'s hook compact-keep is off.\nClaude Code\'s settings hold this hook too, and it runs from there. Take it out of the settings with: widal undo compact-keep\n', ''])
   assert.deepEqual(shown(), { ...ALL_PLUGIN, 'compact-keep': 'runs from Claude Code\'s settings', 'cold-start': 'off' })
   assert.equal(m.run(['undo', 'compact-keep']).status, 0)
   assert.deepEqual(shown(), { ...ALL_PLUGIN, 'compact-keep': 'off', 'cold-start': 'off' })
@@ -411,20 +421,20 @@ test('"kestrel hooks" shows where each plugin hook runs from, and "hooks off" an
   assert.deepEqual(shown(), { ...ALL_PLUGIN, 'compact-keep': 'off' })
 
   // A name that is not one of the plugin's hooks, or a word that is neither on nor off, changes nothing.
-  const how = 'kestrel: Use "kestrel hooks", "kestrel hooks off <name>" or "kestrel hooks on <name>". The names are: compact-keep, cold-start, model-switch, check-settings, check-turn, push-gate.\n'
+  const how = 'widal: Use "widal hooks", "widal hooks off <name>" or "widal hooks on <name>". The names are: compact-keep, cold-start, model-switch, check-settings, check-turn, push-gate.\n'
   for (const bad of [['off', 'keep-warm'], ['maybe', 'cold-start'], ['off'], ['off', 'cold-start', 'more']]) assert.deepEqual(result(m.run(['hooks', ...bad])), [1, '', how], bad.join(' '))
   assert.deepEqual(config().pluginHooks, { 'cold-start': true, 'compact-keep': false })
-  assert.match(m.run(['help']).stdout, /^ {2}kestrel hooks off\|on <name> {6}turn one of them off or on$/m)
+  assert.match(m.run(['help']).stdout, /^ {2}widal hooks off\|on <name> {6}turn one of them off or on$/m)
 })
 
 // From here on: the setup from a plugin's folder, and the stable copy of the tool.
 
 /**
  * A plugin's folder as Claude Code installs it: a copy of the repo's files in
- * <Claude Code's folder>/plugins/cache/kestrel/kestrel/<version>, with that version in its
+ * <Claude Code's folder>/plugins/cache/widal/widal/<version>, with that version in its
  * package.json and in its manifest.
  */
-function pluginCache(m, ver = json('package.json').version, folder = join(m.env.CLAUDE_CONFIG_DIR, 'plugins', 'cache', 'kestrel', 'kestrel', ver)) {
+function pluginCache(m, ver = json('package.json').version, folder = join(m.env.CLAUDE_CONFIG_DIR, 'plugins', 'cache', 'widal', 'widal', ver)) {
   mkdirSync(folder, { recursive: true })
   for (const name of ['cli', 'src', 'package.json', 'assets', 'hooks', '.claude-plugin', 'commands', 'skills']) cpSync(join(ROOT, name), join(folder, name), { recursive: true })
   for (const file of ['package.json', join('.claude-plugin', 'plugin.json')]) writeFileSync(join(folder, file), JSON.stringify({ ...JSON.parse(readFileSync(join(folder, file), 'utf8')), version: ver }, null, 2))
@@ -440,13 +450,13 @@ const filesOf = (folder) => readdirSync(folder, { recursive: true, withFileTypes
 /** The lines that a run printed. */
 const linesOf = (r) => r.stdout.split('\n')
 
-test('"install" from a plugin\'s folder copies the tool to ~/.kestrel/app and links to the copy, and a second install changes nothing', () => {
+test('"connect" from a plugin\'s folder copies the tool to ~/.widal/app and links to the copy, and a second connect changes nothing', () => {
   const m = machine('plugin-install')
   const cache = pluginCache(m)
-  const [app, own, path] = [join(m.home, '.kestrel', 'app'), join(m.home, '.kestrel', 'bin', 'kestrel'), linkIn(m.home, 'kestrel')]
-  const command = join(app, 'cli', 'kestrel.mjs')
-  const fromCache = (args) => m.run(args, { bin: join(cache, 'cli', 'kestrel.mjs') })
-  const r = fromCache(['install'])
+  const [app, own, path] = [join(m.home, '.widal', 'app'), join(m.home, '.widal', 'bin', 'widal'), linkIn(m.home, 'widal')]
+  const command = join(app, 'cli', 'widal.mjs')
+  const fromCache = (args) => m.run(args, { bin: join(cache, 'cli', 'widal.mjs') })
+  const r = fromCache(['connect'])
   assert.deepEqual([r.status, r.stderr], [0, ''])
   assert.deepEqual(linesOf(r).slice(0, 4), [
     `Copied the tool to ${app}, because the plugin's own folder changes with every update.`,
@@ -468,10 +478,10 @@ test('"install" from a plugin\'s folder copies the tool to ~/.kestrel/app and li
   assert.deepEqual([line.status, line.stderr], [0, ''])
   assert.deepEqual(result(m.run(['--version'], { bin: path })), [0, `${json('package.json').version}\n`, ''])
 
-  // A second install from the same plugin's folder changes nothing: not the copy, not the links, not the settings.
+  // A second connect from the same plugin's folder changes nothing: not the copy, not the links, not the settings.
   const state = () => [filesOf(app), readlinkSync(own), readlinkSync(path), statSync(settings).ino, readFileSync(settings, 'utf8')]
   const before = state()
-  const again = fromCache(['install'])
+  const again = fromCache(['connect'])
   assert.deepEqual([again.status, again.stderr], [0, ''])
   assert.deepEqual(linesOf(again).slice(0, 2), [`The command is at ${path}.`, 'The status line was already set, with a refresh every 30 seconds.'])
   assert.deepEqual(state(), before)
@@ -479,14 +489,14 @@ test('"install" from a plugin\'s folder copies the tool to ~/.kestrel/app and li
 
 test('the plugin\'s hook at a session\'s start copies the plugin over the stable copy only when the versions differ, and makes nothing where there is no copy', () => {
   const m = machine('plugin-refresh')
-  const app = join(m.home, '.kestrel', 'app')
+  const app = join(m.home, '.widal', 'app')
   const sessionStart = (root) => spawnSync('/bin/sh', ['-c', hookLines()['refresh-copy'].command], { encoding: 'utf8', input: '{}', env: { ...m.env, CLAUDE_PLUGIN_ROOT: root } })
   // No copy yet: the hook makes none, and makes no folder of the tool.
   const first = pluginCache(m)
   assert.deepEqual(result(sessionStart(first)), [0, '', ''])
-  assert.equal(existsSync(join(m.home, '.kestrel')), false)
+  assert.equal(existsSync(join(m.home, '.widal')), false)
 
-  assert.equal(m.run(['install'], { bin: join(first, 'cli', 'kestrel.mjs') }).status, 0)
+  assert.equal(m.run(['connect'], { bin: join(first, 'cli', 'widal.mjs') }).status, 0)
   const copied = filesOf(app)
   // The same version: nothing is written.
   assert.deepEqual(result(sessionStart(first)), [0, '', ''])
@@ -497,7 +507,7 @@ test('the plugin\'s hook at a session\'s start copies the plugin over the stable
   assert.equal(JSON.parse(readFileSync(join(app, 'package.json'), 'utf8')).version, '0.2.0')
   assert.deepEqual(readdirSync(app).sort(), ['assets', 'cli', 'package.json', 'src'])
   // The links still run the copy, now of the new version.
-  assert.deepEqual(result(m.run(['--version'], { bin: join(m.home, '.kestrel', 'bin', 'kestrel') })), [0, '0.2.0\n', ''])
+  assert.deepEqual(result(m.run(['--version'], { bin: join(m.home, '.widal', 'bin', 'widal') })), [0, '0.2.0\n', ''])
   // Now the versions agree again: nothing is written.
   const refreshed = filesOf(app)
   assert.deepEqual(result(sessionStart(second)), [0, '', ''])
@@ -509,116 +519,80 @@ test('with nothing to do, the check at a session\'s start reads two small files 
   const plugin = join(dir, 'refresh-plugin')
   mkdirSync(join(appDir(), 'cli'), { recursive: true })
   mkdirSync(plugin, { recursive: true })
-  writeFileSync(join(appDir(), 'package.json'), JSON.stringify({ name: '@widal/kestrel', version: '1.0.0' }))
-  writeFileSync(join(plugin, 'package.json'), JSON.stringify({ name: '@widal/kestrel', version: '1.0.0' }))
+  writeFileSync(join(appDir(), 'package.json'), JSON.stringify({ name: '@widal/widal-code', version: '1.0.0' }))
+  writeFileSync(join(plugin, 'package.json'), JSON.stringify({ name: '@widal/widal-code', version: '1.0.0' }))
   const start = performance.now()
   for (let i = 0; i < 20; i++) assert.equal(refreshCopy({ root: plugin }), false)
   assert.ok(performance.now() - start < 100, `${performance.now() - start} ms for 20 checks`)
   // Another version: it copies.
-  writeFileSync(join(plugin, 'package.json'), JSON.stringify({ name: '@widal/kestrel', version: '1.1.0' }))
+  writeFileSync(join(plugin, 'package.json'), JSON.stringify({ name: '@widal/widal-code', version: '1.1.0' }))
   assert.equal(refreshCopy({ root: plugin }), true)
   assert.equal(JSON.parse(readFileSync(join(appDir(), 'package.json'), 'utf8')).version, '1.1.0')
 })
 
-test('"uninstall" removes the stable copy with the links, and an install from a checkout copies nothing', () => {
+test('"disconnect" removes the stable copy with the links, and a connect from a checkout copies nothing', () => {
   const m = machine('plugin-uninstall')
   const cache = pluginCache(m)
-  const [app, own, path] = [join(m.home, '.kestrel', 'app'), join(m.home, '.kestrel', 'bin', 'kestrel'), linkIn(m.home, 'kestrel')]
-  assert.equal(m.run(['install'], { bin: join(cache, 'cli', 'kestrel.mjs') }).status, 0)
-  // The person types "kestrel uninstall": that runs the copy itself.
-  assert.deepEqual(result(m.run(['uninstall'], { bin: path })), [0, `Removed the copy of the tool in ${app}.\nRemoved the status line and the hook from Claude Code, and the command from your PATH.\n`, ''])
+  const [app, own, path] = [join(m.home, '.widal', 'app'), join(m.home, '.widal', 'bin', 'widal'), linkIn(m.home, 'widal')]
+  assert.equal(m.run(['connect'], { bin: join(cache, 'cli', 'widal.mjs') }).status, 0)
+  // The person types "widal disconnect": that runs the copy itself.
+  assert.deepEqual(result(m.run(['disconnect'], { bin: path })), [0, `Removed the copy of the tool in ${app}.\nRemoved the status line and the hook from Claude Code, and the command from your PATH.\n`, ''])
   for (const gone of [app, own, path]) assert.equal(existsSync(gone), false, gone)
   assert.equal(JSON.parse(readFileSync(join(m.env.CLAUDE_CONFIG_DIR, 'settings.json'), 'utf8')).statusLine, undefined)
   // The tool's folder stays, with what it keeps.
-  assert.equal(existsSync(join(m.home, '.kestrel')), true)
+  assert.equal(existsSync(join(m.home, '.widal')), true)
 
   // From a checkout: the links point at the checkout, and nothing is copied.
   const checkout = machine('checkout-install')
-  const r = checkout.run(['install'])
+  const r = checkout.run(['connect'])
   assert.deepEqual([r.status, r.stderr], [0, ''])
   assert.equal(linesOf(r).some((line) => line.startsWith('Copied')), false)
-  assert.equal(existsSync(join(checkout.home, '.kestrel', 'app')), false)
-  assert.equal(readlinkSync(join(checkout.home, '.kestrel', 'bin', 'kestrel')), join(realpathSync(ROOT), 'cli', 'kestrel.mjs'))
+  assert.equal(existsSync(join(checkout.home, '.widal', 'app')), false)
+  assert.equal(readlinkSync(join(checkout.home, '.widal', 'bin', 'widal')), join(realpathSync(ROOT), 'cli', 'widal.mjs'))
   // CLAUDE_PLUGIN_ROOT that names this checkout does not make it a plugin's folder: a git checkout is never copied.
   const named = machine('checkout-named')
-  assert.equal(named.run(['install'], { env: { CLAUDE_PLUGIN_ROOT: ROOT } }).status, 0)
-  assert.equal(existsSync(join(named.home, '.kestrel', 'app')), false)
+  assert.equal(named.run(['connect'], { env: { CLAUDE_PLUGIN_ROOT: ROOT } }).status, 0)
+  assert.equal(existsSync(join(named.home, '.widal', 'app')), false)
   // A plugin's folder outside Claude Code's plugins folder, which CLAUDE_PLUGIN_ROOT names, is copied.
   const loaded = machine('plugin-named')
   const folder = pluginCache(loaded, json('package.json').version, join(dir, 'loaded-plugin'))
-  assert.equal(loaded.run(['install'], { bin: join(folder, 'cli', 'kestrel.mjs'), env: { CLAUDE_PLUGIN_ROOT: folder } }).status, 0)
-  assert.equal(readlinkSync(join(loaded.home, '.kestrel', 'bin', 'kestrel')), join(loaded.home, '.kestrel', 'app', 'cli', 'kestrel.mjs'))
+  assert.equal(loaded.run(['connect'], { bin: join(folder, 'cli', 'widal.mjs'), env: { CLAUDE_PLUGIN_ROOT: folder } }).status, 0)
+  assert.equal(readlinkSync(join(loaded.home, '.widal', 'bin', 'widal')), join(loaded.home, '.widal', 'app', 'cli', 'widal.mjs'))
 })
 
-test('"install" says in one sentence when Node is older than 22', async () => {
+test('"connect" says in one sentence when Node is older than 22', async () => {
   const { nodeNote } = await import('../src/app.mjs')
-  assert.equal(nodeNote('20.18.1'), 'Kestrel needs Node 22 or newer, and this computer runs Node 20.18.1.')
-  assert.equal(nodeNote('21.7.3'), 'Kestrel needs Node 22 or newer, and this computer runs Node 21.7.3.')
+  assert.equal(nodeNote('20.18.1'), 'Widal.Code needs Node 22 or newer, and this computer runs Node 20.18.1.')
+  assert.equal(nodeNote('21.7.3'), 'Widal.Code needs Node 22 or newer, and this computer runs Node 21.7.3.')
   for (const fine of ['22.0.0', '24.11.1', process.versions.node]) assert.equal(nodeNote(fine), undefined, fine)
-  assert.doesNotMatch(machine('node-new').run(['install']).stdout, /needs Node/)
+  assert.doesNotMatch(machine('node-new').run(['connect']).stdout, /needs Node/)
 })
 
-// From here on: the bird.
+// From here on: the name line.
 
-/** The characters of a line of the bird, each as the colour codes in front of it and the character. The reset at the end of the line is no character. */
-const cellsOf = (line) => [...line.replace(/\x1b\[0m$/, '').matchAll(/((?:\x1b\[[\d;]*m)*)([^\x1b])/g)].map(([, codes, char]) => ({ codes, char }))
-const RESET = '\x1b[0m'
-
-test('the bird is 12 lines of 24 half blocks in 24 bit colour, each line with a reset at its end, from the grid in assets/bird-grid.txt', async () => {
-  const { GRID, bird } = await import('../src/bird.mjs')
-  // The grid in the module is the drawing, so that the command reads no file for it.
-  assert.deepEqual(GRID, readFileSync(join(ROOT, 'assets', 'bird-grid.txt'), 'utf8').trimEnd().split('\n'))
-  const lines = bird()
-  assert.equal(lines.length, 12)
-  const [upper, lower] = [String.fromCharCode(0x2580), String.fromCharCode(0x2584)]
-  for (const [i, line] of lines.entries()) {
-    assert.ok(line.endsWith(RESET), `line ${i}`)
-    const cells = cellsOf(line)
-    assert.equal(cells.length, 24, `line ${i}`)
-    for (const { char } of cells) assert.ok([upper, lower, ' '].includes(char), `line ${i}`)
-  }
-  // Two known cells. Line 4, cell 10: a grey cell (g) over a yellow one (y), so grey text on a yellow background.
-  assert.deepEqual(cellsOf(lines[4])[10], { codes: '\x1b[38;2;124;142;156m\x1b[48;2;245;197;66m', char: upper })
-  // Line 9, cell 9: grey (g) over black (k).
-  assert.deepEqual(cellsOf(lines[9])[9], { codes: '\x1b[38;2;124;142;156m\x1b[48;2;22;27;31m', char: upper })
-  // Two empty cells give a space, on the terminal's own background.
-  assert.deepEqual(cellsOf(lines[0])[0], { codes: '\x1b[49m', char: ' ' })
-  // An empty cell over a sky cell (s): the lower half block in the sky's colour, so that the upper half stays empty.
-  assert.deepEqual(cellsOf(lines[0])[2], { codes: '\x1b[38;2;191;220;229m\x1b[49m', char: lower })
-})
-
-test('the name, the version and the sentence stand next to the middle of the bird, and without colours only the name and the version show', async () => {
-  const { banner } = await import('../src/bird.mjs')
+test('"widal" with no arguments shows the name and the version above every command, and "connect" ends with them, never the status line or a hook', () => {
+  const m = machine('name-command')
   const version = json('package.json').version
-  const lines = banner(version, { env: { TERM: 'xterm-256color' }, tty: true }).split('\n')
-  assert.equal(lines.length, 12)
-  assert.ok(lines[5].endsWith(`${RESET}  Kestrel ${version}`))
-  assert.ok(lines[6].endsWith(`${RESET}  Shows what your AI coding agents spend, and helps to spend less.`))
-  for (const i of [0, 1, 2, 3, 4, 7, 8, 9, 10, 11]) assert.ok(lines[i].endsWith(RESET), `line ${i}`)
-  // No bird: NO_COLOR is set, the output is not a terminal, or the terminal is "dumb".
-  assert.equal(banner(version, { env: { NO_COLOR: '1', TERM: 'xterm-256color' }, tty: true }), `Kestrel ${version}`)
-  assert.equal(banner(version, { env: { TERM: 'xterm-256color' }, tty: false }), `Kestrel ${version}`)
-  assert.equal(banner(version, { env: { TERM: 'dumb' }, tty: true }), `Kestrel ${version}`)
-})
-
-test('"kestrel" with no arguments shows the name above every command, and "install" ends with it, never the status line or a hook', () => {
-  const m = machine('bird-command')
-  const version = json('package.json').version
-  // The output of a test is not a terminal, so the line with the name stands for the bird.
   const plain = m.run([])
   assert.deepEqual([plain.status, plain.stderr], [0, ''])
-  assert.ok(plain.stdout.startsWith(`Kestrel ${version}\n\nkestrel: what your AI coding agents spend, and what the money pays for.\n`))
-  assert.match(plain.stdout, /^ {2}kestrel summary \[--days 7\] {7}spend by day, project and model, and what it paid for$/m)
+  assert.ok(plain.stdout.startsWith(`Widal.Code ${version}\n\nwidal: what your AI coding agents spend, and what the money pays for.\n`))
+  assert.match(plain.stdout, /^ {2}widal summary \[--days 7\] {7}spend by day, project and model, and what it paid for$/m)
   // "help" shows the commands without it.
-  assert.ok(m.run(['help']).stdout.startsWith('kestrel: what your AI coding agents spend'))
-  const install = m.run(['install'])
-  assert.equal(install.status, 0)
-  assert.ok(install.stdout.endsWith(`\n\nKestrel ${version}\n`))
-  // The status line and the hooks print no name and no half block.
+  assert.ok(m.run(['help']).stdout.startsWith('widal: what your AI coding agents spend'))
+  const connect = m.run(['connect'])
+  assert.equal(connect.status, 0)
+  assert.ok(connect.stdout.endsWith(`\n\nWidal.Code ${version}\n`))
+  // The status line and the hooks print no name.
   for (const args of [['statusline'], ['hook', 'compact-keep'], ['hook', 'compact-keep', '--plugin'], ['hook', 'refresh-copy', '--plugin']]) {
     const r = m.run(args, { input: '{}' })
-    assert.doesNotMatch(r.stdout, new RegExp(`Kestrel ${version}|[${String.fromCharCode(0x2580)}${String.fromCharCode(0x2584)}]`), args.join(' '))
+    assert.doesNotMatch(r.stdout, new RegExp(`Widal.Code ${version}`), args.join(' '))
   }
-  // In the command's file the bird is asked for in two places only: with no arguments, and at the end of "install".
-  assert.equal(readFileSync(join(ROOT, 'cli', 'kestrel.mjs'), 'utf8').split('banner(').length - 1, 2)
+  // Every line of the help with a description has it in the same column.
+  // A line that names a long command has its description further right, and a line that only goes
+  // on from the line above starts in that column too.
+  const long = /^ {2}widal (accounts (label|price)|check --export|apply no-bypass)/
+  const columns = new Set(plain.stdout.split('\n').filter((line) => /^ {2}\S/.test(line) && !long.test(line)).map((line) => /^ {2}\S.*? {2,}(?=\S)/.exec(line)?.[0].length).filter(Boolean))
+  const goesOn = new Set(plain.stdout.split('\n').filter((line) => /^ {20,}\S/.test(line)).map((line) => line.search(/\S/)))
+  assert.deepEqual([...columns], [33])
+  assert.deepEqual([...goesOn], [33])
 })

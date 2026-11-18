@@ -1,22 +1,22 @@
-// The Kestrel pane inside Claude Code. This file is a mod: Claude Code loads it from the plugin
+// The Widal.Code pane inside Claude Code. This file is a mod: Claude Code loads it from the plugin
 // through "modules" in hooks/hooks.json, in the terminal (2.1.287 or newer), the desktop app's Code
 // tab and VS Code. It draws a pane beside the chat (above the prompt in a narrow terminal) with
 // four tabs: Now, the sessions on this computer; Spend, today, the last 7 days, the accounts and
 // the top proposals; Settings, every setting as a checkbox; Security, the open findings of
-// Kestrel's security checks, each with its detail, a Fix when Kestrel can make one, and a button
+// Widal.Code's security checks, each with its detail, a Fix when Widal.Code can make one, and a button
 // that hands the finding to the agent in this session.
 //
-// /kestrel:open and /kestrel:settings are the plugin's own command files. A mod hears every slash
+// /widal:open and /widal:settings are the plugin's own command files. A mod hears every slash
 // command as the event "command.run", named without its slash, so this module answers those two
 // itself: it opens the pane and runs no command. Where nothing draws a pane (claude -p, the Agent
 // SDK, an app that places no panes), it hands the command on, and the command file prints the
 // same as text.
 //
-// The module runs inside Claude Code, without Node. It reaches Kestrel only by running the
+// The module runs inside Claude Code, without Node. It reaches Widal.Code only by running the
 // plugin's own command file with $.process.run, with an argument list and no shell. A run that
 // fails shows as one plain line in the pane. Nothing here uses the network.
 //
-// Task names follow the setting hud.names: "kestrel top --json" leaves them out while names are
+// Task names follow the setting hud.names: "widal top --json" leaves them out while names are
 // off, and the pane shows them only on the person's own screen. Nothing the pane shows goes to
 // the model: the commands it answers return no text. The one exception is the button "Hand to
 // the agent" on the Security tab. After the person says yes, it submits one prompt in the
@@ -26,7 +26,7 @@ import { CHECK_NOTE, controlsLine, handPrompt, placeOf } from '../src/finding-wo
 import { money, tok, when } from '../src/format.mjs'
 
 // The pane's id: it opens the pane, and tells this pane apart when Claude Code draws panes.
-const PANE = 'kestrel'
+const PANE = 'widal'
 const TABS = [
   { id: 'now', label: 'Now', hotkey: '1' },
   { id: 'spend', label: 'Spend', hotkey: '2' },
@@ -34,10 +34,10 @@ const TABS = [
   { id: 'security', label: 'Security', hotkey: '4' },
 ]
 // The tab each command opens the pane on.
-const COMMANDS = { 'kestrel:open': 'now', 'kestrel:settings': 'settings' }
+const COMMANDS = { 'widal:open': 'now', 'widal:settings': 'settings' }
 // The Now tab is read again this often while the pane is open, in milliseconds.
 const EVERY = 5000
-// The longest a run of Kestrel may take. A replay of 30 days of logs for the proposals takes the longest.
+// The longest a run of Widal.Code may take. A replay of 30 days of logs for the proposals takes the longest.
 const SHORT = 60e3
 const LONG = 300e3
 const TOOL_NAMES = { Claude: 'Claude Code', Codex: 'Codex', Cowork: 'Cowork' }
@@ -51,9 +51,9 @@ let timer
 const now = { data: undefined, line: undefined, busy: false }
 const spend = { summary: undefined, advise: undefined, accounts: undefined, line: undefined, message: undefined, busy: false, read: false, confirm: undefined }
 const settings = { data: undefined, line: undefined, message: undefined, project: false, cwd: undefined }
-// The Security tab: the answer of "kestrel check --json", the finding whose detail is open (by
+// The Security tab: the answer of "widal check --json", the finding whose detail is open (by
 // its id), which question is asked ("fix" or "hand"), and the fixes applied while the pane is open.
-// `missing` says that this version of Kestrel has no "kestrel check" yet.
+// `missing` says that this version of Widal.Code has no "widal check" yet.
 const security = { data: undefined, line: undefined, message: undefined, busy: false, missing: false, detail: undefined, confirm: undefined, applied: {} }
 
 /** The first line of a text that is not empty, cut so that it fits one line of the pane. */
@@ -65,19 +65,19 @@ function firstLine(text) {
 /**
  * Runs the plugin's own command file with these arguments, with no shell. Resolves `{ ok: true,
  * out }`, or `{ ok: false, line }` with one plain line that says what went wrong. `missing` says
- * that this version of Kestrel has no such command. `cwd` is the folder it runs in, else the
+ * that this version of Widal.Code has no such command. `cwd` is the folder it runs in, else the
  * session's.
  */
-async function kestrel($, args, timeoutMs = SHORT, cwd) {
+async function runTool($, args, timeoutMs = SHORT, cwd) {
   let r
   try {
-    r = await $.process.run(['node', `${$.plugin.root}/cli/kestrel.mjs`, ...args], cwd ? { timeoutMs, cwd } : { timeoutMs })
+    r = await $.process.run(['node', `${$.plugin.root}/cli/widal.mjs`, ...args], cwd ? { timeoutMs, cwd } : { timeoutMs })
   } catch (err) {
-    return { ok: false, line: `Kestrel could not run: ${firstLine(err?.message ?? err)}` }
+    return { ok: false, line: `Widal.Code could not run: ${firstLine(err?.message ?? err)}` }
   }
   if (r.exitCode === 0) return { ok: true, out: r.stdout }
-  const said = firstLine(r.stderr).replace(/^kestrel: /, '')
-  return { ok: false, line: said || `Kestrel ended with exit code ${r.exitCode}.`, missing: r.exitCode === 2 && /^Unknown command /.test(said) }
+  const said = firstLine(r.stderr).replace(/^widal: /, '')
+  return { ok: false, line: said || `Widal.Code ended with exit code ${r.exitCode}.`, missing: r.exitCode === 2 && /^Unknown command /.test(said) }
 }
 
 /**
@@ -85,8 +85,8 @@ async function kestrel($, args, timeoutMs = SHORT, cwd) {
  * says whether the data has the shape the pane draws. An answer of another shape is a failure
  * too: drawn as it is, it would throw, and Claude Code would leave the pane empty.
  */
-async function kestrelJson($, args, timeoutMs, fits, cwd) {
-  const r = await kestrel($, args, timeoutMs, cwd)
+async function toolJson($, args, timeoutMs, fits, cwd) {
+  const r = await runTool($, args, timeoutMs, cwd)
   if (!r.ok) return r
   let data
   try {
@@ -94,7 +94,7 @@ async function kestrelJson($, args, timeoutMs, fits, cwd) {
   } catch {
     data = undefined
   }
-  return fits(data) ? { ok: true, data } : { ok: false, line: 'Kestrel gave an answer that could not be read.' }
+  return fits(data) ? { ok: true, data } : { ok: false, line: 'Widal.Code gave an answer that could not be read.' }
 }
 // The shapes of the answers the pane draws.
 const isTop = (d) => Array.isArray(d?.sessions) && Array.isArray(d?.limits) && d.sessions.every((s) => s?.shown && Array.isArray(s.also))
@@ -116,7 +116,7 @@ function redraw($) {
 async function loadNow($) {
   if (now.busy) return
   now.busy = true
-  const r = await kestrelJson($, ['top', '--once', '--json'], SHORT, isTop)
+  const r = await toolJson($, ['top', '--once', '--json'], SHORT, isTop)
   now.busy = false
   if (r.ok) {
     now.data = r.data
@@ -127,7 +127,7 @@ async function loadNow($) {
 
 /**
  * Reads the Spend tab: today and the last 7 days, the proposals, and the accounts. One after the
- * other, because each reads the logs through the same cache. "kestrel accounts" may not be part of
+ * other, because each reads the logs through the same cache. "widal accounts" may not be part of
  * this version yet: then the tab has no accounts, and that is no failure.
  */
 async function loadSpend($) {
@@ -136,9 +136,9 @@ async function loadSpend($) {
   spend.read = true
   spend.line = undefined
   redraw($)
-  const summary = await kestrelJson($, ['summary', '--json'], LONG, isSummary)
-  const advise = await kestrelJson($, ['advise', '--json'], LONG, isAdvice)
-  const accounts = await kestrelJson($, ['accounts', '--json'], LONG, isAccounts)
+  const summary = await toolJson($, ['summary', '--json'], LONG, isSummary)
+  const advise = await toolJson($, ['advise', '--json'], LONG, isAdvice)
+  const accounts = await toolJson($, ['accounts', '--json'], LONG, isAccounts)
   spend.summary = summary.ok ? summary.data : undefined
   spend.advise = advise.ok ? advise.data : undefined
   spend.accounts = accounts.ok ? accounts.data.accounts : undefined
@@ -150,7 +150,7 @@ async function loadSpend($) {
 /** Reads the settings, for the Settings and Security tabs: for the session's folder while "for this project" is on. */
 async function loadSettings($) {
   if (!settings.cwd) settings.cwd = await $.session.cwd()
-  const r = await kestrelJson($, ['settings', '--json', ...(settings.project ? ['--project', settings.cwd] : [])], SHORT, isSettings)
+  const r = await toolJson($, ['settings', '--json', ...(settings.project ? ['--project', settings.cwd] : [])], SHORT, isSettings)
   if (r.ok) {
     settings.data = r.data
     settings.line = undefined
@@ -160,12 +160,12 @@ async function loadSettings($) {
 
 /**
  * Reads the Security tab: the settings, for the names of the frameworks, then the open findings
- * from "kestrel check --json" for the session's folder. A version of Kestrel without "kestrel
+ * from "widal check --json" for the session's folder. A version of Widal.Code without "widal
  * check" is no failure: the tab says that the checks are not part of it yet.
  */
 async function loadSecurity($) {
   await loadSettings($)
-  const r = await kestrelJson($, ['check', '--json'], SHORT, isCheck, settings.cwd)
+  const r = await toolJson($, ['check', '--json'], SHORT, isCheck, settings.cwd)
   security.missing = !r.ok && !!r.missing
   if (r.ok) security.data = r.data
   security.line = r.ok || r.missing ? undefined : r.line
@@ -182,7 +182,7 @@ async function loadTab($) {
     } else if (tab === 'settings') await loadSettings($)
     else await loadSecurity($)
   } catch (err) {
-    const line = `Kestrel could not run: ${firstLine(err?.message ?? err)}`
+    const line = `Widal.Code could not run: ${firstLine(err?.message ?? err)}`
     if (tab === 'now') now.line = line
     else if (tab === 'spend') spend.line = line
     else if (tab === 'settings') settings.line = line
@@ -216,12 +216,12 @@ async function tick($) {
 }
 
 /**
- * Changes one setting with "kestrel settings set". The frameworks and the sets go to the session's
+ * Changes one setting with "widal settings set". The frameworks and the sets go to the session's
  * folder while "for this project" is on.
  */
 async function changeSetting($, key, value) {
   const forProject = settings.project && (key.startsWith('security.frameworks.') || key === 'security.set')
-  const r = await kestrel($, ['settings', 'set', key, value, ...(forProject ? ['--project', settings.cwd] : [])])
+  const r = await runTool($, ['settings', 'set', key, value, ...(forProject ? ['--project', settings.cwd] : [])])
   await loadSettings($)
   settings.message = r.ok ? firstLine(r.out) : undefined
   if (!r.ok) settings.line = r.line
@@ -230,17 +230,17 @@ async function changeSetting($, key, value) {
 
 /** Puts back what the last change of a setting replaced. */
 async function undoSetting($) {
-  const r = await kestrel($, ['settings', 'undo'])
+  const r = await runTool($, ['settings', 'undo'])
   await loadSettings($)
   settings.message = r.ok ? firstLine(r.out) : undefined
   if (!r.ok) settings.line = r.line
   redraw($)
 }
 
-/** Gives an account a label of the person's own, with "kestrel accounts label". */
+/** Gives an account a label of the person's own, with "widal accounts label". */
 async function labelAccount($, key, label) {
   if (!String(label).trim()) return
-  const r = await kestrel($, ['accounts', 'label', key, String(label).trim()])
+  const r = await runTool($, ['accounts', 'label', key, String(label).trim()])
   await loadSettings($)
   settings.message = r.ok ? firstLine(r.out) || 'The label is saved.' : undefined
   if (!r.ok) settings.line = r.line
@@ -254,21 +254,21 @@ async function toggleProject($) {
   await loadSettings($)
 }
 
-/** Applies a proposal's change with "kestrel apply", after the person said yes. */
+/** Applies a proposal's change with "widal apply", after the person said yes. */
 async function applyChange($, proposal) {
   spend.confirm = undefined
   spend.message = `Applying ${proposal.action}...`
   redraw($)
-  const r = await kestrel($, ['apply', proposal.action, ...proposal.args], SHORT)
+  const r = await runTool($, ['apply', proposal.action, ...proposal.args], SHORT)
   spend.message = r.ok ? firstLine(r.out) : undefined
   spend.line = r.ok ? undefined : r.line
   if (r.ok) proposal.applied = true
   redraw($)
 }
 
-/** Takes an applied change back with "kestrel undo". */
+/** Takes an applied change back with "widal undo". */
 async function undoChange($, proposal) {
-  const r = await kestrel($, ['undo', proposal.action], SHORT)
+  const r = await runTool($, ['undo', proposal.action], SHORT)
   spend.message = r.ok ? firstLine(r.out) : undefined
   spend.line = r.ok ? undefined : r.line
   if (r.ok) proposal.applied = false
@@ -307,21 +307,21 @@ function askSecurity($, what) {
   redraw($)
 }
 
-/** Applies a finding's fix with "kestrel apply", after the person said yes, as the Spend tab does. */
+/** Applies a finding's fix with "widal apply", after the person said yes, as the Spend tab does. */
 async function applyFix($, action) {
   security.confirm = undefined
   security.message = `Applying ${action}...`
   redraw($)
-  const r = await kestrel($, ['apply', action], SHORT)
+  const r = await runTool($, ['apply', action], SHORT)
   security.message = r.ok ? firstLine(r.out) : undefined
   security.line = r.ok ? undefined : r.line
   if (r.ok) security.applied[action] = true
   redraw($)
 }
 
-/** Takes an applied fix back with "kestrel undo". */
+/** Takes an applied fix back with "widal undo". */
 async function undoFix($, action) {
-  const r = await kestrel($, ['undo', action], SHORT)
+  const r = await runTool($, ['undo', action], SHORT)
   security.message = r.ok ? firstLine(r.out) : undefined
   security.line = r.ok ? undefined : r.line
   if (r.ok) delete security.applied[action]
@@ -351,7 +351,7 @@ async function handToAgent($, f) {
   redraw($)
 }
 
-/** Runs the checks with "kestrel check --run" for the session's folder, then reads the findings again. */
+/** Runs the checks with "widal check --run" for the session's folder, then reads the findings again. */
 async function runChecks($) {
   if (security.busy) return
   security.busy = true
@@ -360,13 +360,13 @@ async function runChecks($) {
   redraw($)
   try {
     if (!settings.cwd) settings.cwd = await $.session.cwd()
-    const r = await kestrel($, ['check', '--run'], LONG, settings.cwd)
+    const r = await runTool($, ['check', '--run'], LONG, settings.cwd)
     if (r.ok) security.message = firstLine(r.out) || 'The checks ran.'
     else if (r.missing) security.missing = true
     else security.line = r.line
     if (r.ok) await loadSecurity($)
   } catch (err) {
-    security.line = `Kestrel could not run: ${firstLine(err?.message ?? err)}`
+    security.line = `Widal.Code could not run: ${firstLine(err?.message ?? err)}`
   } finally {
     security.busy = false
     redraw($)
@@ -409,7 +409,7 @@ function rowLabels(sessions, width) {
   })
 }
 
-/** The Now tab: the sessions, each a button that opens its detail view, and the footer of "kestrel top". */
+/** The Now tab: the sessions, each a button that opens its detail view, and the footer of "widal top". */
 function drawNow($, ui, width) {
   const d = now.data
   const out = now.line ? [failed(ui, now.line)] : []
@@ -449,8 +449,8 @@ function drawDetail($, ui, d) {
 
 /**
  * Dollars with the word for what they are: spend for an account that pays by the token, API value
- * on a subscription (what the same use would cost by the token). `dollars` is what "kestrel
- * accounts --json" says. A version of Kestrel that does not say it gives the dollars alone.
+ * on a subscription (what the same use would cost by the token). `dollars` is what "widal
+ * accounts --json" says. A version of Widal.Code that does not say it gives the dollars alone.
  */
 const valued = (amount, dollars) => (dollars === 'API value' ? `${money(amount)} of API value` : dollars === 'spend' ? `${money(amount)} spend` : money(amount))
 
@@ -458,9 +458,9 @@ const valued = (amount, dollars) => (dollars === 'API value' ? `${money(amount)}
 const monthly = (x) => (Number.isInteger(x) ? `$${x.toLocaleString('en-US')}` : money(x))
 
 /**
- * The dollars of a part of "kestrel summary --json", with what they are: `paid` splits them into
+ * The dollars of a part of "widal summary --json", with what they are: `paid` splits them into
  * spend by the token, API value on subscriptions, and dollars of accounts whose way to pay is not
- * known. A version of Kestrel without `paid` gives the dollars alone.
+ * known. A version of Widal.Code without `paid` gives the dollars alone.
  */
 function paidWords(part) {
   const p = part?.paid
@@ -473,7 +473,7 @@ function paidWords(part) {
   return words.length === 2 ? words.join(' and ') : words.join(', ')
 }
 
-/** One account on the Spend tab, from "kestrel accounts --json": its dollars with what they are, and the price of its plan when known. */
+/** One account on the Spend tab, from "widal accounts --json": its dollars with what they are, and the price of its plan when known. */
 function accountLine(a, days) {
   const limits = [a.limits?.five && `5 hours ${a.limits.five.pct}% used`, a.limits?.week && `week ${a.limits.week.pct}% used`].filter(Boolean)
   const price = Number.isFinite(a.price?.monthly) ? `${monthly(a.price.monthly)} a month` : undefined
@@ -515,7 +515,7 @@ function drawSpend($, ui) {
         }))
       } else if (p.action && p.applied) out.push(ui.Button({ key: `undo-${i}`, label: `Undo ${p.action}`, plain: true, onPress: () => undoChange($, p) }))
       else if (p.action) out.push(ui.Button({ key: `apply-${i}`, label: `Apply ${[p.action, ...p.args].join(' ')}`, plain: true, onPress: () => askApply($, i) }))
-      else out.push(line(ui, 'This change is made by hand. "kestrel advise" says how.', { dimColor: true }))
+      else out.push(line(ui, 'This change is made by hand. "widal advise" says how.', { dimColor: true }))
     })
   }
   if (spend.message) out.push(blank(ui), line(ui, spend.message))
@@ -598,7 +598,7 @@ function yesNo($, ui, yes, onYes) {
 
 /**
  * The Security tab: at the top the frameworks that are on, the open findings by severity and the
- * sentence that Kestrel does not certify; then one row per open finding, the most severe first.
+ * sentence that Widal.Code does not certify; then one row per open finding, the most severe first.
  * A row opens the finding's detail. "Run checks" runs the checks for the session's folder.
  */
 function drawSecurity($, ui, width) {
@@ -612,7 +612,7 @@ function drawSecurity($, ui, width) {
   out.push(heading(ui, 'Frameworks that are on'), line(ui, on.length ? on.map((id) => labels[id] ?? id).join(', ') : 'None.'))
   if (settings.data?.frameworks.from === 'project') out.push(line(ui, `For ${settings.data.frameworks.project}, from ${settings.data.frameworks.file}.`, { dimColor: true }))
   if (security.missing) {
-    out.push(blank(ui), line(ui, 'The checks are not part of this version of Kestrel yet.'), line(ui, CHECK_NOTE, { dimColor: true }))
+    out.push(blank(ui), line(ui, 'The checks are not part of this version of Widal.Code yet.'), line(ui, CHECK_NOTE, { dimColor: true }))
   } else if (!d) {
     if (!fail) out.push(blank(ui), line(ui, 'Reading the findings...', { dimColor: true }))
   } else {
@@ -629,13 +629,13 @@ function drawSecurity($, ui, width) {
   if (security.busy) out.push(blank(ui), line(ui, 'Running the checks...', { dimColor: true }))
   if (security.message) out.push(blank(ui), line(ui, security.message))
   out.push(blank(ui), ui.Button({ key: 'run-checks', label: 'Run checks for this folder', hotkey: 'r', plain: true, onPress: () => runChecks($) }))
-  out.push(line(ui, 'Cloud checks run only when you ask, in a terminal: kestrel cloud-check aws, vercel or github.', { dimColor: true }))
+  out.push(line(ui, 'Cloud checks run only when you ask, in a terminal: widal cloud-check aws, vercel or github.', { dimColor: true }))
   return out
 }
 
 /**
  * The detail of one finding: all its fields (none holds what was matched), its fix command, and
- * when it was first and last seen. Then Fix, when the finding names a fix that Kestrel makes, and
+ * when it was first and last seen. Then Fix, when the finding names a fix that Widal.Code makes, and
  * Hand to the agent, each asking once, and Back.
  */
 function drawFinding($, ui) {
@@ -654,8 +654,10 @@ function drawFinding($, ui) {
     `Controls of the frameworks that are on: ${shown || 'none'}`,
     ...(all.length ? [`Every control it touches: ${all.join('; ')}`] : []),
     ...(Array.isArray(f.reported) && f.reported.length ? [`Frameworks the tool reported: ${f.reported.join(', ')}`] : []),
-    `Found by: ${f.source ?? 'kestrel'}`,
-    `Fix: ${f.fix?.words ?? 'none that Kestrel makes. The finding says what to change.'}`,
+    // The source "kestrel" is the name of this tool's own checks in findings.json, and the board
+    // reads it as that. It stays "kestrel", and is shown as the tool's name.
+    `Found by: ${!f.source || f.source === 'kestrel' ? 'Widal.Code' : f.source}`,
+    `Fix: ${f.fix?.words ?? 'none that Widal.Code makes. The finding says what to change.'}`,
     ...(f.firstSeen ? [`First seen: ${when(f.firstSeen)}`, `Last seen: ${when(f.lastSeen ?? f.firstSeen)}`] : []),
   ]
   const out = [heading(ui, f.title), ...lines.map((l) => line(ui, l)), blank(ui)]
@@ -663,7 +665,7 @@ function drawFinding($, ui) {
   if (security.confirm === 'fix' && action) {
     out.push(line(ui, `Apply ${action}? It changes Claude Code's settings, with a backup.`, { color: 'warning' }), yesNo($, ui, 'Yes, apply', () => applyFix($, action)))
   } else if (action && security.applied[action]) out.push(ui.Button({ key: 'finding-undo', label: `Undo ${action}`, plain: true, onPress: () => undoFix($, action) }))
-  else if (action) out.push(ui.Button({ key: 'finding-fix', label: `Fix: ${f.fix.words ?? `kestrel apply ${action}`}`, hotkey: 'f', plain: true, onPress: () => askSecurity($, 'fix') }))
+  else if (action) out.push(ui.Button({ key: 'finding-fix', label: `Fix: ${f.fix.words ?? `widal apply ${action}`}`, hotkey: 'f', plain: true, onPress: () => askSecurity($, 'fix') }))
   if (security.confirm === 'hand') {
     out.push(line(ui, 'Send this finding to Claude in this session? It uses tokens.', { color: 'warning' }), yesNo($, ui, 'Yes, send', () => handToAgent($, f)))
   } else out.push(ui.Button({ key: 'finding-hand', label: 'Hand to the agent (the only button that uses tokens)', hotkey: 'h', plain: true, onPress: () => askSecurity($, 'hand') }))
@@ -680,15 +682,15 @@ function drawPane($, ui, e) {
 }
 
 export function register(on) {
-  // Runs for /kestrel:open and /kestrel:settings, the plugin's own command files.
-  on('command.run', { command: ['kestrel:open', 'kestrel:settings'] }, async ($, e, next) => {
+  // Runs for /widal:open and /widal:settings, the plugin's own command files.
+  on('command.run', { command: ['widal:open', 'widal:settings'] }, async ($, e, next) => {
     tab = COMMANDS[e.command] ?? 'now'
     detail = undefined
     spend.confirm = undefined
     security.detail = undefined
     security.confirm = undefined
     spend.read = false
-    const placed = await $.ui.open({ id: PANE, title: 'Kestrel', focus: true, closeOnEscape: true })
+    const placed = await $.ui.open({ id: PANE, title: 'Widal.Code', focus: true, closeOnEscape: true })
     if (!placed?.isPlaced) {
       // Nothing draws the pane here: the command file prints the same as text.
       await $.ui.close({ id: PANE })

@@ -1,5 +1,5 @@
 // The catalog of controls: for each security framework that a person can switch on (the keys in
-// settings.mjs), the controls that Kestrel's findings point to.
+// settings.mjs), the controls that Widal.Code's findings point to.
 //
 // Each control has an id, a plain label, and `confirmed`. `confirmed` is true only for an id that
 // was checked against the framework's own text: the HIPAA Security Rule 45 CFR 164.312(a),
@@ -13,7 +13,7 @@
 //
 // ISO/IEC 42001 has no ids here either: a finding names the framework and what it is about.
 //
-// Kestrel checks technical controls and flags risks. A control in this catalog says what a finding
+// Widal.Code checks technical controls and flags risks. A control in this catalog says what a finding
 // is about. It never says that a company meets the control.
 import { FRAMEWORKS } from './settings.mjs'
 

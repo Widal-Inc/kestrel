@@ -4,7 +4,7 @@
 //   - kestrel.mcpb, the desktop extension: a zip with manifest.json, icon.png, package.json, cli/
 //     and src/ at its top, as the extension format asks. A person drags it onto Settings,
 //     Extensions in the app.
-//   - kestrel-skill.zip, the skill: a zip with the folder kestrel/ at its top and SKILL.md in it,
+//   - kestrel-skill.zip, the skill: a zip with the folder widal-code/ at its top and SKILL.md in it,
 //     for an upload under Customize, Skills.
 // It uses the system's zip command. Nothing else goes in: no tests, no research files, no .git.
 import { spawnSync } from 'node:child_process'
@@ -43,8 +43,8 @@ mkdirSync(out, { recursive: true })
 // The files are put together in a new temp folder first, for two reasons: the icon has another
 // name in the extension, and zip adds to an archive that is already there instead of making a
 // new one. The temp folder is left in the system's temp folder.
-const stage = mkdtempSync(join(tmpdir(), 'kestrel-desktop-'))
-const bundle = join(stage, 'kestrel')
+const stage = mkdtempSync(join(tmpdir(), 'widal-code-desktop-'))
+const bundle = join(stage, 'widal-code')
 mkdirSync(bundle)
 copyFileSync(join(ROOT, 'desktop', 'manifest.json'), join(bundle, 'manifest.json'))
 copyFileSync(join(ROOT, 'assets', 'kestrel-512.png'), join(bundle, 'icon.png'))
@@ -52,7 +52,7 @@ copyFileSync(join(ROOT, 'package.json'), join(bundle, 'package.json'))
 // Hidden files, such as .DS_Store on a Mac, stay out.
 for (const dir of ['cli', 'src']) cpSync(join(ROOT, dir), join(bundle, dir), { recursive: true, filter: (path) => !basename(path).startsWith('.') })
 zip(join(stage, 'kestrel.mcpb'), bundle, ['.'])
-zip(join(stage, 'kestrel-skill.zip'), join(ROOT, 'desktop', 'skill'), ['kestrel'])
+zip(join(stage, 'kestrel-skill.zip'), join(ROOT, 'desktop', 'skill'), ['widal-code'])
 for (const name of ['kestrel.mcpb', 'kestrel-skill.zip']) {
   copyFileSync(join(stage, name), join(out, name))
   console.log(`${join(out, name)}  ${statSync(join(out, name)).size} bytes`)

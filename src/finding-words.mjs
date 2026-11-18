@@ -1,5 +1,5 @@
 // The words for a security finding: where it is, which controls it touches, and the prompt that
-// hands it to the agent. The pane in Claude Code, "kestrel cloud-check" and the desktop
+// hands it to the agent. The pane in Claude Code, "widal cloud-check" and the desktop
 // extension all say these the same way.
 //
 // This file imports nothing, because the pane runs inside Claude Code without Node and may only
@@ -7,12 +7,12 @@
 // a finding never holds what was matched.
 
 /** The sentence that goes with every list of findings. */
-export const CHECK_NOTE = 'Kestrel checks technical controls and flags risks. It does not make a company compliant or certify it.'
+export const CHECK_NOTE = 'Widal.Code checks technical controls and flags risks. It does not make a company compliant or certify it.'
 
 /** The names of the cloud providers, as a person reads them. */
 export const PROVIDERS = { aws: 'AWS', vercel: 'Vercel', github: 'GitHub' }
 
-// HITRUST has no control ids of its own in Kestrel. Its findings come through the controls it
+// HITRUST has no control ids of its own in Widal.Code. Its findings come through the controls it
 // shares with HIPAA and ISO 27001.
 const HITRUST_SHARES = ['hipaa', 'iso27001']
 export const HITRUST_NOTE = 'HITRUST: through the controls it shares with HIPAA and ISO 27001'
@@ -78,5 +78,5 @@ export function controlsLine(finding, { on = [], labels = {}, fallback = [] } = 
  * fields: its title, where it is and its controls. A finding never holds what was matched.
  */
 export function handPrompt(finding, controls) {
-  return `Kestrel found: ${clean(finding.title)} in ${placeOf(finding.where)}. Controls: ${controls || 'none named'}. Please fix it, explain what you changed, and do not print any secret.`
+  return `Widal.Code found: ${clean(finding.title)} in ${placeOf(finding.where)}. Controls: ${controls || 'none named'}. Please fix it, explain what you changed, and do not print any secret.`
 }

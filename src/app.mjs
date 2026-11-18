@@ -9,8 +9,13 @@ import { claudeDir, home } from './paths.mjs'
 /** The folder that holds this tool: the one with "cli", "src" and package.json in it. */
 export const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 
-/** The name of this tool's package, as package.json gives it. A folder whose package.json has this name holds this tool. */
-export const PACKAGE = '@widal/kestrel'
+/**
+ * The name of this tool's package, as package.json gives it, and the name it had before the change
+ * of name to Widal.Code. A folder whose package.json has either name holds this tool: a stable
+ * copy or a checkout of the version before the change of name is this tool's too.
+ */
+export const PACKAGE = '@widal/widal-code'
+const PACKAGES = [PACKAGE, '@widal/kestrel']
 
 /** A path with its links resolved. A path that is not there is only made absolute. */
 export const real = (path) => {
@@ -40,15 +45,15 @@ export function version(root = ROOT) {
   return typeof found === 'string' ? found : undefined
 }
 
-/** Whether a folder holds this tool: its package.json names this tool's package. */
-export const holdsTool = (root) => packageOf(root)?.name === PACKAGE
+/** Whether a folder holds this tool: its package.json names this tool's package, under its new or its old name. */
+export const holdsTool = (root) => PACKAGES.includes(packageOf(root)?.name)
 
 /**
  * A sentence for a Node that is too old for this tool, or undefined. The tool needs Node 22: it
  * uses functions of newer versions in many places. `found` is the version of Node, as Node gives it.
  */
 export function nodeNote(found = process.versions.node) {
-  return Number(String(found).split('.')[0]) < 22 ? `Kestrel needs Node 22 or newer, and this computer runs Node ${found}.` : undefined
+  return Number(String(found).split('.')[0]) < 22 ? `Widal.Code needs Node 22 or newer, and this computer runs Node ${found}.` : undefined
 }
 
 // The stable copy.
@@ -64,7 +69,7 @@ const APP_FILES = ['cli', 'src', 'package.json', 'assets']
 
 /** The folder of the stable copy, and the command's file in it. */
 export const appDir = () => join(home(), 'app')
-export const appCommand = () => join(appDir(), 'cli', 'kestrel.mjs')
+export const appCommand = () => join(appDir(), 'cli', 'widal.mjs')
 
 /** The folders where Claude Code keeps the plugins it installed: the one CLAUDE_CODE_PLUGIN_CACHE_DIR names, else "plugins" in Claude Code's folder. */
 const pluginsDirs = (env) => [env.CLAUDE_CODE_PLUGIN_CACHE_DIR, join(claudeDir(), 'plugins'), join(homedir(), '.claude', 'plugins')].filter(Boolean)
@@ -75,7 +80,7 @@ const pluginsDirs = (env) => [env.CLAUDE_CODE_PLUGIN_CACHE_DIR, join(claudeDir()
  * plugins synced from claude.ai). It is also so when Claude Code named the folder in
  * CLAUDE_PLUGIN_ROOT, as it does for a plugin's hooks, and the folder is not a git checkout.
  * Claude Code does not set that variable for a command that a plugin's command file runs, so the
- * first rule is the one for "/kestrel:setup".
+ * first rule is the one for "/widal:connect".
  */
 export function fromPlugin({ root = ROOT, env = process.env } = {}) {
   const here = real(root)
@@ -94,7 +99,7 @@ export function copyApp(from = ROOT, to = appDir()) {
   rmSync(fresh, { recursive: true, force: true })
   mkdirSync(fresh, { recursive: true })
   for (const name of APP_FILES) if (existsSync(join(from, name))) cpSync(join(from, name), join(fresh, name), { recursive: true })
-  for (const name of ['kestrel.mjs', 'agent-spend.mjs']) if (existsSync(join(fresh, 'cli', name))) chmodSync(join(fresh, 'cli', name), 0o755)
+  for (const name of ['widal.mjs', 'kestrel.mjs', 'agent-spend.mjs']) if (existsSync(join(fresh, 'cli', name))) chmodSync(join(fresh, 'cli', name), 0o755)
   if (existsSync(to)) renameSync(to, old)
   renameSync(fresh, to)
   rmSync(old, { recursive: true, force: true })

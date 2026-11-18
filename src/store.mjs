@@ -66,7 +66,7 @@ function metaState(file, source) {
 }
 
 /**
- * The logs of Claude Code, from every config folder that Kestrel knows (see claudeDirs in
+ * The logs of Claude Code, from every config folder that Widal.Code knows (see claudeDirs in
  * paths.mjs). Two config folders can share their folder projects through a link: it is read once.
  */
 function claudeLogs() {

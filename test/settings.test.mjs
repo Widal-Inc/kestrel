@@ -1,4 +1,4 @@
-// Tests for "kestrel settings": every setting as data, "set" for each kind of value, the sets,
+// Tests for "widal settings": every setting as data, "set" for each kind of value, the sets,
 // wrong keys and values, undo, the frameworks of a repository, the older commands that change the
 // same settings, and the list in a stand-in terminal. With made-up home folders. Run: node --test
 import assert from 'node:assert/strict'
@@ -10,12 +10,12 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-const dir = mkdtempSync(join(tmpdir(), 'kestrel-settings-test-'))
+const dir = mkdtempSync(join(tmpdir(), 'widal-code-settings-test-'))
 process.env.HOME = join(dir, 'home-folder')
-process.env.KESTREL_HOME = join(dir, 'home')
+process.env.WIDAL_HOME = join(dir, 'home')
 process.env.CLAUDE_CONFIG_DIR = join(dir, 'claude')
 process.env.CODEX_HOME = join(dir, 'codex')
-process.env.KESTREL_COWORK_DIR = join(dir, 'cowork')
+process.env.WIDAL_COWORK_DIR = join(dir, 'cowork')
 mkdirSync(process.env.HOME, { recursive: true })
 mkdirSync(process.env.CLAUDE_CONFIG_DIR, { recursive: true })
 
@@ -26,23 +26,23 @@ const { compactHintConfig } = await import('../src/compact.mjs')
 const { nudgeConfig } = await import('../src/nudge.mjs')
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url)).replace(/[/\\]$/, '')
-const KESTREL = join(ROOT, 'cli', 'kestrel.mjs')
+const WIDAL = join(ROOT, 'cli', 'widal.mjs')
 
 let homes = 0
 /** A new, empty folder for this tool, so that each test starts with no settings. Returns its config file. */
 function fresh() {
-  process.env.KESTREL_HOME = join(dir, `home-${++homes}`)
-  return join(process.env.KESTREL_HOME, 'config.json')
+  process.env.WIDAL_HOME = join(dir, `home-${++homes}`)
+  return join(process.env.WIDAL_HOME, 'config.json')
 }
-const readConfig = () => JSON.parse(readFileSync(join(process.env.KESTREL_HOME, 'config.json'), 'utf8'))
+const readConfig = () => JSON.parse(readFileSync(join(process.env.WIDAL_HOME, 'config.json'), 'utf8'))
 const writeConfig = (value) => {
-  mkdirSync(process.env.KESTREL_HOME, { recursive: true })
-  writeFileSync(join(process.env.KESTREL_HOME, 'config.json'), JSON.stringify(value))
+  mkdirSync(process.env.WIDAL_HOME, { recursive: true })
+  writeFileSync(join(process.env.WIDAL_HOME, 'config.json'), JSON.stringify(value))
 }
 /** Runs the command with every folder it reads or writes in the made-up home. */
-const run = (args) => spawnSync(process.execPath, [KESTREL, ...args], {
+const run = (args) => spawnSync(process.execPath, [WIDAL, ...args], {
   encoding: 'utf8',
-  env: { PATH: process.env.PATH, HOME: process.env.HOME, KESTREL_HOME: process.env.KESTREL_HOME, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR, CODEX_HOME: process.env.CODEX_HOME, KESTREL_COWORK_DIR: process.env.KESTREL_COWORK_DIR, NO_COLOR: '1' },
+  env: { PATH: process.env.PATH, HOME: process.env.HOME, WIDAL_HOME: process.env.WIDAL_HOME, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR, CODEX_HOME: process.env.CODEX_HOME, WIDAL_COWORK_DIR: process.env.WIDAL_COWORK_DIR, NO_COLOR: '1' },
 })
 /** The value of one setting, as "settings --json" gives it. */
 const valueOf = (key, options) => settingsData(options).settings.find((s) => s.key === key).value
@@ -55,7 +55,7 @@ const ALL_KEYS = [
   'security.checks.settings', 'security.checks.actions', 'security.checks.code', 'security.checks.data', 'security.checks.cloud', 'security.checks.push',
 ]
 
-test('"kestrel settings --json" lists every setting with its value, allowed values, label, group and default, the sets, and the sentence about the checks', () => {
+test('"widal settings --json" lists every setting with its value, allowed values, label, group and default, the sets, and the sentence about the checks', () => {
   fresh()
   const r = run(['settings', '--json'])
   assert.deepEqual([r.status, r.stderr], [0, ''])
@@ -84,20 +84,20 @@ test('"kestrel settings --json" lists every setting with its value, allowed valu
     { key: 'security.set', value: 'life-sciences', label: 'Life sciences', frameworks: ['part11', 'annex11', 'soc2'] },
     { key: 'security.set', value: 'fintech', label: 'Fintech', frameworks: ['soc2', 'pci', 'glba'] },
   ])
-  assert.equal(data.note, 'Kestrel checks technical controls and flags risks. It does not make a company compliant or certify it.')
+  assert.equal(data.note, 'Widal.Code checks technical controls and flags risks. It does not make a company compliant or certify it.')
   assert.deepEqual(data.frameworks, { on: ['owasp-agentic'], from: 'person', file: null, project: null })
-  // "kestrel accounts" finds no account in the empty test folders, and there is nothing to take back yet.
+  // "widal accounts" finds no account in the empty test folders, and there is nothing to take back yet.
   assert.deepEqual(data.accounts, [])
   assert.equal(data.undo, false)
-  // Asking changed no setting. (Asking for the accounts may write Kestrel's cache of the logs.)
-  assert.equal(existsSync(join(process.env.KESTREL_HOME, 'config.json')), false)
+  // Asking changed no setting. (Asking for the accounts may write Widal.Code's cache of the logs.)
+  assert.equal(existsSync(join(process.env.WIDAL_HOME, 'config.json')), false)
 })
 
 test('"set" for each kind of value: on and off, a choice, the lines of the status line, the hints, the frameworks and the checks', () => {
   fresh()
-  assert.equal(setSetting('hud.bars', 'off'), 'Saved: Bars for the context and the limits: off.\nTake it back with: kestrel settings undo')
+  assert.equal(setSetting('hud.bars', 'off'), 'Saved: Bars for the context and the limits: off.\nTake it back with: widal settings undo')
   assert.equal(hudConfig().bars, false)
-  assert.equal(setSetting('hud.layout', 'one'), 'Saved: Layout of the status line: one line.\nTake it back with: kestrel settings undo')
+  assert.equal(setSetting('hud.layout', 'one'), 'Saved: Layout of the status line: one line.\nTake it back with: widal settings undo')
   assert.equal(hudConfig().layout, 'one')
   setSetting('hud.names', 'off')
   assert.deepEqual(readConfig().hud, { layout: 'one', lines: ['session', 'plan', 'work', 'hint'], bars: false, names: false })
@@ -111,7 +111,7 @@ test('"set" for each kind of value: on and off, a choice, the lines of the statu
   setSetting('hud.lines.session', 'off')
   setSetting('hud.lines.plan', 'off')
   // The last line stays: without any, the status line would fall back to all four.
-  assert.throws(() => setSetting('hud.lines.work', 'off'), { message: 'At least one line of the status line stays on. For one line, use: kestrel settings set hud.layout one' })
+  assert.throws(() => setSetting('hud.lines.work', 'off'), { message: 'At least one line of the status line stays on. For one line, use: widal settings set hud.layout one' })
   assert.deepEqual(hudConfig().lines, ['work'])
 
   // The three hints are three settings. Each keeps the other settings of its hint.
@@ -122,17 +122,17 @@ test('"set" for each kind of value: on and off, a choice, the lines of the statu
   assert.equal(compactHintConfig().on, true)
   setSetting('hint.compact', 'off')
   assert.deepEqual([compactHintConfig().on, compactHintConfig().growth], [false, 90000])
-  assert.equal(setSetting('hint.nudge', 'on'), 'Saved: The notification before a cache ends: on.\nTake it back with: kestrel settings undo')
+  assert.equal(setSetting('hint.nudge', 'on'), 'Saved: The notification before a cache ends: on.\nTake it back with: widal settings undo')
   assert.deepEqual(nudgeConfig(), { on: true, before: 7, min: 200000 })
 
-  // A framework and a check: both carry the sentence that Kestrel checks technical controls and certifies nothing.
+  // A framework and a check: both carry the sentence that Widal.Code checks technical controls and certifies nothing.
   fresh()
-  assert.equal(setSetting('security.frameworks.hipaa', 'on'), `Saved: HIPAA: on.\n${CHECKS_NOTE}\nTake it back with: kestrel settings undo`)
+  assert.equal(setSetting('security.frameworks.hipaa', 'on'), `Saved: HIPAA: on.\n${CHECKS_NOTE}\nTake it back with: widal settings undo`)
   assert.deepEqual(readConfig().security, { frameworks: ['hipaa', 'owasp-agentic'] })
   assert.equal(setSetting('security.frameworks.hipaa', 'on'), 'HIPAA was already on. Nothing changed.')
   setSetting('security.frameworks.owasp-agentic', 'off')
   assert.deepEqual(readConfig().security.frameworks, ['hipaa'])
-  assert.equal(setSetting('security.checks.data', 'on'), `Saved: Data (it reads the text of sessions): on.\n${CHECKS_NOTE}\nTake it back with: kestrel settings undo`)
+  assert.equal(setSetting('security.checks.data', 'on'), `Saved: Data (it reads the text of sessions): on.\n${CHECKS_NOTE}\nTake it back with: widal settings undo`)
   setSetting('security.checks.push', 'off')
   assert.deepEqual(readConfig().security, { frameworks: ['hipaa'], checks: { data: true, push: false } })
   assert.equal(valueOf('security.checks.data'), 'on')
@@ -142,7 +142,7 @@ test('"set" for each kind of value: on and off, a choice, the lines of the statu
 
 test('the sets switch their frameworks on, keep the others, and say when all were already on', () => {
   fresh()
-  assert.equal(setSetting('security.set', 'healthcare'), `Saved: the Healthcare set switched on HIPAA, SOC 2 and HITRUST CSF.\n${CHECKS_NOTE}\nTake it back with: kestrel settings undo`)
+  assert.equal(setSetting('security.set', 'healthcare'), `Saved: the Healthcare set switched on HIPAA, SOC 2 and HITRUST CSF.\n${CHECKS_NOTE}\nTake it back with: widal settings undo`)
   assert.deepEqual(readConfig().security.frameworks, ['hipaa', 'hitrust', 'soc2', 'owasp-agentic'])
   setSetting('security.set', 'life-sciences')
   setSetting('security.set', 'fintech')
@@ -160,17 +160,17 @@ test('a wrong key, value or word: one plain sentence, exit code 1, and nothing s
   writeConfig({ hud: { bars: false } })
   const before = readFileSync(config, 'utf8')
   const cases = [
-    [['settings', 'set', 'hud.colour', 'on'], 'kestrel: "hud.colour" is not a setting. See them all with: kestrel settings\n'],
-    [['settings', 'set', 'hud.bars', 'maybe'], 'kestrel: "maybe" is not a value of hud.bars. Use one of: on, off.\n'],
-    [['settings', 'set', 'hud.layout', 'two'], 'kestrel: "two" is not a value of hud.layout. Use one of: lines, one.\n'],
-    [['settings', 'set', 'security.set', 'retail'], 'kestrel: "retail" is not a set. The sets are: healthcare, life-sciences, fintech.\n'],
-    [['settings', 'set', 'hud.bars'], 'kestrel: Use "kestrel settings set <key> <value>", for example: kestrel settings set security.frameworks.hipaa on\n'],
-    [['settings', 'set', 'hud.bars', 'on', 'more'], 'kestrel: Use "kestrel settings set <key> <value>", for example: kestrel settings set security.frameworks.hipaa on\n'],
-    [['settings', 'toggle'], 'kestrel: "toggle" is not one of set, undo. Use "kestrel settings", "kestrel settings set <key> <value>" or "kestrel settings undo".\n'],
-    [['settings', 'undo', 'now'], 'kestrel: "kestrel settings undo" takes no more words, and "now" was given.\n'],
-    [['settings', 'set', 'hud.bars', 'on', '--project', dir], 'kestrel: Only the frameworks can be set for a project. Set hud.bars without --project.\n'],
-    [['settings', 'set', 'security.frameworks.hipaa', 'on', '--project', join(dir, 'missing')], `kestrel: The folder ${join(dir, 'missing')} is not there.\n`],
-    [['settings', 'set', 'security.frameworks.hipaa', 'on', '--project'], 'kestrel: --project needs a folder, for example: kestrel settings --project .\n'],
+    [['settings', 'set', 'hud.colour', 'on'], 'widal: "hud.colour" is not a setting. See them all with: widal settings\n'],
+    [['settings', 'set', 'hud.bars', 'maybe'], 'widal: "maybe" is not a value of hud.bars. Use one of: on, off.\n'],
+    [['settings', 'set', 'hud.layout', 'two'], 'widal: "two" is not a value of hud.layout. Use one of: lines, one.\n'],
+    [['settings', 'set', 'security.set', 'retail'], 'widal: "retail" is not a set. The sets are: healthcare, life-sciences, fintech.\n'],
+    [['settings', 'set', 'hud.bars'], 'widal: Use "widal settings set <key> <value>", for example: widal settings set security.frameworks.hipaa on\n'],
+    [['settings', 'set', 'hud.bars', 'on', 'more'], 'widal: Use "widal settings set <key> <value>", for example: widal settings set security.frameworks.hipaa on\n'],
+    [['settings', 'toggle'], 'widal: "toggle" is not one of set, undo. Use "widal settings", "widal settings set <key> <value>" or "widal settings undo".\n'],
+    [['settings', 'undo', 'now'], 'widal: "widal settings undo" takes no more words, and "now" was given.\n'],
+    [['settings', 'set', 'hud.bars', 'on', '--project', dir], 'widal: Only the frameworks can be set for a project. Set hud.bars without --project.\n'],
+    [['settings', 'set', 'security.frameworks.hipaa', 'on', '--project', join(dir, 'missing')], `widal: The folder ${join(dir, 'missing')} is not there.\n`],
+    [['settings', 'set', 'security.frameworks.hipaa', 'on', '--project'], 'widal: --project needs a folder, for example: widal settings --project .\n'],
   ]
   for (const [args, said] of cases) {
     const r = run(args)
@@ -179,7 +179,7 @@ test('a wrong key, value or word: one plain sentence, exit code 1, and nothing s
     assert.equal(r.stderr.trim().split('\n').length, 1, args.join(' '))
   }
   assert.equal(readFileSync(config, 'utf8'), before)
-  assert.equal(existsSync(join(process.env.KESTREL_HOME, 'settings-undo.json')), false)
+  assert.equal(existsSync(join(process.env.WIDAL_HOME, 'settings-undo.json')), false)
 })
 
 test('undo puts back what the last change replaced, one step, and a key that was not there goes again', () => {
@@ -187,7 +187,7 @@ test('undo puts back what the last change replaced, one step, and a key that was
   writeConfig({ hud: { bars: false }, limits: { day: 20, action: 'ask' } })
   setSetting('hud.names', 'off')
   assert.equal(settingsData().undo, true)
-  assert.equal(undoSetting(), 'Taken back: Names of tasks and agents, on your screen (and on the Kestrel board, when linked): off. The setting is as it was before.')
+  assert.equal(undoSetting(), 'Taken back: Names of tasks and agents, on your screen (and on the Widal.Code board, when linked): off. The setting is as it was before.')
   assert.deepEqual(readConfig(), { hud: { bars: false }, limits: { day: 20, action: 'ask' } })
   assert.equal(undoSetting(), 'There is no change to take back.')
   assert.equal(settingsData().undo, false)
@@ -222,8 +222,8 @@ test('the frameworks of a repository: written with the other keys kept, read bac
 
   const r = run(['settings', 'set', 'security.frameworks.gdpr', 'on', '--project', repo])
   assert.deepEqual([r.status, r.stderr], [0, ''])
-  assert.equal(r.stdout, `Saved for ${repo}: GDPR: on.\nWritten to ${file}.\n${CHECKS_NOTE}\nTake it back with: kestrel settings undo\n`)
-  // Every other key stays, and so does a framework that Kestrel does not know.
+  assert.equal(r.stdout, `Saved for ${repo}: GDPR: on.\nWritten to ${file}.\n${CHECKS_NOTE}\nTake it back with: widal settings undo\n`)
+  // Every other key stays, and so does a framework that Widal.Code does not know.
   assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), { frameworks: ['gdpr', 'pci', 'custom-x'], owner: 'loobster', rules: { strict: true } })
   // The person's own setting did not change.
   assert.deepEqual(readConfig().security.frameworks, ['hipaa', 'owasp-agentic'])
@@ -253,11 +253,11 @@ test('the frameworks of a repository: written with the other keys kept, read bac
 
   // A file that is not a JSON object is never written over.
   writeFileSync(file, '{ not json')
-  assert.throws(() => setSetting('security.frameworks.dora', 'on', { project: repo }), { message: `${file} is not valid JSON, so Kestrel leaves it as it is.` })
+  assert.throws(() => setSetting('security.frameworks.dora', 'on', { project: repo }), { message: `${file} is not valid JSON, so Widal.Code leaves it as it is.` })
   assert.equal(readFileSync(file, 'utf8'), '{ not json')
 })
 
-test('the older commands change the same settings, and "kestrel settings" shows what they set', () => {
+test('the older commands change the same settings, and "widal settings" shows what they set', () => {
   fresh()
   assert.equal(run(['hud', 'bars', 'off']).status, 0)
   assert.equal(run(['hint', 'off']).status, 0)
@@ -270,35 +270,35 @@ test('the older commands change the same settings, and "kestrel settings" shows 
   assert.match(run(['nudge']).stdout, /^Notification before a session's cache ends: off /)
   assert.equal(run(['settings', 'set', 'hud.layout', 'one']).status, 0)
   assert.match(run(['hud']).stdout, /^The status line shows one line/)
-  // "kestrel hud undo" still takes back its own last change.
+  // "widal hud undo" still takes back its own last change.
   assert.equal(run(['hud', 'names', 'off']).status, 0)
   assert.equal(run(['hud', 'undo']).status, 0)
   assert.equal(hudConfig().names, true)
 })
 
-test('without a terminal "kestrel settings" prints the settings as text, with the commands that change them', async () => {
+test('without a terminal "widal settings" prints the settings as text, with the commands that change them', async () => {
   fresh()
   const r = run(['settings'])
   assert.deepEqual([r.status, r.stderr], [0, ''])
   const out = r.stdout
-  assert.ok(out.startsWith('Kestrel settings. Change one with: kestrel settings set <key> <value>\n\nStatus line\n'), out)
+  assert.ok(out.startsWith('Widal.Code settings. Change one with: widal settings set <key> <value>\n\nStatus line\n'), out)
   assert.match(out, /^ {2}hud\.layout +lines \(up to four lines\) +Layout of the status line$/m)
   assert.match(out, /^ {2}security\.frameworks\.hipaa +off +HIPAA$/m)
-  assert.match(out, /^ {2}kestrel settings set security\.set healthcare +HIPAA, SOC 2, HITRUST CSF$/m)
+  assert.match(out, /^ {2}widal settings set security\.set healthcare +HIPAA, SOC 2, HITRUST CSF$/m)
   assert.ok(out.includes(`\n${CHECKS_NOTE}\n`))
-  assert.ok(out.endsWith('Take the last change back with: kestrel settings undo\n'))
+  assert.ok(out.endsWith('Take the last change back with: widal settings undo\n'))
   // A folder with its own frameworks says so.
   const repo = mkdtempSync(join(dir, 'repo-'))
   mkdirSync(join(repo, '.claude'))
   writeFileSync(join(repo, '.claude', 'loobster-frameworks.json'), JSON.stringify({ frameworks: ['hipaa'] }))
-  assert.match(settingsText(settingsData(), { cwd: repo }), /\nThis folder has frameworks of its own in .+loobster-frameworks\.json\. Show them with: kestrel settings --project \.\n/)
+  assert.match(settingsText(settingsData(), { cwd: repo }), /\nThis folder has frameworks of its own in .+loobster-frameworks\.json\. Show them with: widal settings --project \.\n/)
   assert.match(settingsText(settingsData({ project: repo }), { cwd: repo }), /\nThe frameworks above are those of .+, from .+loobster-frameworks\.json\.\n/)
   // The same text comes from the function when the output is not a terminal.
   const text = await settingsCommand([], { output: { isTTY: false }, input: { isTTY: false }, loadAccounts: () => null })
   assert.equal(text, settingsText(settingsData()))
 })
 
-test('the accounts come from "kestrel accounts --json" when it is there, with only what a label needs', async () => {
+test('the accounts come from "widal accounts --json" when it is there, with only what a label needs', async () => {
   fresh()
   const contract = {
     days: 7, current: 'claude:aaa',
@@ -321,7 +321,7 @@ test('the accounts come from "kestrel accounts --json" when it is there, with on
   const json = JSON.parse(await settingsCommand([], { json: true, loadAccounts: () => accounts }))
   assert.deepEqual(json.accounts, accounts)
   const text = settingsText(settingsData({ accounts }))
-  assert.match(text, /\nAccounts:\n {2}claude:aaa +Widal, Inc\.\n {2}api +api\nChange a label with: kestrel accounts label <key> "<label>"\n/)
+  assert.match(text, /\nAccounts:\n {2}claude:aaa +Widal, Inc\.\n {2}api +api\nChange a label with: widal accounts label <key> "<label>"\n/)
 })
 
 /** A stand-in for a terminal: standard input in raw mode, and standard output that keeps what is written. */
@@ -349,7 +349,7 @@ test('the list in a terminal: move, toggle, cycle, a set, undo, quit, and the te
   const done = settingsCommand([], { input, output, loadAccounts: () => null })
   await pause()
   let lines = screen(output)
-  assert.equal(lines[0], 'Kestrel settings · up and down (or j and k) move, space or Enter changes, u undoes, q quits')
+  assert.equal(lines[0], 'Widal.Code settings · up and down (or j and k) move, space or Enter changes, u undoes, q quits')
   assert.equal(lines[2], 'Status line')
   // The cursor starts on the first setting.
   assert.equal(lines[3], '> Layout of the status line: lines (up to four lines)')
@@ -424,7 +424,7 @@ test('the list ends with Ctrl+C too, and after an error the terminal is put back
   await pause()
   for (let i = 0; i < 10 && !screen(t.output).includes('> [x] Line "plan": the plan\'s limits or the dollars, and today\'s tokens'); i++) t.input.emit('data', 'j')
   t.input.emit('data', ' ')
-  assert.equal(screen(t.output).at(-1), 'At least one line of the status line stays on. For one line, use: kestrel settings set hud.layout one')
+  assert.equal(screen(t.output).at(-1), 'At least one line of the status line stays on. For one line, use: widal settings set hud.layout one')
   t.input.emit('data', 'q')
   await done
   assert.deepEqual(hudConfig().lines, ['plan'])

@@ -7,7 +7,7 @@
 //   - input read from its cache (a small part of the input price),
 //   - output, which includes the model's thinking.
 // Sources: Anthropic's and OpenAI's pricing and prompt caching documentation, read on 2026-11-12. A file
-// ~/.kestrel/prices.json replaces or adds entries. A model with no entry has no cost: the
+// ~/.widal/prices.json replaces or adds entries. A model with no entry has no cost: the
 // reports then show its tokens and say that the price is unknown.
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'

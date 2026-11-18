@@ -1,4 +1,4 @@
-// Tests for "kestrel mcp", the server that the Claude desktop app starts, and for the two files
+// Tests for "widal desktop-mcp", the server that the Claude desktop app starts, and for the two files
 // for the app: the desktop extension and the skill. Each test starts the server as a child
 // process, with made-up home folders and made-up logs. Run: node --test
 import assert from 'node:assert/strict'
@@ -10,27 +10,27 @@ import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { inflateRawSync } from 'node:zlib'
 
-const dir = mkdtempSync(join(tmpdir(), 'kestrel-mcp-test-'))
+const dir = mkdtempSync(join(tmpdir(), 'widal-code-mcp-test-'))
 // This process imports no module of the tool. The folders are set all the same, as in the other
 // test files, so that nothing here can reach the real ones.
-// Kestrel also reads the config folders of Claude Code in the home folder, so the home folder is a
+// Widal.Code also reads the config folders of Claude Code in the home folder, so the home folder is a
 // made-up one too.
 process.env.HOME = join(dir, 'person')
-process.env.KESTREL_HOME = join(dir, 'home')
+process.env.WIDAL_HOME = join(dir, 'home')
 process.env.CLAUDE_CONFIG_DIR = join(dir, 'claude')
 process.env.CODEX_HOME = join(dir, 'codex')
-process.env.KESTREL_COWORK_DIR = join(dir, 'cowork')
+process.env.WIDAL_COWORK_DIR = join(dir, 'cowork')
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url)).replace(/[/\\]$/, '')
-const KESTREL = join(ROOT, 'cli', 'kestrel.mjs')
+const WIDAL = join(ROOT, 'cli', 'widal.mjs')
 const json = (...path) => JSON.parse(readFileSync(join(ROOT, ...path), 'utf8'))
 const HOUR = 3600e3
 const iso = (ms) => new Date(ms).toISOString()
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-const TOOL_NAMES = ['what_kestrel_sees', 'spend_summary', 'plan_limits', 'spend_advice', 'compactions', 'spend_by_model', 'whats_running', 'spend_by_ticket', 'spend_by_account', 'security_check']
+const TOOL_NAMES = ['what_widal_code_sees', 'spend_summary', 'plan_limits', 'spend_advice', 'compactions', 'spend_by_model', 'whats_running', 'spend_by_ticket', 'spend_by_account', 'security_check']
 // A word that the made-up logs carry in prompts, answers, tool calls and tool results. No answer may hold it.
 const MARKER = 'PELICANSECRET'
-// A word in a git branch name. Kestrel's own cache keeps branch names, on this computer only, so it is checked in what the server says, not in its files.
+// A word in a git branch name. Widal.Code's own cache keeps branch names, on this computer only, so it is checked in what the server says, not in its files.
 const BRANCH = 'HERONBRANCH'
 
 let machines = 0
@@ -43,7 +43,7 @@ function machine(more = {}) {
   mkdirSync(home, { recursive: true })
   return {
     PATH: process.env.PATH, HOME: home, USERPROFILE: home, NO_COLOR: '1',
-    KESTREL_HOME: join(home, '.kestrel'), CLAUDE_CONFIG_DIR: join(home, '.claude'), CODEX_HOME: join(home, '.codex'), KESTREL_COWORK_DIR: join(home, 'cowork'),
+    WIDAL_HOME: join(home, '.widal'), CLAUDE_CONFIG_DIR: join(home, '.claude'), CODEX_HOME: join(home, '.codex'), WIDAL_COWORK_DIR: join(home, 'cowork'),
     ...more,
   }
 }
@@ -54,8 +54,8 @@ function machine(more = {}) {
  * without one). `close` ends standard input and gives the exit code, every line of standard
  * output, what came after the last line break, and standard error.
  */
-function start(env, { bin = KESTREL } = {}) {
-  const child = spawn(process.execPath, [bin, 'mcp'], { env, stdio: ['pipe', 'pipe', 'pipe'] })
+function start(env, { bin = WIDAL } = {}) {
+  const child = spawn(process.execPath, [bin, 'desktop-mcp'], { env, stdio: ['pipe', 'pipe', 'pipe'] })
   const lines = []
   const waiting = new Map()
   let rest = ''
@@ -163,7 +163,7 @@ function writeLogs(env, now = Date.now()) {
     event('response_item', { type: 'function_call_output', call_id: 'k1', output: MARKER }),
   ].join('\n')}\n`)
 
-  const cowork = join(env.KESTREL_COWORK_DIR, 'account-1', 'workspace-1', 'local_w1')
+  const cowork = join(env.WIDAL_COWORK_DIR, 'account-1', 'workspace-1', 'local_w1')
   mkdirSync(cowork, { recursive: true })
   const entry = (fields) => JSON.stringify({ session_id: 'engine-1', _audit_timestamp: iso(now - 4 * HOUR), ...fields })
   writeFileSync(join(cowork, 'audit.jsonl'), `${[
@@ -187,9 +187,9 @@ test('the handshake agrees on a version, ping answers, and tools/list gives the 
   const init = await s.request('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } })
   // A version that the server speaks is agreed as it is.
   assert.equal(init.result.protocolVersion, '2025-06-18')
-  assert.deepEqual(init.result.serverInfo, { name: 'kestrel', title: 'Kestrel', version: json('package.json').version })
+  assert.deepEqual(init.result.serverInfo, { name: 'widal-code', title: 'Widal.Code', version: json('package.json').version })
   assert.deepEqual(init.result.capabilities, { tools: { listChanged: false } })
-  assert.match(init.result.instructions, /what_kestrel_sees/)
+  assert.match(init.result.instructions, /what_widal_code_sees/)
   s.send({ jsonrpc: '2.0', method: 'notifications/initialized' })
   // A version that it does not know: the answer is the newest one with a handshake.
   assert.equal((await s.request('initialize', { protocolVersion: '1999-01-01', capabilities: {} })).result.protocolVersion, '2025-11-25')
@@ -228,7 +228,7 @@ test('a client of the newest version, without a handshake, gets the versions fro
   assert.equal(discover.supportedVersions[0], '2026-07-28')
   assert.ok(discover.supportedVersions.includes('2025-11-25'))
   assert.deepEqual(discover.capabilities, { tools: { listChanged: false } })
-  assert.equal(discover._meta['io.modelcontextprotocol/serverInfo'].name, 'kestrel')
+  assert.equal(discover._meta['io.modelcontextprotocol/serverInfo'].name, 'widal-code')
   assert.equal(discover.cacheScope, 'public')
   assert.ok(discover.ttlMs > 0)
 
@@ -262,11 +262,11 @@ test('each tool answers on made-up logs, with numbers that can be checked, and n
     return text
   }
 
-  const sees = await ask('what_kestrel_sees')
+  const sees = await ask('what_widal_code_sees')
   assert.match(sees, new RegExp(`Claude Code: 1 log, the newest from ${today()}\\.`))
   assert.match(sees, /Codex: 1 log, the newest from /)
   assert.match(sees, /Cowork: 1 log, the newest from /)
-  assert.match(sees, /What Kestrel cannot see:\n {2}Chat on claude\.ai.+\n {2}Cloud sessions.+\n {2}Other computers/)
+  assert.match(sees, /What Widal.Code cannot see:\n {2}Chat on claude\.ai.+\n {2}Cloud sessions.+\n {2}Other computers/)
 
   for (const days of [undefined, 1, 90]) {
     const summary = await ask('spend_summary', days === undefined ? undefined : { days })
@@ -279,11 +279,11 @@ test('each tool answers on made-up logs, with numbers that can be checked, and n
     assert.match(summary, /Cowork\s+\$0\.21\s+1 calls/)
     assert.match(summary, /work\/app\s+\$0\.72\s+59%/)
     assert.match(summary, /opus-5-5\s+\$0\.72/)
-    // The plan, as far as Kestrel knows: nothing says how this person pays.
-    assert.match(summary, /The plan\nHow you pay, as far as Kestrel knows: usage, paid by the token, not sure/)
-    assert.match(summary, /Kestrel has no reading of the plan's limits\. The Claude app shows the percent under Settings, Usage\./)
+    // The plan, as far as Widal.Code knows: nothing says how this person pays.
+    assert.match(summary, /The plan\nHow you pay, as far as Widal.Code knows: usage, paid by the token, not sure/)
+    assert.match(summary, /Widal.Code has no reading of the plan's limits\. The Claude app shows the percent under Settings, Usage\./)
     // The line that names the command's other reports is gone.
-    assert.doesNotMatch(summary, /Next: "kestrel/)
+    assert.doesNotMatch(summary, /Next: "widal/)
   }
 
   const byModel = await ask('spend_by_model')
@@ -301,8 +301,8 @@ test('each tool answers on made-up logs, with numbers that can be checked, and n
   assert.match(advice, /^Proposals from a replay of the last 30 days: \$1\.23 at list prices, 4 model calls\./)
   assert.match(advice, /1\. Start new sessions in work\/app on a cheaper model: \$0\.36 less, 29% of the total/)
   assert.match(advice, /2\. Start sessions at a lower effort: no amount yet/)
-  assert.match(advice, /Apply: kestrel apply effort-default --level medium/)
-  assert.ok(advice.endsWith('\n\nA change with a "kestrel apply" command is made in a terminal, with that command: Kestrel in the desktop app never changes a setting.'))
+  assert.match(advice, /Apply: widal apply effort-default --level medium/)
+  assert.ok(advice.endsWith('\n\nA change with a "widal apply" command is made in a terminal, with that command: Widal.Code in the desktop app never changes a setting.'))
 
   const compactions = await ask('compactions', { days: 30 })
   assert.match(compactions, /^Compactions, last 30 days\./)
@@ -311,17 +311,17 @@ test('each tool answers on made-up logs, with numbers that can be checked, and n
   assert.match(compactions, /By hand\s+1\s+300k/)
 
   const unknown = await ask('plan_limits')
-  assert.match(unknown, /^How you pay, as far as Kestrel knows: usage, paid by the token, not sure \(no sign of a plan, so figures are list prices\)\./)
-  assert.match(unknown, /Kestrel has no reading of the plan's limits/)
+  assert.match(unknown, /^How you pay, as far as Widal.Code knows: usage, paid by the token, not sure \(no sign of a plan, so figures are list prices\)\./)
+  assert.match(unknown, /Widal.Code has no reading of the plan's limits/)
   assert.match(unknown, /Where the numbers come from:\n {2}The percent: Claude Code gives/)
-  assert.match(unknown, /Kestrel does not read Codex's plan or its limits\./)
-  // A reading of the plan's limits from 10 minutes ago, as Kestrel's status line keeps it: 33%
+  assert.match(unknown, /Widal.Code does not read Codex's plan or its limits\./)
+  // A reading of the plan's limits from 10 minutes ago, as Widal.Code's status line keeps it: 33%
   // of the 5 hour limit, which resets in 2 hours. So 3 of its 5 hours have gone.
   const now = Date.now()
-  mkdirSync(env.KESTREL_HOME, { recursive: true })
-  writeFileSync(join(env.KESTREL_HOME, 'limits.json'), JSON.stringify({ five: { pct: 33, resetsAt: now + 2 * HOUR, at: now - 10 * 60e3 } }))
+  mkdirSync(env.WIDAL_HOME, { recursive: true })
+  writeFileSync(join(env.WIDAL_HOME, 'limits.json'), JSON.stringify({ five: { pct: 33, resetsAt: now + 2 * HOUR, at: now - 10 * 60e3 } }))
   const known = await ask('plan_limits')
-  assert.match(known, /^How you pay, as far as Kestrel knows: subscription \(the plan's limits were seen on this machine today\)\./)
+  assert.match(known, /^How you pay, as far as Widal.Code knows: subscription \(the plan's limits were seen on this machine today\)\./)
   assert.match(known, /The plan's limits, from the newest reading on this computer:\n {2}5 hour limit 33% used \(read 10 min ago\), 60% of its time gone\. It resets at \d{4}-\d\d-\d\d \d\d:\d\d\./)
 
   // Privacy: no answer holds the word from the prompts, answers, tool calls and tool results, and
@@ -330,8 +330,8 @@ test('each tool answers on made-up logs, with numbers that can be checked, and n
   const end = await s.close()
   onlyProtocol(end)
   for (const line of end.lines) assert.ok(!line.includes(MARKER) && !line.includes(BRANCH))
-  const written = filesBelow(env.KESTREL_HOME)
-  assert.ok(written.some((file) => file.includes(`${join(env.KESTREL_HOME, 'cache')}`)), 'the logs went through the cache')
+  const written = filesBelow(env.WIDAL_HOME)
+  assert.ok(written.some((file) => file.includes(`${join(env.WIDAL_HOME, 'cache')}`)), 'the logs went through the cache')
   for (const file of written) assert.ok(!readFileSync(file, 'utf8').includes(MARKER), file)
 })
 
@@ -359,7 +359,7 @@ test('"days" at its bounds and out of them, an unknown tool, an unknown method a
   }
   requests += 2
   assert.equal((await s.call('spend_summary', { weeks: 1 })).content[0].text, 'spend_summary takes one argument, "days".')
-  assert.equal((await s.call('what_kestrel_sees', { days: 7 })).content[0].text, 'what_kestrel_sees takes no arguments.')
+  assert.equal((await s.call('what_widal_code_sees', { days: 7 })).content[0].text, 'what_widal_code_sees takes no arguments.')
 
   // A request that is not right in itself is a protocol error.
   requests++
@@ -400,33 +400,33 @@ test('"days" at its bounds and out of them, an unknown tool, an unknown method a
 
 test('with no logs at all, every tool of the logs says so in plain words, and security_check still answers from the findings', { timeout: 60e3 }, async () => {
   const s = await opened(machine())
-  assert.match(await s.text('security_check'), /^Kestrel's security checks: 0 open findings/)
+  assert.match(await s.text('security_check'), /^Widal.Code's security checks: 0 open findings/)
   for (const name of TOOL_NAMES.filter((n) => n !== 'security_check')) {
     const text = await s.text(name)
-    assert.match(text, /Kestrel found no logs of Claude Code, Codex or Cowork on this computer/, name)
+    assert.match(text, /Widal.Code found no logs of Claude Code, Codex or Cowork on this computer/, name)
     assert.match(text, /Claude does not keep chat usage on this computer/, name)
     assert.match(text, /The plan's percent is shown in the Claude app under Settings, Usage\./, name)
     assert.match(text, /The numbers start once you use Cowork, Claude Code or Codex on this computer\./, name)
   }
-  const sees = await s.text('what_kestrel_sees')
+  const sees = await s.text('what_widal_code_sees')
   assert.match(sees, /Claude Code: no logs\.\n {2}Codex: no logs\.\n {2}Cowork: no logs\./)
   onlyProtocol(await s.close())
 })
 
 test('an error inside a tool gives an error result with one plain sentence, and the server keeps running', { timeout: 60e3 }, async () => {
-  // Kestrel's folder is a file here, so the cache of the parsed logs cannot be made.
+  // Widal.Code's folder is a file here, so the cache of the parsed logs cannot be made.
   const env = machine()
   writeFileSync(join(env.HOME, 'not-a-folder'), '')
-  env.KESTREL_HOME = join(env.HOME, 'not-a-folder')
+  env.WIDAL_HOME = join(env.HOME, 'not-a-folder')
   writeLogs(env)
   const s = await opened(env)
   for (const name of ['spend_summary', 'spend_by_model']) {
     const result = await s.call(name, null)
     assert.equal(result.isError, true)
-    assert.match(result.content[0].text, /^Kestrel could not answer because of an error: [^\n]+\.$/)
+    assert.match(result.content[0].text, /^Widal.Code could not answer because of an error: [^\n]+\.$/)
   }
   // The tools that do not need the cache still answer.
-  assert.match(await s.text('what_kestrel_sees'), /Claude Code: 1 log/)
+  assert.match(await s.text('what_widal_code_sees'), /Claude Code: 1 log/)
   assert.match(await s.text('plan_limits'), /^How you pay/)
   const end = await s.close()
   onlyProtocol(end)
@@ -435,7 +435,7 @@ test('an error inside a tool gives an error result with one plain sentence, and 
 
 test('when the first read of the logs takes longer than the wait, a call says how far it is, and the read goes on', { timeout: 60e3 }, async () => {
   // The wait is 1 millisecond here instead of 40 seconds, and there are 600 logs to read.
-  const env = machine({ KESTREL_MCP_WAIT_MS: '1' })
+  const env = machine({ WIDAL_MCP_WAIT_MS: '1' })
   const folder = join(env.CLAUDE_CONFIG_DIR, 'projects', '-work-app')
   mkdirSync(folder, { recursive: true })
   const at = iso(Date.now() - HOUR)
@@ -446,7 +446,7 @@ test('when the first read of the logs takes longer than the wait, a call says ho
   const s = await opened(env)
   const first = await s.call('spend_summary')
   assert.equal(first.isError, false)
-  const [, done] = first.content[0].text.match(/^Kestrel is still reading the session logs on this computer for the first time: (\d+) of 600 logs done\. Ask again in a minute, and the answer will be there: the reading goes on in the background\.$/) ?? []
+  const [, done] = first.content[0].text.match(/^Widal.Code is still reading the session logs on this computer for the first time: (\d+) of 600 logs done\. Ask again in a minute, and the answer will be there: the reading goes on in the background\.$/) ?? []
   assert.ok(Number(done) < 600, first.content[0].text)
   // A tool that does not read the logs answers at once.
   assert.match(await s.text('plan_limits'), /^How you pay/)
@@ -454,7 +454,7 @@ test('when the first read of the logs takes longer than the wait, a call says ho
   let text
   for (let tries = 0; tries < 300; tries++) {
     text = await s.text('spend_summary')
-    if (!text.startsWith('Kestrel is still reading')) break
+    if (!text.startsWith('Widal.Code is still reading')) break
     await pause(100)
   }
   assert.match(text, /Total\s+\$\d+\.\d\d\s+600 model calls/)
@@ -479,7 +479,7 @@ test('a very long line, two requests in one write, and standard input closed whi
   const one = s.answer(201)
   const two = s.answer(202)
   s.send({ jsonrpc: '2.0', id: 201, method: 'tools/call', params: { name: 'spend_summary', arguments: { days: 7 } } })
-  s.send({ jsonrpc: '2.0', id: 202, method: 'tools/call', params: { name: 'what_kestrel_sees' } })
+  s.send({ jsonrpc: '2.0', id: 202, method: 'tools/call', params: { name: 'what_widal_code_sees' } })
   const end = await s.close()
   assert.equal((await one).result.isError, false)
   assert.equal((await two).result.isError, false)
@@ -514,7 +514,7 @@ function zipEntries(file) {
 
 /** Builds both files into a new temp folder, and gives that folder. */
 function build() {
-  const out = mkdtempSync(join(tmpdir(), 'kestrel-build-test-'))
+  const out = mkdtempSync(join(tmpdir(), 'widal-code-build-test-'))
   const r = spawnSync(process.execPath, [join(ROOT, 'scripts', 'build-desktop.mjs'), out], { encoding: 'utf8' })
   assert.equal(r.status, 0, r.stderr)
   return out
@@ -533,8 +533,8 @@ test('the manifest is valid JSON, has the version of package.json and the tools 
   assert.match(manifest.long_description, /reads local agent logs, returns numbers only, sends nothing anywhere/)
   assert.equal(manifest.icon, 'icon.png')
   assert.equal(manifest.server.type, 'node')
-  assert.equal(manifest.server.entry_point, 'cli/kestrel.mjs')
-  assert.deepEqual(manifest.server.mcp_config, { command: 'node', args: ['${__dirname}/cli/kestrel.mjs', 'mcp'], env: {} })
+  assert.equal(manifest.server.entry_point, 'cli/widal.mjs')
+  assert.deepEqual(manifest.server.mcp_config, { command: 'node', args: ['${__dirname}/cli/widal.mjs', 'desktop-mcp'], env: {} })
   // The Node that package.json asks for, and only systems the code is known to work on.
   assert.equal(pkg.engines.node, '>=22')
   assert.deepEqual(manifest.compatibility, { platforms: ['darwin', 'linux'], runtimes: { node: '>=22.0.0' } })
@@ -563,35 +563,35 @@ test('the build makes the extension with exactly its files, which runs once unpa
   assert.ok(content('manifest.json').equals(readFileSync(join(ROOT, 'desktop', 'manifest.json'))))
 
   // Unpacked into a folder of its own, the extension's server answers from its own files.
-  const unpacked = mkdtempSync(join(tmpdir(), 'kestrel-unpacked-test-'))
+  const unpacked = mkdtempSync(join(tmpdir(), 'widal-code-unpacked-test-'))
   for (const e of mcpb.entries) {
     mkdirSync(dirname(join(unpacked, e.name)), { recursive: true })
     writeFileSync(join(unpacked, e.name), mcpb.content(e))
   }
   const env = machine()
   writeLogs(env)
-  const s = await opened(env, { bin: join(unpacked, 'cli', 'kestrel.mjs') })
+  const s = await opened(env, { bin: join(unpacked, 'cli', 'widal.mjs') })
   assert.match(await s.text('spend_summary'), /Total\s+\$1\.23\s+4 model calls/)
   onlyProtocol(await s.close())
 
   const skill = zipEntries(join(out, 'kestrel-skill.zip'))
-  assert.deepEqual(skill.names, ['kestrel/SKILL.md'])
-  assert.ok(skill.content(skill.entries[0]).equals(readFileSync(join(ROOT, 'desktop', 'skill', 'kestrel', 'SKILL.md'))))
+  assert.deepEqual(skill.names, ['widal-code/SKILL.md'])
+  assert.ok(skill.content(skill.entries[0]).equals(readFileSync(join(ROOT, 'desktop', 'skill', 'widal-code', 'SKILL.md'))))
 })
 
 test('the skill has a name and a description in its front matter, names every tool, and stays under 500 lines', () => {
-  const text = readFileSync(join(ROOT, 'desktop', 'skill', 'kestrel', 'SKILL.md'), 'utf8')
+  const text = readFileSync(join(ROOT, 'desktop', 'skill', 'widal-code', 'SKILL.md'), 'utf8')
   const [, front] = text.match(/^---\n([\s\S]*?)\n---\n/) ?? []
   assert.ok(front, 'front matter')
   const fields = Object.fromEntries(front.split('\n').map((line) => [line.slice(0, line.indexOf(':')), line.slice(line.indexOf(':') + 1).trim()]))
   assert.deepEqual(Object.keys(fields), ['name', 'description'])
-  assert.equal(fields.name, 'kestrel')
+  assert.equal(fields.name, 'widal-code')
   // Anthropic's help page on skills allows 200 characters for the description.
   assert.ok(fields.description.length > 50 && fields.description.length <= 200, fields.description)
   for (const words of ['spend', 'tokens', 'usage', 'limits', 'Claude Code', 'Cowork', 'Codex', 'use less of my plan']) assert.ok(fields.description.includes(words), words)
   for (const name of TOOL_NAMES) assert.ok(text.includes(`\`${name}\``), name)
   assert.match(text, /Never ask the person to paste a log/)
-  assert.match(text, /The numbers need the Kestrel extension in the Claude desktop app, on the computer where your agents run\./)
+  assert.match(text, /The numbers need the Widal.Code extension in the Claude desktop app, on the computer where your agents run\./)
   assert.ok(text.split('\n').length < 500)
 })
 
@@ -599,8 +599,8 @@ test('no new file and no changed file of this part has an em dash or an en dash'
   // The two characters are made from their codes, so that this file holds neither.
   const dashes = new RegExp(`[${String.fromCharCode(0x2013, 0x2014)}]`)
   const files = [
-    'src/mcp.mjs', 'test/mcp.test.mjs', 'scripts/build-desktop.mjs', 'desktop/manifest.json', 'desktop/skill/kestrel/SKILL.md',
-    'docs/desktop.md', 'cli/kestrel.mjs', 'src/claude-code.mjs', 'package.json', '.gitignore',
+    'src/mcp.mjs', 'test/mcp.test.mjs', 'scripts/build-desktop.mjs', 'desktop/manifest.json', 'desktop/skill/widal-code/SKILL.md',
+    'docs/desktop.md', 'cli/widal.mjs', 'src/claude-code.mjs', 'package.json', '.gitignore',
   ]
   for (const file of files) assert.doesNotMatch(readFileSync(join(ROOT, file), 'utf8'), dashes, file)
 })

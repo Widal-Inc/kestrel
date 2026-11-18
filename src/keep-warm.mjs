@@ -8,7 +8,7 @@
 // A wake spends some of the person's plan limit while they are away. So keep-warm is off until
 // the person applies it, and it stops after a number of hours without them (the cap). It is an
 // experiment: a small record keeps what the wakes read and whether the person came back, and
-// "kestrel measure keep-warm" says from it whether keep-warm saved more than it cost.
+// "widal measure keep-warm" says from it whether keep-warm saved more than it cost.
 //
 // This file holds the settings, the words, the record and the measure. The hook itself is in
 // claude-code.mjs, next to the status line, whose figures about the session it reads.
@@ -36,7 +36,7 @@ export const keepWarmConfig = (cfg = config()) => ({ ...DEFAULTS, ...cfg?.keepWa
 export const shortestWait = (k) => (Number.isFinite(k?.minWait) && k.minWait >= 0 ? k.minWait : 30) * 1000
 
 /** What the hook tells the model when it wakes a session. Claude Code shows it as feedback of the hook. */
-export const KEEP_WARM_WAKE = "kestrel keep-warm: nobody typed for a while and this session's cache was about to end. Reply with the single word: ok"
+export const KEEP_WARM_WAKE = "widal keep-warm: nobody typed for a while and this session's cache was about to end. Reply with the single word: ok"
 
 /**
  * A number of hours in words: "3 hours", "1 hour", "2.5 hours". The number comes from the
@@ -157,7 +157,7 @@ const ENOUGH = 10
  */
 export function keepWarmReport({ mode } = {}) {
   const entries = keepWarmRecord().filter((e) => Number.isFinite(e?.wakes) && Number.isFinite(e?.read))
-  if (!entries.length) return `Keep-warm has not woken a session yet, so there is nothing to measure.${keepWarmConfig().on ? '' : ' It is off. Turn it on with: kestrel apply keep-warm'}`
+  if (!entries.length) return `Keep-warm has not woken a session yet, so there is nothing to measure.${keepWarmConfig().on ? '' : ' It is off. Turn it on with: widal apply keep-warm'}`
   const sum = (list, f) => list.reduce((total, e) => total + f(e), 0)
   const last = (e) => (Number.isFinite(e.last) ? e.last : 0)
   const price = (e) => (typeof e.model === 'string' ? priceOf(e.model) : undefined)

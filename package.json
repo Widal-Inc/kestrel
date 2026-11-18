@@ -1,5 +1,5 @@
 {
-  "name": "@widal/kestrel",
+  "name": "@widal/widal-code",
   "version": "0.2.0",
   "private": true,
   "description": "Shows what your AI coding agents spend, and helps to spend less.",
@@ -15,6 +15,7 @@
   },
   "type": "module",
   "bin": {
+    "widal": "cli/widal.mjs",
     "kestrel": "cli/kestrel.mjs"
   },
   "engines": {

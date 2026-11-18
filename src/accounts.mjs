@@ -1,9 +1,9 @@
-// The accounts that Kestrel has seen, their names, and the labels that the person gave them.
+// The accounts that Widal.Code has seen, their names, and the labels that the person gave them.
 //
 // A person can use more than one account: a work and a personal Claude account, two
 // organisations, Codex on a ChatGPT plan. The parsers give each call the key of its account (see
 // parse-claude.mjs, parse-codex.mjs and parse-cowork.mjs). This file keeps what is known about
-// each key in ~/.kestrel/accounts.json:
+// each key in ~/.widal/accounts.json:
 //
 // {
 //   accounts: {
@@ -12,7 +12,7 @@
 //       orgId: "<organisation id>",
 //       billingType, seatTier, organizationType,   as Claude Code names them
 //       maxTier: "5x" | "20x",       the size of a Max plan, from the rate limit tier that Claude Code names (see plans.mjs)
-//       firstSeen, lastSeen,         the times of the first and the last model call Kestrel saw, in milliseconds
+//       firstSeen, lastSeen,         the times of the first and the last model call Widal.Code saw, in milliseconds
 //       label: "Work",               the person's own label, when they set one
 //       price: 100,                  the price of the plan in dollars a month, when the person set one (see plans.mjs)
 //     }
@@ -25,7 +25,7 @@
 //
 // The name of the account that is signed in now comes from Claude Code's file .claude.json
 // (~/.claude.json, or .claude.json in another config folder). That file can be large, so it is
-// read by "kestrel refresh-today", "kestrel accounts" and "kestrel status", never by the status
+// read by "widal refresh-today", "widal accounts" and "widal doctor", never by the status
 // line. An account that is not signed in now keeps the name from the last time it was.
 //
 // Privacy: .claude.json also holds the person's email address, full name and display name. They
@@ -50,7 +50,7 @@ export const LABEL_MAX = 60
 const isObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v)
 const word = (v) => (typeof v === 'string' && WORD.test(v) ? v : undefined)
 const time = (v) => (Number.isFinite(v) ? v : undefined)
-/** The highest price a month that "kestrel accounts price" takes, in dollars. */
+/** The highest price a month that "widal accounts price" takes, in dollars. */
 export const PRICE_MAX = 100_000
 const price = (v) => (Number.isFinite(v) && v >= 0 && v <= PRICE_MAX ? v : undefined)
 const tier = (v) => (v === '5x' || v === '20x' ? v : undefined)
@@ -190,7 +190,7 @@ export const currentAccount = (state = readAccounts()) => state.signedIn.get(rea
 
 /**
  * The account whose plan's limits a view of the whole computer shows, such as the first line of
- * "kestrel top": the account signed in now when it has a reading of a window that is open, else
+ * "widal top": the account signed in now when it has a reading of a window that is open, else
  * the account with the newest such reading.
  */
 export function accountToShow(now = Date.now(), state = readAccounts()) {
@@ -212,7 +212,7 @@ export function accountToShow(now = Date.now(), state = readAccounts()) {
 /** The id part of a key: what comes after "claude:", or the whole key when it has no such part. */
 const idOf = (key) => (key.includes(':') ? key.slice(key.indexOf(':') + 1) : key)
 
-/** A short form of a key, as "kestrel accounts" prints it: the tool and the first 8 characters of the id. */
+/** A short form of a key, as "widal accounts" prints it: the tool and the first 8 characters of the id. */
 export const shortKey = (key) => (key.includes(':') && idOf(key).length > 8 ? `${key.slice(0, key.indexOf(':'))}:${idOf(key).slice(0, 8)}` : key)
 
 /**
@@ -233,12 +233,12 @@ export function labelOf(key, state = readAccounts()) {
  */
 export function findKey(given, keys) {
   const list = [...keys]
-  if (typeof given !== 'string' || !given) throw new Error('Name the account by its key, as "kestrel accounts" prints it.')
+  if (typeof given !== 'string' || !given) throw new Error('Name the account by its key, as "widal accounts" prints it.')
   if (list.includes(given)) return given
   const fits = list.filter((key) => shortKey(key) === given || (given.includes(':') ? key.startsWith(given) : idOf(key).startsWith(given)))
   if (fits.length === 1) return fits[0]
   if (fits.length > 1) throw new Error(`"${plain(given)}" fits more than one account: ${fits.sort().map(shortKey).join(', ')}. Give more of the key.`)
-  if (!list.length) throw new Error('Kestrel knows no account yet. Run "kestrel accounts" first.')
+  if (!list.length) throw new Error('Widal.Code knows no account yet. Run "widal accounts" first.')
   throw new Error(`There is no account "${plain(given)}". The accounts are: ${list.sort().map(shortKey).join(', ')}.`)
 }
 

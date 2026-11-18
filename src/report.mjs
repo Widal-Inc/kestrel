@@ -43,7 +43,7 @@ function unknownNote(calls) {
   // The name of a model comes from a log, and this note is not a table: the name is printed
   // without control characters, so that it cannot add a line or change the terminal.
   const models = [...new Set(unknown.map((e) => plain(e.r.m ?? '')))].join(', ')
-  return `\nNo price is known for ${models}: ${count(unknown.length)} calls, ${tok(sum(unknown, tokensOf))} tokens, not in the dollar figures.\nAdd prices in ~/.kestrel/prices.json.\n`
+  return `\nNo price is known for ${models}: ${count(unknown.length)} calls, ${tok(sum(unknown, tokensOf))} tokens, not in the dollar figures.\nAdd prices in ~/.widal/prices.json.\n`
 }
 
 /** The account of a call: its key, or "unknown". */
@@ -92,17 +92,17 @@ export function summary(records, { days, now = Date.now() }) {
   section('By day', (e) => day(e.r.ts), (k) => k, 14)
   section('By project', (e) => project(e.r.cwd), (k) => k)
   section('By model', (e) => e.r.m, model)
-  out.push('Next: "kestrel findings" for what can be done, "kestrel session" for the latest session.')
+  out.push('Next: "widal findings" for what can be done, "widal session" for the latest session.')
   return out.join('\n')
 }
 
 /**
- * The spend of the period and of today as data ("kestrel summary --json"), for the pane in Claude
+ * The spend of the period and of today as data ("widal summary --json"), for the pane in Claude
  * Code: dollars at list prices, tokens, calls and sessions, then the same per day (newest first)
  * and per tool. `now` says which local day is today. `unpriced` counts the calls of a model
  * without a price, which are not in the dollars. `paid` splits the dollars by how they are paid:
  * `token` is spend, `subscription` is API value, and `unknown` is of accounts whose way to pay
- * Kestrel does not know (see plans.mjs).
+ * Widal.Code does not know (see plans.mjs).
  */
 export function summaryData(records, { days, now = Date.now() }) {
   const { calls } = analyze(records)
@@ -272,7 +272,7 @@ export function branches(records, { days, inRepo = () => true }) {
     'A call counts to a branch when the log names the branch and the folder of the call is in a repository that has it.', '',
     table(rows, [1, 2, 3, 4]), '',
     `Not on a known branch (a folder outside a repository, a branch that is gone, or no branch): ${money(rest.total)}, ${pct(rest.total, t.total)}.`,
-    'One branch in detail: kestrel branch <name>',
+    'One branch in detail: widal branch <name>',
   ].join('\n')
 }
 
@@ -315,7 +315,7 @@ export function tickets(records, { days }) {
 export function branch(records, { days, name, inRepo = () => true }) {
   const { calls } = analyze(records)
   const list = calls.filter((e) => e.r.br === name && inRepo(e.r.cwd, name))
-  if (!list.length) return `No model calls on the branch "${plain(name)}" in the last ${days} days. See: kestrel branches`
+  if (!list.length) return `No model calls on the branch "${plain(name)}" in the last ${days} days. See: widal branches`
   const t = totals(list)
   const sessions = new Set(list.map((e) => e.r.ses)).size
   const span = `${day(list[0].r.ts)} to ${day(list.at(-1).r.ts)}`
@@ -323,14 +323,14 @@ export function branch(records, { days, name, inRepo = () => true }) {
   const folders = [...group(list, (e) => project(e.r.cwd))].map(([k, l]) => `${k} ${money(totals(l).total)}`)
   if (folders.length > 1) out.push(`Folders  ${folders.join(', ')}. A branch with the same name in another repository is counted together with this one.`)
   out.push(unknownNote(list), 'What the dollars paid for', paidFor(t), '')
-  out.push('A line for the pull request:', `Model spend on this branch: ${money(t.total)} at list prices (${count(list.length)} model calls in ${sessions} sessions, ${span}). Measured with Kestrel.`)
+  out.push('A line for the pull request:', `Model spend on this branch: ${money(t.total)} at list prices (${count(list.length)} model calls in ${sessions} sessions, ${span}). Measured with Widal.Code.`)
   out.push('', 'Not counted: work on this branch from another machine, sessions older than the agents keep their logs, and calls a session made in folders outside this repository.')
   out.push('A session that started on this branch and later worked on something else in the same repository is still counted here.')
   return out.join('\n')
 }
 
 /**
- * One line per model call, as its cells. `e` is an analyzed call. "kestrel live" prints the
+ * One line per model call, as its cells. `e` is an analyzed call. "widal live" prints the
  * cells without a table, so each cell is given without control characters: the name of a model
  * or of a tool comes from the log.
  */
@@ -354,7 +354,7 @@ export function callsReport(records, { id, n }) {
 
 // Context above this many tokens is a finding of its own. The fix names the same size.
 const CAP = 200_000
-// The programs of shell commands that "kestrel findings" names, the most tokens first.
+// The programs of shell commands that "widal findings" names, the most tokens first.
 const TOP_PROGRAMS = 5
 const DAY = 86400e3
 
@@ -368,7 +368,7 @@ function repeatCause(x) {
 
 /**
  * Where the dollars went and what can be done, largest first. Each finding ends with the command
- * that fixes it, with the saving that the replay of "kestrel advise" finds for the same calls.
+ * that fixes it, with the saving that the replay of "widal advise" finds for the same calls.
  * `since` is the start of the calls that were read: the share of a weekly limit is worked out only
  * for a week that began after it (see weekRates in plans.mjs).
  */
@@ -400,7 +400,7 @@ export function findings(records, { days, now = Date.now(), since = now - days *
     return lines
   }
 
-  // The replay of "kestrel advise" for the same calls, for the saving that goes with each fix.
+  // The replay of "widal advise" for the same calls, for the saving that goes with each fix.
   const replay = proposals(records, { ownFile: () => undefined, analyzed: { calls, blocks } })
   const proposal = (id) => replay.all.find((x) => x.id === id)
   const period = days === 1 ? 'this day' : `these ${days} days`
@@ -423,8 +423,8 @@ export function findings(records, { days, now = Date.now(), since = now - days *
       'A gap is a break of yours, or a command that runs longer than the cache lasts, such as a long test run or a wait for CI.',
       'Before a long break, summarize the context (/compact) or finish the task. After a break, start a new session if the old context is not needed.',
     )
-    if (sub.length) lines.push(`Fix for the subagents: kestrel apply subagent-cache-1h (${less(proposal('subagent-cache-1h')?.saving)}). It gives subagents a 1 hour cache.`)
-    if (idle.length) lines.push('Fix for the main sessions: kestrel apply keep-warm, an experiment. It wakes an idle session with one short turn shortly before its cache ends, for up to 3 hours without you.')
+    if (sub.length) lines.push(`Fix for the subagents: widal apply subagent-cache-1h (${less(proposal('subagent-cache-1h')?.saving)}). It gives subagents a 1 hour cache.`)
+    if (idle.length) lines.push('Fix for the main sessions: widal apply keep-warm, an experiment. It wakes an idle session with one short turn shortly before its cache ends, for up to 3 hours without you.')
     found.push([t.waste, `The cache was lost ${count(misses.length)} times`, lines])
   }
 
@@ -438,7 +438,7 @@ export function findings(records, { days, now = Date.now(), since = now - days *
     ]
     // The replay counts Claude Code's calls only: the size is a setting of Claude Code.
     const atCap = proposal('autocompact-window')?.points?.find((x) => x.tokens === CAP)?.saving
-    if (atCap > 0) lines.push(`Fix: kestrel apply autocompact-window --tokens ${CAP} (${less(atCap)}). Claude Code then compacts a context on its own at ${tok(CAP)} tokens.`)
+    if (atCap > 0) lines.push(`Fix: widal apply autocompact-window --tokens ${CAP} (${less(atCap)}). Claude Code then compacts a context on its own at ${tok(CAP)} tokens.`)
     found.push([above, `Carrying context above ${tok(CAP)} tokens`, lines])
   }
 
@@ -463,7 +463,7 @@ export function findings(records, { days, now = Date.now(), since = now - days *
     lines.push(...withShare(shareLine(top.flatMap((x) => x.l), (b) => b.acct, (b) => b.entry + b.carry)))
     lines.push('A large result is paid for on every later call. Read parts of files, filter command output, and give large reads to a subagent that returns a summary.')
     const cap = proposal('bash-output-cap')
-    if (cap?.saving > 0) lines.push(`Fix: kestrel apply bash-output-cap (${less(cap.saving)}). Claude then gets at most ${count(cap.chars)} characters of a command's output inline, and a preview and a file for longer output.`)
+    if (cap?.saving > 0) lines.push(`Fix: widal apply bash-output-cap (${less(cap.saving)}). Claude then gets at most ${count(cap.chars)} characters of a command's output inline, and a preview and a file for longer output.`)
     found.push([sum(top, (x) => x.cost), 'Tool results in the context', lines])
   }
 
@@ -473,7 +473,7 @@ export function findings(records, { days, now = Date.now(), since = now - days *
     const lines = repeats.slice(0, 5).map((x) => `${plain(x.tool)} ran ${count(x.n)} times with a repeated input (${count(x.inputs)} ${x.inputs === 1 ? 'input' : 'inputs'}, each 4 times or more) in ${project(x.cwd)}, about ${money(x.cost)}. Likely cause: ${repeatCause(x)}.`)
     lines.push('The cost is that of the repeated results: entering, and carried on the later calls. The first result of each input is not counted.')
     lines.push(repeats.some((x) => x.afterCompaction)
-      ? 'Fix: kestrel apply compact-keep. At each compaction it tells the summary what to keep, such as the files that were changed. No replay can say how much that saves.'
+      ? 'Fix: widal apply compact-keep. At each compaction it tells the summary what to keep, such as the files that were changed. No replay can say how much that saves.'
       : 'Fix: by hand. Look for a loop in that session, or a check that runs more often than it needs to.')
     found.push([cost, 'The same tool call, with the same input, many times', lines])
   }
@@ -483,7 +483,7 @@ export function findings(records, { days, now = Date.now(), since = now - days *
     const st = totals(sub)
     const lines = [`Subagents made ${count(sub.length)} of ${count(calls.length)} calls and cost ${money(st.total)}, ${pct(st.total, t.total)} of the total. This is a figure to know, not waste by itself.`]
     const cheaper = proposal('subagent-model')
-    if (cheaper?.saving > 0) lines.push(`Fix: kestrel apply subagent-model (${less(cheaper.saving)}). Subagents then run on Claude Sonnet 5.5. Compare the work before and after with: kestrel measure subagent-model`)
+    if (cheaper?.saving > 0) lines.push(`Fix: widal apply subagent-model (${less(cheaper.saving)}). Subagents then run on Claude Sonnet 5.5. Compare the work before and after with: widal measure subagent-model`)
     found.push([0, 'Subagents', lines])
   }
 
@@ -495,7 +495,7 @@ export function findings(records, { days, now = Date.now(), since = now - days *
   })
   if (shared) {
     const per = [...weekly.values()].map((r) => `${money(r.perPct)} of API value per 1% for ${r.label}`).join(', ')
-    out.push(`The share of a weekly limit is an estimate. Anthropic does not publish how the limit counts tokens. Kestrel divides the API value of the account's calls from the start of the week to the time of the reading by the percent that the reading gives: ${per}. The percent also counts chat, the phone and other computers, so the share is too high when the plan was used there too.`)
+    out.push(`The share of a weekly limit is an estimate. Anthropic does not publish how the limit counts tokens. Widal.Code divides the API value of the account's calls from the start of the week to the time of the reading by the percent that the reading gives: ${per}. The percent also counts chat, the phone and other computers, so the share is too high when the plan was used there too.`)
   }
   return out.join('\n').trimEnd()
 }

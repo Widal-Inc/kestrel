@@ -1,4 +1,4 @@
-// Tests for the Kestrel pane in Claude Code: "kestrel top --once --json" and the other data the
+// Tests for the Widal.Code pane in Claude Code: "widal top --once --json" and the other data the
 // pane reads, and the mod in hooks/pane.mjs, loaded with a stand-in for what Claude Code gives it
 // (the mods API "$", the events and the elements), built from Anthropic's documentation of mods
 // and the types of Claude Code 2.1.325. With made-up home folders. Run: node --test
@@ -10,12 +10,12 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-const dir = mkdtempSync(join(tmpdir(), 'kestrel-pane-test-'))
+const dir = mkdtempSync(join(tmpdir(), 'widal-code-pane-test-'))
 process.env.HOME = join(dir, 'home-folder')
-process.env.KESTREL_HOME = join(dir, 'home')
+process.env.WIDAL_HOME = join(dir, 'home')
 process.env.CLAUDE_CONFIG_DIR = join(dir, 'claude')
 process.env.CODEX_HOME = join(dir, 'codex')
-process.env.KESTREL_COWORK_DIR = join(dir, 'cowork')
+process.env.WIDAL_COWORK_DIR = join(dir, 'cowork')
 mkdirSync(process.env.HOME, { recursive: true })
 // These say that the person pays by the token. The made-up computer is on a subscription.
 for (const name of ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 'CLAUDE_CODE_USE_FOUNDRY', 'CLAUDE_CODE_USE_MANTLE']) delete process.env[name]
@@ -24,7 +24,7 @@ const { topData } = await import('../src/top.mjs')
 const { localDay } = await import('../src/today-file.mjs')
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url)).replace(/[/\\]$/, '')
-const KESTREL = join(ROOT, 'cli', 'kestrel.mjs')
+const WIDAL = join(ROOT, 'cli', 'widal.mjs')
 const MIN = 60e3
 // A word in every prompt, answer and task of the made-up log. Only the pane with names on may show it.
 const MARKER = 'PELICANSECRET'
@@ -33,7 +33,7 @@ let homes = 0
 /** A made-up computer: every folder the tool reads or writes is in a new folder, and this process points at it. */
 function machine() {
   const home = join(dir, `machine-${++homes}`)
-  const env = { HOME: home, KESTREL_HOME: join(home, '.kestrel'), CLAUDE_CONFIG_DIR: join(home, '.claude'), CODEX_HOME: join(home, '.codex'), KESTREL_COWORK_DIR: join(home, 'cowork') }
+  const env = { HOME: home, WIDAL_HOME: join(home, '.widal'), CLAUDE_CONFIG_DIR: join(home, '.claude'), CODEX_HOME: join(home, '.codex'), WIDAL_COWORK_DIR: join(home, 'cowork') }
   mkdirSync(env.CLAUDE_CONFIG_DIR, { recursive: true })
   Object.assign(process.env, env)
   return { home, env: { PATH: process.env.PATH, NO_COLOR: '1', ...env } }
@@ -49,7 +49,7 @@ const writeJson = (file, value) => {
  * minutes, a task in progress whose name holds the marker, and 625k tokens today.
  */
 function oneSession(m, now) {
-  writeJson(join(m.env.KESTREL_HOME, 'sessions', 'c1.json'), { at: now - 10e3, callAt: now - 20e3, cacheUntil: now + 50 * MIN, ttl: '1h', ctx: 313000, project: 'work/app', model: 'claude-opus-5-5', ticket: 'ABC-322' })
+  writeJson(join(m.env.WIDAL_HOME, 'sessions', 'c1.json'), { at: now - 10e3, callAt: now - 20e3, cacheUntil: now + 50 * MIN, ttl: '1h', ctx: 313000, project: 'work/app', model: 'claude-opus-5-5', ticket: 'ABC-322' })
   const log = join(m.env.CLAUDE_CONFIG_DIR, 'projects', '-work-app', 'c1.jsonl')
   mkdirSync(join(log, '..'), { recursive: true })
   const line = (fields) => JSON.stringify({ cwd: '/work/app', sessionId: 'c1', gitBranch: 'user/abc-322-login', ...fields })
@@ -65,21 +65,21 @@ function oneSession(m, now) {
     }),
     '',
   ].join('\n'))
-  writeJson(join(m.env.KESTREL_HOME, 'today.json'), { day: localDay(now), at: now, tokens: 625000, cacheRead: 311000, coldStarts: 0, coldTokens: 0, sessions: { c1: { tokens: 625000, source: 'claude', project: 'work/app', ticket: 'ABC-322' } }, tickets: {} })
+  writeJson(join(m.env.WIDAL_HOME, 'today.json'), { day: localDay(now), at: now, tokens: 625000, cacheRead: 311000, coldStarts: 0, coldTokens: 0, sessions: { c1: { tokens: 625000, source: 'claude', project: 'work/app', ticket: 'ABC-322' } }, tickets: {} })
   // Limits in the shape of today: one reading per account. The account signed in now has 33%; an older
   // reading of another account ("unknown") has 11% and must not show, although it is newer.
-  writeJson(join(m.env.KESTREL_HOME, 'limits.json'), {
+  writeJson(join(m.env.WIDAL_HOME, 'limits.json'), {
     'claude:acct-now': { five: { pct: 33, resetsAt: now + 2 * 3600e3, at: now - 5 * MIN } },
     // Newer than the signed-in account's, so only the right choice of account shows 33%.
     unknown: { five: { pct: 11, resetsAt: now + 2 * 3600e3, at: now - 30e3 } },
   })
-  writeJson(join(m.env.KESTREL_HOME, 'accounts.json'), { accounts: { 'claude:acct-now': { org: 'Example Org' } }, signedIn: { [realpathSync(m.env.CLAUDE_CONFIG_DIR)]: 'claude:acct-now' } })
+  writeJson(join(m.env.WIDAL_HOME, 'accounts.json'), { accounts: { 'claude:acct-now': { org: 'Example Org' } }, signedIn: { [realpathSync(m.env.CLAUDE_CONFIG_DIR)]: 'claude:acct-now' } })
 }
 
 /** Runs the command on a made-up computer. */
-const run = (m, args) => spawnSync(process.execPath, [KESTREL, ...args], { encoding: 'utf8', env: m.env })
+const run = (m, args) => spawnSync(process.execPath, [WIDAL, ...args], { encoding: 'utf8', env: m.env })
 
-test('"kestrel top --once --json": the head, each row with its facts and its words, the footer, and no task while names are off', () => {
+test('"widal top --once --json": the head, each row with its facts and its words, the footer, and no task while names are off', () => {
   const m = machine()
   const now = Date.now()
   oneSession(m, now)
@@ -109,7 +109,7 @@ test('"kestrel top --once --json": the head, each row with its facts and its wor
   assert.deepEqual([r.status, r.stderr], [0, ''])
   assert.equal(JSON.parse(r.stdout).sessions[0].task, `Writing the ${MARKER} notes`)
   assert.ok(!run(m, ['top', '--once', '--json', '--no-names']).stdout.includes(MARKER))
-  writeJson(join(m.env.KESTREL_HOME, 'config.json'), { hud: { names: false } })
+  writeJson(join(m.env.WIDAL_HOME, 'config.json'), { hud: { names: false } })
   const off = run(m, ['top', '--once', '--json'])
   assert.equal(off.status, 0)
   assert.ok(!off.stdout.includes(MARKER))
@@ -117,10 +117,10 @@ test('"kestrel top --once --json": the head, each row with its facts and its wor
   // --json alone is the view once too, never the live view.
   assert.equal(JSON.parse(run(m, ['top', '--json']).stdout).count, 1)
   // No file of the tool holds the task.
-  assert.ok(!readFileSync(join(m.env.KESTREL_HOME, 'today.json'), 'utf8').includes(MARKER))
+  assert.ok(!readFileSync(join(m.env.WIDAL_HOME, 'today.json'), 'utf8').includes(MARKER))
 })
 
-test('"kestrel summary --json" and "kestrel advise --json" give today, the period and the proposals as data', () => {
+test('"widal summary --json" and "widal advise --json" give today, the period and the proposals as data', () => {
   const m = machine()
   oneSession(m, Date.now())
   const s = run(m, ['summary', '--json'])
@@ -255,13 +255,13 @@ async function loadMod() {
 }
 
 /**
- * A stand-in for the mods API, "$". `answer(args)` gives what a run of Kestrel with these
+ * A stand-in for the mods API, "$". `answer(args)` gives what a run of Widal.Code with these
  * arguments resolves to: { exitCode, stdout, stderr }, or it throws as a program that cannot start.
  */
 function standIn({ answer, placed = true, cwd = '/work/app' }) {
   const calls = { open: [], close: [], redraws: 0, runs: [], timers: [] }
   const $ = {
-    plugin: { name: 'kestrel', root: ROOT },
+    plugin: { name: 'widal', root: ROOT },
     ui: {
       resolve: () => ELEMENTS,
       open: async (pane) => {
@@ -278,7 +278,7 @@ function standIn({ answer, placed = true, cwd = '/work/app' }) {
       run: async (argv, init) => {
         calls.runs.push({ argv, init })
         // The plugin's own command file, run by node, with an argument list.
-        assert.deepEqual(argv.slice(0, 2), ['node', KESTREL])
+        assert.deepEqual(argv.slice(0, 2), ['node', WIDAL])
         assert.ok(init.timeoutMs >= 60e3 && init.timeoutMs <= 600e3)
         const r = await answer(argv.slice(2))
         return { stderr: '', isStdoutTruncated: false, isStderrTruncated: false, ...r }
@@ -298,8 +298,8 @@ function standIn({ answer, placed = true, cwd = '/work/app' }) {
 
 /** What Claude Code passes to the pane's ui.render hook. */
 const paneEvent = (surface = 'terminal') => ({
-  plugin: 'kestrel', component: 'Pane', requestId: 'kestrel', surface, viewport: { columns: 200, rows: 50, isFullscreen: true },
-  props: { title: 'Kestrel', isFocused: true, bodyColumns: 120, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} },
+  plugin: 'widal', component: 'Pane', requestId: 'widal', surface, viewport: { columns: 200, rows: 50, isFullscreen: true },
+  props: { title: 'Widal.Code', isFocused: true, bodyColumns: 120, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} },
 })
 /** The parts of the mod a test drives: run a command, draw the pane, and the hooks themselves. */
 function driver(hooks, s) {
@@ -312,15 +312,15 @@ function driver(hooks, s) {
       return { text: 'the command file ran' }
     }),
     draw: (surface) => of('ui.render').hook(s.$, paneEvent(surface), async () => ({ type: 'engine' })),
-    close: () => of('ui.close').hook(s.$, { id: 'kestrel', origin: { kind: 'person' } }, async () => ({ value: undefined })),
+    close: () => of('ui.close').hook(s.$, { id: 'widal', origin: { kind: 'person' } }, async () => ({ value: undefined })),
   }
 }
 
 /** Runs the real command for a run of the mod, on the made-up computer this process points at. */
 const realAnswer = (args) => {
   const env = { PATH: process.env.PATH, NO_COLOR: '1' }
-  for (const key of ['HOME', 'KESTREL_HOME', 'CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'KESTREL_COWORK_DIR']) env[key] = process.env[key]
-  const r = spawnSync(process.execPath, [KESTREL, ...args], { encoding: 'utf8', env })
+  for (const key of ['HOME', 'WIDAL_HOME', 'CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'WIDAL_COWORK_DIR']) env[key] = process.env[key]
+  const r = spawnSync(process.execPath, [WIDAL, ...args], { encoding: 'utf8', env })
   return { exitCode: r.status, stdout: r.stdout, stderr: r.stderr }
 }
 const ok = (value) => ({ exitCode: 0, stdout: typeof value === 'string' ? value : JSON.stringify(value) })
@@ -328,9 +328,9 @@ const ok = (value) => ({ exitCode: 0, stdout: typeof value === 'string' ? value 
 test('the mod registers its hooks: the two plugin commands, the drawing of its pane, and the pane closing', async () => {
   const hooks = await loadMod()
   assert.deepEqual(hooks.map((h) => [h.event, h.matcher]), [
-    ['command.run', { command: ['kestrel:open', 'kestrel:settings'] }],
+    ['command.run', { command: ['widal:open', 'widal:settings'] }],
     ['ui.render', { component: 'Pane' }],
-    ['ui.close', { id: 'kestrel' }],
+    ['ui.close', { id: 'widal' }],
   ])
   // Claude Code reads hooks/hooks.json: it names the mod, and still carries the plugin's hooks, now also those of the security checks.
   const file = JSON.parse(readFileSync(join(ROOT, 'hooks', 'hooks.json'), 'utf8'))
@@ -348,7 +348,7 @@ test('the mod registers its hooks: the two plugin commands, the drawing of its p
   assert.deepEqual(await hooks[1].hook(standIn({ answer: () => ok('{}') }).$, other, async () => 'theirs'), 'theirs')
 })
 
-test('/kestrel:open opens the pane on Now, reads the sessions every 5 seconds, a row opens its detail view, Back returns, and closing stops the reading', async () => {
+test('/widal:open opens the pane on Now, reads the sessions every 5 seconds, a row opens its detail view, Back returns, and closing stops the reading', async () => {
   const m = machine()
   const at = Date.now()
   oneSession(m, at)
@@ -360,8 +360,8 @@ test('/kestrel:open opens the pane on Now, reads the sessions every 5 seconds, a
   const s = standIn({ answer: (args) => (args.join(' ') === 'top --once --json' ? ok(top) : assert.fail(args.join(' '))) })
   const d = driver(await loadMod(), s)
 
-  assert.deepEqual(await d.command('kestrel:open'), {})
-  assert.deepEqual(s.calls.open, [{ id: 'kestrel', title: 'Kestrel', focus: true, closeOnEscape: true }])
+  assert.deepEqual(await d.command('widal:open'), {})
+  assert.deepEqual(s.calls.open, [{ id: 'widal', title: 'Widal.Code', focus: true, closeOnEscape: true }])
   assert.deepEqual(d.passedOn, [])
   assert.equal(s.calls.timers.length, 1)
   assert.equal(s.calls.timers[0].ms, 5000)
@@ -376,7 +376,7 @@ test('/kestrel:open opens the pane on Now, reads the sessions every 5 seconds, a
   // After the four tabs and a blank line: the head.
   assert.deepEqual(shown.slice(0, 5), ['Now', 'Spend', 'Settings', 'Security', ' '])
   assert.match(shown[5], /^2 sessions on this computer · 5 hour limit 33% used.* · \d\d:\d\d:\d\d$/)
-  // Each row is a button with the columns of "kestrel top".
+  // Each row is a button with the columns of "widal top".
   const row = control(tree, 'session-Claude-c1')
   assert.equal(row.type, 'Button')
   assert.match(row.props.label, /^work\/app {2}Claude {2}ABC-322 {2}working {8}313k {2}warm, 50 min left {2}today 625k$/)
@@ -427,7 +427,7 @@ test('with names off the detail view has no task, because the data holds none', 
   const top = topData(at, { names: false, env: {} })
   const s = standIn({ answer: () => ok(top) })
   const d = driver(await loadMod(), s)
-  await d.command('kestrel:open')
+  await d.command('widal:open')
   await settle()
   control(await d.draw(), 'session-Claude-c1').props.onPress({})
   const shown = words(await d.draw())
@@ -435,12 +435,12 @@ test('with names off the detail view has no task, because the data holds none', 
   assert.ok(!shown.join('\n').includes(MARKER))
 })
 
-test('/kestrel:settings opens the pane on Settings: each checkbox runs "kestrel settings set" with the right arguments, as do the sets, the switch for this project and Undo', async () => {
+test('/widal:settings opens the pane on Settings: each checkbox runs "widal settings set" with the right arguments, as do the sets, the switch for this project and Undo', async () => {
   machine()
   const repo = mkdtempSync(join(dir, 'repo-'))
   const s = standIn({ answer: realAnswer, cwd: repo })
   const d = driver(await loadMod(), s)
-  assert.deepEqual(await d.command('kestrel:settings'), {})
+  assert.deepEqual(await d.command('widal:settings'), {})
   await settle()
   assert.deepEqual(s.args(), ['settings --json'])
   let tree = await d.draw()
@@ -452,10 +452,10 @@ test('/kestrel:settings opens the pane on Settings: each checkbox runs "kestrel 
   assert.ok(shown.includes('[x] OWASP Top 10 for Agentic Applications'))
   assert.ok(shown.includes('[x] Bars for the context and the limits'))
   assert.ok(shown.includes('[ ] Data (it reads the text of sessions)'))
-  assert.ok(shown.includes('Kestrel checks technical controls and flags risks. It does not make a company compliant or certify it.'))
+  assert.ok(shown.includes('Widal.Code checks technical controls and flags risks. It does not make a company compliant or certify it.'))
   assert.ok(shown.includes(`[ ] For this project: ${repo}`))
 
-  // Pressing a checkbox runs "kestrel settings set" and shows the new value.
+  // Pressing a checkbox runs "widal settings set" and shows the new value.
   control(tree, 'setting-security.frameworks.hipaa').props.onPress({ surface: 'terminal' })
   await settle()
   assert.deepEqual(s.calls.runs.at(-2).argv.slice(2), ['settings', 'set', 'security.frameworks.hipaa', 'on'])
@@ -501,7 +501,7 @@ test('/kestrel:settings opens the pane on Settings: each checkbox runs "kestrel 
   await settle()
   assert.deepEqual(s.calls.runs.at(-2).argv.slice(2), ['settings', 'set', 'hint.nudge', 'on'])
 
-  // The Security tab: what is on, for this project, from "kestrel check --json", which finds nothing open here.
+  // The Security tab: what is on, for this project, from "widal check --json", which finds nothing open here.
   control(await d.draw(), 'tab-security').props.onPress({})
   await settle()
   shown = words(await d.draw())
@@ -512,12 +512,12 @@ test('/kestrel:settings opens the pane on Settings: each checkbox runs "kestrel 
     'HIPAA, OWASP Top 10 for Agentic Applications',
     `For ${repo}, from ${join(repo, '.claude', 'loobster-frameworks.json')}.`,
     'Open findings: 0 high, 0 medium, 0 low, 0 info',
-    'Kestrel checks technical controls and flags risks. It does not make a company compliant or certify it.',
+    'Widal.Code checks technical controls and flags risks. It does not make a company compliant or certify it.',
     ' ',
     'No check has found anything open.',
     ' ',
     'Run checks for this folder',
-    'Cloud checks run only when you ask, in a terminal: kestrel cloud-check aws, vercel or github.',
+    'Cloud checks run only when you ask, in a terminal: widal cloud-check aws, vercel or github.',
   ])
 })
 
@@ -525,12 +525,12 @@ test('a setting with more than two choices is a Select, and the accounts get a f
   machine()
   const data = {
     settings: [{ key: 'hud.speed', group: 'Status line', label: 'Speed', kind: 'choice', values: ['slow', 'normal', 'fast'], value: 'normal', default: 'normal' }],
-    sets: [], frameworks: { on: [], from: 'person', file: null, project: null }, note: 'The checks run now: settings, actions and code on their own, data only when you turn it on, and the cloud only when you ask (kestrel cloud-check). Kestrel checks technical controls and certifies nothing.', undo: false,
+    sets: [], frameworks: { on: [], from: 'person', file: null, project: null }, note: 'The checks run now: settings, actions and code on their own, data only when you turn it on, and the cloud only when you ask (widal cloud-check). Widal.Code checks technical controls and certifies nothing.', undo: false,
     accounts: [{ key: 'claude:aaa', label: 'Widal, Inc.', tool: 'Claude Code', kind: 'subscription', plan: 'max' }],
   }
   const s = standIn({ answer: (args) => (args[0] === 'settings' ? ok(data) : ok('The label is saved.\n')) })
   const d = driver(await loadMod(), s)
-  await d.command('kestrel:settings')
+  await d.command('widal:settings')
   await settle()
   const tree = await d.draw()
   const select = control(tree, 'setting-hud.speed')
@@ -568,12 +568,12 @@ const ADVISE = {
   ],
 }
 
-test('Spend: today and 7 days, per account, the top 3 proposals; Apply asks once more and then runs "kestrel apply", and an applied change has Undo', async () => {
+test('Spend: today and 7 days, per account, the top 3 proposals; Apply asks once more and then runs "widal apply", and an applied change has Undo', async () => {
   machine()
   const answers = { 'summary --json': ok(SUMMARY), 'advise --json': ok(ADVISE), 'accounts --json': ok(ACCOUNTS), 'apply effort-default --level medium': ok('Set "effortLevel" to medium in Claude Code\'s settings.\nNew sessions use it.\n'), 'undo subagent-cache-1h': ok('subagent-cache-1h is taken back. Claude Code\'s settings are as they were before it.\n') }
   const s = standIn({ answer: (args) => answers[args.join(' ')] ?? assert.fail(args.join(' ')) })
   const d = driver(await loadMod(), s)
-  await d.command('kestrel:open')
+  await d.command('widal:open')
   await settle()
   control(await d.draw(), 'tab-spend').props.onPress({})
   // While the logs are read, the tab says so.
@@ -599,7 +599,7 @@ test('Spend: today and 7 days, per account, the top 3 proposals; Apply asks once
   assert.ok(shown.includes('2. Subagents check in every 4 minutes while they wait: $80.00 less'))
   assert.ok(shown.includes('3. Give subagents a 1 hour cache: $40.00 less'))
   assert.ok(!shown.some((w) => w.includes('20k tokens less')))
-  assert.ok(shown.includes('This change is made by hand. "kestrel advise" says how.'))
+  assert.ok(shown.includes('This change is made by hand. "widal advise" says how.'))
   assert.equal(control(tree, 'apply-0').props.label, 'Apply effort-default --level medium')
   assert.equal(control(tree, 'undo-2').props.label, 'Undo subagent-cache-1h')
 
@@ -614,7 +614,7 @@ test('Spend: today and 7 days, per account, the top 3 proposals; Apply asks once
   tree = await d.draw()
   assert.equal(s.calls.runs.length, before)
   assert.ok(control(tree, 'apply-0'))
-  // Yes: "kestrel apply" runs with the proposal's arguments, its first line shows, and the change gets Undo.
+  // Yes: "widal apply" runs with the proposal's arguments, its first line shows, and the change gets Undo.
   control(tree, 'apply-0').props.onPress({})
   const yes = control(await d.draw(), 'confirm-yes')
   assert.equal(yes.props.hotkey, 'y')
@@ -624,7 +624,7 @@ test('Spend: today and 7 days, per account, the top 3 proposals; Apply asks once
   tree = await d.draw()
   assert.ok(words(tree).includes('Set "effortLevel" to medium in Claude Code\'s settings.'))
   assert.equal(control(tree, 'undo-0').props.label, 'Undo effort-default')
-  // Undo of an applied change runs "kestrel undo".
+  // Undo of an applied change runs "widal undo".
   control(tree, 'undo-2').props.onPress({})
   await settle()
   assert.deepEqual(s.calls.runs.at(-1).argv.slice(2), ['undo', 'subagent-cache-1h'])
@@ -637,12 +637,12 @@ test('Spend: today and 7 days, per account, the top 3 proposals; Apply asks once
   assert.deepEqual(s.args().slice(-3), ['summary --json', 'advise --json', 'accounts --json'])
 })
 
-test('a run that fails shows one plain line in the pane, and a missing "kestrel accounts" is no failure', async () => {
+test('a run that fails shows one plain line in the pane, and a missing "widal accounts" is no failure', async () => {
   machine()
   // The command ends with an error.
-  let s = standIn({ answer: () => ({ exitCode: 1, stdout: '', stderr: 'kestrel: The folder of the logs cannot be read.\n    at somewhere\n' }) })
+  let s = standIn({ answer: () => ({ exitCode: 1, stdout: '', stderr: 'widal: The folder of the logs cannot be read.\n    at somewhere\n' }) })
   let d = driver(await loadMod(), s)
-  await d.command('kestrel:open')
+  await d.command('widal:open')
   await settle()
   let tree = await d.draw()
   const fail = elements(tree).find((n) => n.type === 'Text' && n.props.color === 'error')
@@ -652,36 +652,36 @@ test('a run that fails shows one plain line in the pane, and a missing "kestrel 
   // The program cannot start at all.
   s = standIn({ answer: () => { throw new Error('spawn node ENOENT') } })
   d = driver(await loadMod(), s)
-  await d.command('kestrel:settings')
+  await d.command('widal:settings')
   await settle()
-  assert.ok(words(await d.draw()).includes('Kestrel could not run: spawn node ENOENT'))
+  assert.ok(words(await d.draw()).includes('Widal.Code could not run: spawn node ENOENT'))
 
   // An answer that is not JSON, and an exit code without a word.
   s = standIn({ answer: (args) => (args[0] === 'top' ? ok('not json') : { exitCode: 3, stdout: '', stderr: '' }) })
   d = driver(await loadMod(), s)
-  await d.command('kestrel:open')
+  await d.command('widal:open')
   await settle()
-  assert.ok(words(await d.draw()).includes('Kestrel gave an answer that could not be read.'))
+  assert.ok(words(await d.draw()).includes('Widal.Code gave an answer that could not be read.'))
   control(await d.draw(), 'tab-security').props.onPress({})
   await settle()
-  assert.ok(words(await d.draw()).includes('Kestrel ended with exit code 3.'))
+  assert.ok(words(await d.draw()).includes('Widal.Code ended with exit code 3.'))
 
-  // A wrong value from a press: the sentence of "kestrel settings set" is the line.
+  // A wrong value from a press: the sentence of "widal settings set" is the line.
   s = standIn({ answer: realAnswer })
   d = driver(await loadMod(), s)
-  writeJson(join(process.env.KESTREL_HOME, 'config.json'), { hud: { lines: ['plan'] } })
-  await d.command('kestrel:settings')
+  writeJson(join(process.env.WIDAL_HOME, 'config.json'), { hud: { lines: ['plan'] } })
+  await d.command('widal:settings')
   await settle()
   control(await d.draw(), 'setting-hud.lines.plan').props.onPress({})
   await settle()
-  assert.ok(words(await d.draw()).includes('At least one line of the status line stays on. For one line, use: kestrel settings set hud.layout one'))
+  assert.ok(words(await d.draw()).includes('At least one line of the status line stays on. For one line, use: widal settings set hud.layout one'))
 
-  // This version has no "kestrel accounts": the real command says it does not know it, and the tab shows no failure.
+  // This version has no "widal accounts": the real command says it does not know it, and the tab shows no failure.
   // Its summary does not split the dollars by how they are paid either: the tab gives the dollars alone.
   const older = { ...SUMMARY, period: { ...SUMMARY.period, paid: undefined }, today: { ...SUMMARY.today, paid: undefined } }
   s = standIn({ answer: (args) => (args[0] === 'accounts' || args[0] === 'top' ? realAnswer(args) : args[0] === 'summary' ? ok(older) : ok(ADVISE)) })
   d = driver(await loadMod(), s)
-  await d.command('kestrel:open')
+  await d.command('widal:open')
   await settle()
   control(await d.draw(), 'tab-spend').props.onPress({})
   await settle()
@@ -695,11 +695,11 @@ test('where nothing draws a pane, the commands hand on to their command files, w
   machine()
   const s = standIn({ answer: () => assert.fail('nothing runs'), placed: false })
   const d = driver(await loadMod(), s)
-  assert.deepEqual(await d.command('kestrel:settings'), { text: 'the command file ran' })
-  assert.deepEqual(await d.command('kestrel:open'), { text: 'the command file ran' })
-  assert.deepEqual(d.passedOn, ['kestrel:settings', 'kestrel:open'])
+  assert.deepEqual(await d.command('widal:settings'), { text: 'the command file ran' })
+  assert.deepEqual(await d.command('widal:open'), { text: 'the command file ran' })
+  assert.deepEqual(d.passedOn, ['widal:settings', 'widal:open'])
   // The pane that waits undrawn is closed again, and nothing reads on a timer.
-  assert.deepEqual(s.calls.close, [{ id: 'kestrel' }, { id: 'kestrel' }])
+  assert.deepEqual(s.calls.close, [{ id: 'widal' }, { id: 'widal' }])
   assert.equal(s.calls.timers.length, 0)
   assert.equal(s.calls.runs.length, 0)
   // The command files print text without a terminal: the settings with the commands that change
@@ -708,10 +708,10 @@ test('where nothing draws a pane, the commands hand on to their command files, w
   oneSession(m, Date.now())
   const settings = run(m, ['settings'])
   assert.equal(settings.status, 0)
-  assert.match(settings.stdout, /kestrel settings set security\.set healthcare/)
+  assert.match(settings.stdout, /widal settings set security\.set healthcare/)
   const open = run(m, ['top', '--once', '--no-names'])
   assert.equal(open.status, 0)
-  assert.match(open.stdout, /^Kestrel · 1 session on this computer/)
+  assert.match(open.stdout, /^Widal.Code · 1 session on this computer/)
   assert.ok(!open.stdout.includes(MARKER))
 })
 
@@ -720,7 +720,7 @@ test('each tab draws a tree the terminal, the desktop app and VS Code take', asy
   oneSession(m, Date.now())
   const s = standIn({ answer: (args) => ({ 'summary --json': ok(SUMMARY), 'advise --json': ok(ADVISE), 'accounts --json': ok(ACCOUNTS) })[args.join(' ')] ?? realAnswer(args) })
   const d = driver(await loadMod(), s)
-  await d.command('kestrel:open')
+  await d.command('widal:open')
   await settle()
   for (const tab of ['now', 'spend', 'settings', 'security']) {
     control(await d.draw(), `tab-${tab}`).props.onPress({})

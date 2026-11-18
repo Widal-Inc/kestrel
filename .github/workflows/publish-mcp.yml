@@ -1,4 +1,4 @@
-# Lists Kestrel's desktop extension in the official MCP Registry (registry.modelcontextprotocol.io).
+# Lists Widal.Code's desktop extension in the official MCP Registry (registry.modelcontextprotocol.io).
 # It runs for a version tag, or by hand. GitHub's OIDC token proves that the job runs in
 # Widal-Inc/kestrel, so no secret is needed. server.json names the release file and its SHA-256.
 # Steps from the registry's guide: docs/modelcontextprotocol-io/github-actions.mdx.

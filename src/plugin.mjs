@@ -5,13 +5,13 @@
 // name and the word --plugin. Three are about the cache and compaction, and three start the
 // security checks or ask before a push (see security.mjs).
 //
-// The same hooks can be in Claude Code's settings too, put there by "kestrel apply" or, for the
-// three of the security checks, by "kestrel install". Claude Code
+// The same hooks can be in Claude Code's settings too, put there by "widal apply" or, for the
+// three of the security checks, by "widal connect". Claude Code
 // runs both: it keeps a plugin's hook apart from the same hook in the settings. So with --plugin
 // the tool first looks at the settings file. When it holds the tool's own hook for the same
 // event, the plugin's hook prints nothing. The one in the settings is in charge.
 //
-// The person can turn each plugin hook off and on with "kestrel hooks". The choice is kept in this
+// The person can turn each plugin hook off and on with "widal hooks". The choice is kept in this
 // tool's config, as "pluginHooks". A hook is on until it is turned off: a person who installs the
 // plugin asked for its hooks.
 import { config, saveConfig } from './config.mjs'
@@ -19,16 +19,16 @@ import { hookSet } from './install.mjs'
 
 /**
  * The plugin's hooks by name: the event Claude Code runs each one at, that event in words, and the
- * change of "kestrel apply" that puts the same hook into the settings. `undo` is the command that
- * takes the same hook out of the settings, when that is not "kestrel undo <change>".
+ * change of "widal apply" that puts the same hook into the settings. `undo` is the command that
+ * takes the same hook out of the settings, when that is not "widal undo <change>".
  */
 export const PLUGIN_HOOKS = {
   'compact-keep': { event: 'PreCompact', when: 'before a compaction', change: 'compact-keep' },
   'cold-start': { event: 'UserPromptSubmit', when: 'when you send a prompt', change: 'cold-start-warn' },
   'model-switch': { event: 'PreModelSwitch', when: 'before a change of model', change: 'model-switch-cost' },
-  'check-settings': { event: 'SessionStart', when: 'when a session starts', undo: 'kestrel uninstall' },
-  'check-turn': { event: 'Stop', when: "when an agent's turn ends", undo: 'kestrel uninstall' },
-  'push-gate': { event: 'PreToolUse', when: 'before a shell command', undo: 'kestrel uninstall' },
+  'check-settings': { event: 'SessionStart', when: 'when a session starts', undo: 'widal disconnect' },
+  'check-turn': { event: 'Stop', when: "when an agent's turn ends", undo: 'widal disconnect' },
+  'push-gate': { event: 'PreToolUse', when: 'before a shell command', undo: 'widal disconnect' },
 }
 
 const isObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v)

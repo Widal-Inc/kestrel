@@ -8,15 +8,17 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-const dir = mkdtempSync(join(tmpdir(), 'kestrel-test-'))
-// Kestrel also reads the config folders of Claude Code in the home folder, so the home folder is a
+const dir = mkdtempSync(join(tmpdir(), 'widal-code-test-'))
+// Widal.Code also reads the config folders of Claude Code in the home folder, so the home folder is a
 // made-up one too.
 process.env.HOME = join(dir, 'person')
-process.env.KESTREL_HOME = join(dir, 'home')
+// The link that Claude Code's settings call, in the tool's folder of the test. Each test has a folder of its own (freshHome).
+const own = () => join(process.env.WIDAL_HOME, 'bin', 'widal')
+process.env.WIDAL_HOME = join(dir, 'home')
 process.env.CLAUDE_CONFIG_DIR = join(dir, 'claude')
 process.env.CODEX_HOME = join(dir, 'codex')
 // Cowork's folder too: without this a test would read the real Cowork logs of whoever runs it.
-process.env.KESTREL_COWORK_DIR = join(dir, 'cowork')
+process.env.WIDAL_COWORK_DIR = join(dir, 'cowork')
 mkdirSync(process.env.CLAUDE_CONFIG_DIR, { recursive: true })
 
 const { coldStartHook, limitHook, modelSwitchHook, saveConfig, statusLine } = await import('../src/claude-code.mjs')
@@ -30,7 +32,7 @@ const sent = []
 // Each test gets its own empty folder for this tool's files, so that no test sees another's.
 let homes = 0
 const freshHome = () => {
-  process.env.KESTREL_HOME = join(dir, `home-${++homes}`)
+  process.env.WIDAL_HOME = join(dir, `home-${++homes}`)
   sent.length = 0
 }
 
@@ -47,10 +49,10 @@ const sec = (ms) => Math.round(ms / 1000)
  * either. A test that expects a clock time from the command gives it one, as `TZ` in `env`.
  * `more` are further options for the start of the command, such as a time after which it is ended.
  */
-const BIN = fileURLToPath(new URL('../cli/kestrel.mjs', import.meta.url))
+const BIN = fileURLToPath(new URL('../cli/widal.mjs', import.meta.url))
 const exec = (args, env = {}, input, more = {}) => spawnSync(process.execPath, [BIN, ...args], {
   encoding: 'utf8', input, ...more,
-  env: { PATH: process.env.PATH, HOME: dir, USERPROFILE: dir, KESTREL_HOME: process.env.KESTREL_HOME, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR, CODEX_HOME: process.env.CODEX_HOME, ...env },
+  env: { PATH: process.env.PATH, HOME: dir, USERPROFILE: dir, WIDAL_HOME: process.env.WIDAL_HOME, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR, CODEX_HOME: process.env.CODEX_HOME, ...env },
 })
 /** The same, as everything the command printed. */
 function run(args, env, input) {
@@ -85,7 +87,7 @@ const REST = 'cache warm, 52 min left | context 527k (53%) | effort high'
  */
 const line = (input, now = NOW, opts = {}) => statusLine(input, now, { env: {}, color: false, notify: (title, body) => sent.push([title, body]), layout: 'one', ...opts })
 /** What the status line keeps about one session. */
-const kept = (id) => JSON.parse(readFileSync(join(process.env.KESTREL_HOME, 'sessions', `${id}.json`), 'utf8'))
+const kept = (id) => JSON.parse(readFileSync(join(process.env.WIDAL_HOME, 'sessions', `${id}.json`), 'utf8'))
 
 const TONES = { 32: 'good', 33: 'warn', 31: 'bad', 2: 'dim' }
 /** The parts of a line with colours, each as [text, tone]. A part without a colour has no tone. */
@@ -105,7 +107,7 @@ const limitPart = (rate_limits) => {
 }
 
 /** The text of every file in this tool's folder. */
-const filesText = () => readdirSync(process.env.KESTREL_HOME, { recursive: true, withFileTypes: true })
+const filesText = () => readdirSync(process.env.WIDAL_HOME, { recursive: true, withFileTypes: true })
   .filter((f) => f.isFile())
   .map((f) => readFileSync(join(f.parentPath ?? f.path, f.name), 'utf8'))
   .join('\n')
@@ -134,9 +136,9 @@ test('a cost that is not a number does not break the day\'s total: the day\'s li
   assert.equal(line(spender), '$50.00 session | today $50.00 of $1')
   const stop = limitHook({ session_id: 'q' }, NOW)
   assert.equal(stop.continue, false)
-  assert.equal(stop.stopReason, 'Kestrel stopped the agent: today\'s spend is $50.00, and the day\'s limit is $1.00. Raise it with "kestrel limit", or turn it off with "kestrel limit --off".')
+  assert.equal(stop.stopReason, 'Widal.Code stopped the agent: today\'s spend is $50.00, and the day\'s limit is $1.00. Raise it with "widal limit", or turn it off with "widal limit --off".')
   // The same for a session's file that is broken: text, nothing, or a list where a number belongs.
-  const sessions = join(process.env.KESTREL_HOME, 'sessions')
+  const sessions = join(process.env.WIDAL_HOME, 'sessions')
   for (const [id, broken] of [['r', { cost: '50', dayStart: 0 }], ['s', { cost: 3, dayStart: 'abc' }], ['t', { cost: null, dayStart: [] }], ['u', {}]]) {
     writeFileSync(join(sessions, `${id}.json`), JSON.stringify({ day: '2026-11-12', at: NOW, ...broken }))
   }
@@ -177,14 +179,14 @@ test('the status line prints no control characters from Claude Code\'s input: th
   assert.doesNotMatch(inColour.replace(/\x1b\[(0|2|31|32|33)m/g, ''), /[\x00-\x1f\x7f-\x9f]/)
   // The short name of the folder is kept without them, and so it is in the title of the notification.
   assert.equal(kept('one').project, '[31mRED]0;PWN/proj')
-  assert.deepEqual(sent.map(([title]) => title), ['kestrel: [31mRED]0;PWN/proj cache ends at 12:04'])
+  assert.deepEqual(sent.map(([title]) => title), ['widal: [31mRED]0;PWN/proj cache ends at 12:04'])
   // An effort level that is not text does not break the line.
   assert.match(line(session({ effort: { level: 3 } })), / \| effort 3$/)
   // The hook before a change of model names the two models in its message, without them too.
   const switched = modelSwitchHook({ estimated_cache_write_usd: 2.5, from_model: 'claude-opus\x1b[2J-5-5', to_model: 'claude-fable\n\x9b31m-5-2', context_tokens: 400000, pricing: 'catalog' }, {})
-  assert.equal(switched.systemMessage, 'kestrel: a switch from opus[2J-5-5 to fable31m-5-2 sends the whole context (400k tokens) to the new model again. That costs about $2.50 (at list prices).')
+  assert.equal(switched.systemMessage, 'widal: a switch from opus[2J-5-5 to fable31m-5-2 sends the whole context (400k tokens) to the new model again. That costs about $2.50 (at list prices).')
   // A model that is not text is "?" in that message.
-  assert.match(modelSwitchHook({ estimated_cache_write_usd: 2.5, from_model: 5, to_model: { id: 'x' } }, {}).systemMessage, /^kestrel: a switch from \? to \? sends the whole context /)
+  assert.match(modelSwitchHook({ estimated_cache_write_usd: 2.5, from_model: 5, to_model: { id: 'x' } }, {}).systemMessage, /^widal: a switch from \? to \? sends the whole context /)
 })
 
 test('billing: a plan set by hand wins over every other sign', () => {
@@ -245,7 +247,7 @@ test('the plan\'s limits: the first reading is saved, and so is one that comes a
   assert.deepEqual(readLimits(NOW), {})
   // With nothing saved, a reading of a window that has ended writes no file.
   saveLimits({ five_hour: { used_percentage: 99, resets_at: sec(NOW - HOUR) } }, NOW)
-  assert.equal(existsSync(join(process.env.KESTREL_HOME, 'limits.json')), false)
+  assert.equal(existsSync(join(process.env.WIDAL_HOME, 'limits.json')), false)
   saveLimits({ five_hour: { used_percentage: 42, resets_at: sec(NOW + 2 * HOUR) }, seven_day: { used_percentage: 56, resets_at: sec(NOW + 3 * DAY) } }, NOW)
   assert.deepEqual(readLimits(NOW), {
     five: { pct: 42, resetsAt: NOW + 2 * HOUR, at: NOW },
@@ -256,7 +258,7 @@ test('the plan\'s limits: the first reading is saved, and so is one that comes a
   assert.deepEqual(Object.keys(readLimits(later)), ['week'])
   // An idle session still gives a reading of that ended window. It says nothing about now, so it
   // is not saved: the file stays as it was.
-  const file = join(process.env.KESTREL_HOME, 'limits.json')
+  const file = join(process.env.WIDAL_HOME, 'limits.json')
   const before = readFileSync(file, 'utf8')
   saveLimits({ five_hour: { used_percentage: 99, resets_at: sec(NOW + 2 * HOUR - 30e3) } }, later)
   assert.deepEqual(Object.keys(readLimits(later)), ['week'])
@@ -317,24 +319,24 @@ test('the value of an environment variable never appears in an answer, in the ou
   assert.doesNotMatch(shown, /sk-test/)
   const plan = run(['plan'], env)
   assert.match(plan, /usage, paid by the token \(a cloud provider is set in the environment\)/)
-  const out = plan + run(['status'], env) + run(['plan', 'usage'], env) + run(['plan', 'auto'], env)
+  const out = plan + run(['doctor'], env) + run(['plan', 'usage'], env) + run(['plan', 'auto'], env)
   assert.doesNotMatch(out, /sk-test/)
   assert.doesNotMatch(filesText(), /sk-test/)
 })
 
-test('"kestrel plan" shows how the person pays, sets it by hand and takes that back, and "status" has a row for it', () => {
+test('"widal plan" shows how the person pays, sets it by hand and takes that back, and "status" has a row for it', () => {
   freshHome()
   assert.match(run(['plan']), /^Billing: usage, paid by the token, not sure \(no sign of a plan, so figures are list prices\)\n/)
   assert.match(run(['plan'], { ANTHROPIC_API_KEY: 'a-key' }), /^Billing: usage, paid by the token \(an API key is set in the environment\)\n/)
   assert.match(run(['plan', 'subscription']), /Billing: subscription \(set by hand\)/)
-  assert.equal(JSON.parse(readFileSync(join(process.env.KESTREL_HOME, 'config.json'), 'utf8')).plan, 'subscription')
+  assert.equal(JSON.parse(readFileSync(join(process.env.WIDAL_HOME, 'config.json'), 'utf8')).plan, 'subscription')
   assert.match(run(['plan']), /^Billing: subscription \(set by hand\)\n/)
-  assert.match(run(['status']), /^Billing +subscription \(set by hand\)$/m)
+  assert.match(run(['doctor']), /^Billing +subscription \(set by hand\)$/m)
   assert.match(run(['plan', 'usage']), /Billing: usage, paid by the token \(set by hand\)/)
   // "auto" removes the choice. Other settings stay.
   saveConfig({ plan: 'usage', limits: { day: 200, action: 'warn' } })
   assert.match(run(['plan', 'auto']), /no longer set by hand\. Billing: usage, paid by the token, not sure/)
-  assert.deepEqual(JSON.parse(readFileSync(join(process.env.KESTREL_HOME, 'config.json'), 'utf8')), { limits: { day: 200, action: 'warn' } })
+  assert.deepEqual(JSON.parse(readFileSync(join(process.env.WIDAL_HOME, 'config.json'), 'utf8')), { limits: { day: 200, action: 'warn' } })
   assert.match(run(['plan', 'monthly']), /The plan is one of subscription, usage, auto\./)
 })
 
@@ -718,7 +720,7 @@ test('colours are on by default, and off with NO_COLOR, with "color: false" in t
 const SETTINGS = join(process.env.CLAUDE_CONFIG_DIR, 'settings.json')
 const settings = () => JSON.parse(readFileSync(SETTINGS, 'utf8'))
 const OTHER = { theme: 'dark', hooks: { PreToolUse: [{ matcher: '', hooks: [{ type: 'command', command: '/x/auto-allow.sh' }] }] } }
-/** The hooks after "kestrel install": these hooks, and the three hooks of the security checks that the install adds, calling `link`. */
+/** The hooks after "widal connect": these hooks, and the three hooks of the security checks that the install adds, calling `link`. */
 const SECURITY_HOOKS = (hooks, link) => ({
   ...hooks,
   SessionStart: [...(hooks.SessionStart ?? []), { hooks: [{ type: 'command', command: `${link} hook check-settings`, timeout: 5 }] }],
@@ -729,58 +731,58 @@ const SECURITY_HOOKS = (hooks, link) => ({
 test('install sets the refresh timer of the status line, changes it, and removes it, and leaves the other settings alone', () => {
   freshHome()
   writeFileSync(SETTINGS, JSON.stringify(OTHER))
-  assert.equal(installStatusLine('/bin/kestrel'), 'The status line is set, with a refresh every 30 seconds. Open sessions show it after their next answer.')
-  assert.deepEqual(settings(), { ...OTHER, statusLine: { type: 'command', command: '/bin/kestrel statusline', refreshInterval: 30 } })
+  assert.equal(installStatusLine(own()), 'The status line is set, with a refresh every 30 seconds. Open sessions show it after their next answer.')
+  assert.deepEqual(settings(), { ...OTHER, statusLine: { type: 'command', command: `${own()} statusline`, refreshInterval: 30 } })
   assert.equal(installed().refresh, 30)
-  assert.equal(installStatusLine('/bin/kestrel'), 'The status line was already set, with a refresh every 30 seconds.')
+  assert.equal(installStatusLine(own()), 'The status line was already set, with a refresh every 30 seconds.')
   // The same command with another number of seconds is a change, not "already set".
-  assert.equal(installStatusLine('/bin/kestrel', { refresh: 10 }), 'The status line now has a refresh every 10 seconds (before: a refresh every 30 seconds).')
-  assert.deepEqual(settings(), { ...OTHER, statusLine: { type: 'command', command: '/bin/kestrel statusline', refreshInterval: 10 } })
-  assert.equal(installStatusLine('/bin/kestrel', { refresh: 0 }), 'The status line now has no refresh timer (before: a refresh every 10 seconds).')
-  assert.deepEqual(settings(), { ...OTHER, statusLine: { type: 'command', command: '/bin/kestrel statusline' } })
+  assert.equal(installStatusLine(own(), { refresh: 10 }), 'The status line now has a refresh every 10 seconds (before: a refresh every 30 seconds).')
+  assert.deepEqual(settings(), { ...OTHER, statusLine: { type: 'command', command: `${own()} statusline`, refreshInterval: 10 } })
+  assert.equal(installStatusLine(own(), { refresh: 0 }), 'The status line now has no refresh timer (before: a refresh every 10 seconds).')
+  assert.deepEqual(settings(), { ...OTHER, statusLine: { type: 'command', command: `${own()} statusline` } })
   assert.equal(installed().refresh, 0)
-  assert.equal(installStatusLine('/bin/kestrel', { refresh: 0 }), 'The status line was already set, with no refresh timer.')
-  assert.equal(installStatusLine('/bin/kestrel', { refresh: 1 }), 'The status line now has a refresh every 1 second (before: no refresh timer).')
+  assert.equal(installStatusLine(own(), { refresh: 0 }), 'The status line was already set, with no refresh timer.')
+  assert.equal(installStatusLine(own(), { refresh: 1 }), 'The status line now has a refresh every 1 second (before: no refresh timer).')
 })
 
 test('install gives an older install its timer, keeps what the person added to the status line, and keeps another tool\'s status line', () => {
   freshHome()
   // An install from before the timer, to which the person added a padding.
-  writeFileSync(SETTINGS, JSON.stringify({ statusLine: { type: 'command', command: '/bin/kestrel statusline', padding: 0 } }))
-  assert.match(installStatusLine('/bin/kestrel'), /now has a refresh every 30 seconds \(before: no refresh timer\)/)
-  assert.deepEqual(settings().statusLine, { type: 'command', command: '/bin/kestrel statusline', padding: 0, refreshInterval: 30 })
+  writeFileSync(SETTINGS, JSON.stringify({ statusLine: { type: 'command', command: `${own()} statusline`, padding: 0 } }))
+  assert.match(installStatusLine(own()), /now has a refresh every 30 seconds \(before: no refresh timer\)/)
+  assert.deepEqual(settings().statusLine, { type: 'command', command: `${own()} statusline`, padding: 0, refreshInterval: 30 })
   // Another tool's status line stays as it is, with its own timer.
   const other = { type: 'command', command: 'other-tool', refreshInterval: 5, padding: 2 }
   writeFileSync(SETTINGS, JSON.stringify({ statusLine: other }))
-  assert.match(installStatusLine('/bin/kestrel'), /already has a status line \(other-tool\)/)
+  assert.match(installStatusLine(own()), /already has a status line \(other-tool\)/)
   assert.deepEqual(settings().statusLine, other)
   assert.equal(installed().refresh, 0)
   // With "force" it is replaced, and nothing of it is carried over.
-  assert.match(installStatusLine('/bin/kestrel', { force: true, refresh: 20 }), /is set, with a refresh every 20 seconds/)
-  assert.deepEqual(settings().statusLine, { type: 'command', command: '/bin/kestrel statusline', refreshInterval: 20 })
+  assert.match(installStatusLine(own(), { force: true, refresh: 20 }), /is set, with a refresh every 20 seconds/)
+  assert.deepEqual(settings().statusLine, { type: 'command', command: `${own()} statusline`, refreshInterval: 20 })
 })
 
-test('"kestrel install --refresh" passes the seconds on, and "status" shows them', () => {
+test('"widal connect --refresh" passes the seconds on, and "status" shows them', () => {
   freshHome()
   // The command puts a link into the home folder. This test must only ever reach its own temp folder.
   const env = { PATH: process.env.PATH, HOME: dir, USERPROFILE: dir }
   assert.equal(spawnSync(process.execPath, ['-e', 'process.stdout.write(require("node:os").homedir())'], { encoding: 'utf8', env }).stdout, dir)
   writeFileSync(SETTINGS, JSON.stringify(OTHER))
-  assert.match(run(['install', '--refresh', '45']), /The status line is set, with a refresh every 45 seconds\./)
+  assert.match(run(['connect', '--refresh', '45']), /The status line is set, with a refresh every 45 seconds\./)
   // The settings call the link in this tool's own folder, not the one on the PATH.
-  const link = join(process.env.KESTREL_HOME, 'bin', 'kestrel')
+  const link = join(process.env.WIDAL_HOME, 'bin', 'widal')
   const command = `${link} statusline`
   const hooks = SECURITY_HOOKS(OTHER.hooks, link)
   assert.deepEqual(settings(), { ...OTHER, hooks, statusLine: { type: 'command', command, refreshInterval: 45 } })
-  assert.match(run(['status']), /^Claude Code status line +set, with a refresh every 45 seconds$/m)
+  assert.match(run(['doctor']), /^Claude Code status line +set, with a refresh every 45 seconds$/m)
   // Without the flag it is 30 seconds.
-  assert.match(run(['install']), /now has a refresh every 30 seconds \(before: a refresh every 45 seconds\)/)
-  assert.match(run(['install', '--refresh', '0']), /now has no refresh timer \(before: a refresh every 30 seconds\)/)
+  assert.match(run(['connect']), /now has a refresh every 30 seconds \(before: a refresh every 45 seconds\)/)
+  assert.match(run(['connect', '--refresh', '0']), /now has no refresh timer \(before: a refresh every 30 seconds\)/)
   assert.deepEqual(settings(), { ...OTHER, hooks, statusLine: { type: 'command', command } })
-  assert.match(run(['status']), /^Claude Code status line +set, with no refresh timer$/m)
+  assert.match(run(['doctor']), /^Claude Code status line +set, with no refresh timer$/m)
   // A value that is not a number of seconds changes nothing.
   for (const bad of [['--refresh'], ['--refresh', 'often'], ['--refresh', '-5'], ['--refresh', '1.5']]) {
-    assert.match(run(['install', ...bad]), /--refresh is a whole number of seconds, or 0 for no timer\./)
+    assert.match(run(['connect', ...bad]), /--refresh is a whole number of seconds, or 0 for no timer\./)
   }
   assert.deepEqual(settings(), { ...OTHER, hooks, statusLine: { type: 'command', command } })
 })
@@ -839,7 +841,7 @@ test('near the end of a large cache the status line shows one notification, and 
   assert.deepEqual(sent, [])
   assert.equal(kept('one').nudgedFor, undefined)
   assert.equal(line(input, NOW + 47 * MIN), 'week 36% used, 44% of the week gone | cache warm, 5 min left | context 527k (53%) | effort high')
-  assert.deepEqual(sent, [['kestrel: work/repo cache ends at 12:52', IDLE_BODY('12:52')]])
+  assert.deepEqual(sent, [['widal: work/repo cache ends at 12:52', IDLE_BODY('12:52')]])
   assert.equal(kept('one').nudgedFor, NOW + 52 * MIN)
   // The status line runs again every 30 seconds until the end, and after it.
   for (const later of [47.5, 48, 51, 51.99, 52, 53]) line(input, NOW + later * MIN)
@@ -849,12 +851,12 @@ test('near the end of a large cache the status line shows one notification, and 
   line(next, NOW + HOUR)
   assert.equal(sent.length, 1)
   line(next, NOW + 2 * HOUR - 3 * MIN)
-  assert.deepEqual(sent[1], ['kestrel: work/repo cache ends at 14:00', IDLE_BODY('14:00', '610k')])
+  assert.deepEqual(sent[1], ['widal: work/repo cache ends at 14:00', IDLE_BODY('14:00', '610k')])
   line(next, NOW + 2 * HOUR - 2 * MIN)
   assert.equal(sent.length, 2)
   // Another session has its own end and its own notification.
   line({ ...next, session_id: 'two', cwd: '/work/other' }, NOW + 2 * HOUR - 2 * MIN)
-  assert.deepEqual(sent[2], ['kestrel: work/other cache ends at 14:00', IDLE_BODY('14:00', '610k')])
+  assert.deepEqual(sent[2], ['widal: work/other cache ends at 14:00', IDLE_BODY('14:00', '610k')])
 })
 
 test('no notification when it is off, the context is small, the end is not near, or the cache is already gone', () => {
@@ -895,25 +897,25 @@ test('no notification when it is off, the context is small, the end is not near,
   assert.deepEqual(sent, [])
   saveConfig({ nudge: { on: true, before: 2, min: 50000 } })
   line(cache({ expires_at: sec(NOW + 2 * MIN), recache_tokens_if_cold: 50000 }))
-  assert.deepEqual(sent, [['kestrel: work/repo cache ends at 12:02', NUDGE_BODY.replace('527k', '50k')]])
+  assert.deepEqual(sent, [['widal: work/repo cache ends at 12:02', NUDGE_BODY.replace('527k', '50k')]])
   // A 5 minute cache in its last minute, and a context whose size stands in for the missing number.
   freshHome()
   saveConfig({ nudge: { on: true } })
   line(cache({ ttl: '5m', expires_at: sec(NOW + MIN), recache_tokens_if_cold: undefined }))
-  assert.deepEqual(sent, [['kestrel: work/repo cache ends at 12:01', NUDGE_BODY]])
+  assert.deepEqual(sent, [['widal: work/repo cache ends at 12:01', NUDGE_BODY]])
 })
 
 test('the words of the notification: the tokens on a subscription, the dollars by the token, and no text of the session but its folder', () => {
   const until = Date.parse('2026-11-12T15:02:00')
-  assert.deepEqual(nudgeText({ project: 'work/repo', until, recache: 527119, mode: 'subscription', coldCost: 2.47 }), { title: 'kestrel: work/repo cache ends at 15:02', body: NUDGE_BODY })
+  assert.deepEqual(nudgeText({ project: 'work/repo', until, recache: 527119, mode: 'subscription', coldCost: 2.47 }), { title: 'widal: work/repo cache ends at 15:02', body: NUDGE_BODY })
   assert.deepEqual(nudgeText({ project: 'work/repo', until, recache: 527119, mode: 'usage', coldCost: 2.47 }), {
-    title: 'kestrel: work/repo cache ends at 15:02',
+    title: 'widal: work/repo cache ends at 15:02',
     body: 'After that the next call costs about $2.47. To keep it, send any message before then. Done for now? Run /compact first.',
   })
   // By the token, a model with no price has no dollar figure: the body gives the tokens.
   assert.equal(nudgeText({ project: 'work/repo', until, recache: 527119, mode: 'usage', coldCost: undefined }).body, NUDGE_BODY)
   // A session with no folder has none in the title.
-  assert.equal(nudgeText({ until, recache: 527119, mode: 'subscription' }).title, 'kestrel: cache ends at 15:02')
+  assert.equal(nudgeText({ until, recache: 527119, mode: 'subscription' }).title, 'widal: cache ends at 15:02')
 
   // The status line gives the notification the billing mode and the price it shows itself.
   freshHome()
@@ -923,11 +925,11 @@ test('the words of the notification: the tokens on a subscription, the dollars b
   assert.match(line(input, NOW + 49 * MIN, { env }), /\| cache warm, 3 min left, then \$8\.43 \|/)
   // This session is one that Claude Code compacts on its own while it is idle, so the body
   // says that, with the tokens. The dollars of a smaller session are tested in compact.test.mjs.
-  assert.deepEqual(sent, [['kestrel: work/repo cache ends at 12:52', IDLE_BODY('12:52')]])
+  assert.deepEqual(sent, [['widal: work/repo cache ends at 12:52', IDLE_BODY('12:52')]])
   line({ ...input, session_id: 'no-price', model: { id: 'some-new-model' } }, NOW + 49 * MIN, { env })
-  assert.deepEqual(sent[1], ['kestrel: work/repo cache ends at 12:52', IDLE_BODY('12:52')])
+  assert.deepEqual(sent[1], ['widal: work/repo cache ends at 12:52', IDLE_BODY('12:52')])
   line({ ...input, session_id: 'subscriber', cwd: undefined, rate_limits: { seven_day: WEEK } }, NOW + 49 * MIN, { env })
-  assert.deepEqual(sent[2], ['kestrel: cache ends at 12:52', IDLE_BODY('12:52')])
+  assert.deepEqual(sent[2], ['widal: cache ends at 12:52', IDLE_BODY('12:52')])
   assert.doesNotMatch(JSON.stringify(sent), /private/)
 })
 
@@ -940,8 +942,8 @@ test('the notification goes to osascript on macOS and to notify-send on Linux, a
     return child
   }
   const alone = { detached: true, stdio: 'ignore' }
-  notify('kestrel: work/repo cache ends at 15:02', 'After that.', { platform: 'darwin', spawn })
-  assert.deepEqual(calls.pop(), ['osascript', ['-e', 'display notification "After that." with title "kestrel: work/repo cache ends at 15:02"'], alone])
+  notify('widal: work/repo cache ends at 15:02', 'After that.', { platform: 'darwin', spawn })
+  assert.deepEqual(calls.pop(), ['osascript', ['-e', 'display notification "After that." with title "widal: work/repo cache ends at 15:02"'], alone])
   // The child runs on its own: this process listens for a failed start, and does not wait.
   assert.deepEqual([child.listens, child.unrefs], [['error'], 1])
   // In an AppleScript text, a backslash and a double quote each get a backslash in front.
@@ -1020,21 +1022,21 @@ test('a cache that was lost in the last 10 minutes: the line says why, in yellow
   assert.equal(line(session({ context_window: {}, prompt_cache: lost(['model_changed']) })), 'plan limits not reported yet | cache lost: model changed | effort high')
 })
 
-test('"kestrel nudge" shows the settings, turns the notification on and off, and "status" has a row for it', () => {
+test('"widal nudge" shows the settings, turns the notification on and off, and "status" has a row for it', () => {
   freshHome()
-  const config = () => JSON.parse(readFileSync(join(process.env.KESTREL_HOME, 'config.json'), 'utf8'))
+  const config = () => JSON.parse(readFileSync(join(process.env.WIDAL_HOME, 'config.json'), 'utf8'))
   const off = 'off (when on: 5 minutes before the end, when the next call would send 100,000 tokens or more again)'
   const on = 'on, 5 minutes before the end, when the next call would send 100,000 tokens or more again'
-  // The value of the row of "kestrel status" for the notification.
-  const row = () => run(['status']).split('\n').find((l) => l.startsWith('Cache end notification')).replace(/^Cache end notification +/, '')
+  // The value of the row of "widal doctor" for the notification.
+  const row = () => run(['doctor']).split('\n').find((l) => l.startsWith('Cache end notification')).replace(/^Cache end notification +/, '')
   const shown = run(['nudge'])
   assert.ok(shown.startsWith(`Notification before a session's cache ends: ${off}.\n`), shown)
-  assert.match(shown, /Turn it on with "kestrel nudge on \[--before <minutes>\] \[--min <tokens>\]", and off with "kestrel nudge off"\./)
+  assert.match(shown, /Turn it on with "widal nudge on \[--before <minutes>\] \[--min <tokens>\]", and off with "widal nudge off"\./)
   assert.equal(row(), off)
 
   // With a timer on the status line, turning it on says only what is set.
   writeFileSync(SETTINGS, JSON.stringify(OTHER))
-  installStatusLine('/bin/kestrel')
+  installStatusLine(own())
   saveConfig({ limits: { day: 200, action: 'warn' } })
   assert.equal(run(['nudge', 'on']), `Notification before a session's cache ends: ${on}.\n`)
   assert.deepEqual(config(), { limits: { day: 200, action: 'warn' }, nudge: { on: true, before: 5, min: 100000 } })
@@ -1065,33 +1067,33 @@ test('"kestrel nudge" shows the settings, turns the notification on and off, and
     [['on', '--min', 'many'], /--min is a whole number of tokens, 1 or more\./],
     // A good number next to a bad one is not saved either.
     [['on', '--before', '7', '--min', '0'], /--min is a whole number of tokens, 1 or more\./],
-    [['sometimes'], /Use "kestrel nudge on \[--before 5\] \[--min 100000\]" or "kestrel nudge off"\./],
-    [['--min', '5'], /Use "kestrel nudge on \[--before 5\] \[--min 100000\]" or "kestrel nudge off"\./],
+    [['sometimes'], /Use "widal nudge on \[--before 5\] \[--min 100000\]" or "widal nudge off"\./],
+    [['--min', '5'], /Use "widal nudge on \[--before 5\] \[--min 100000\]" or "widal nudge off"\./],
   ]) assert.match(run(['nudge', ...args]), message)
   assert.deepEqual(config().nudge, { on: true, before: 1, min: 250000 })
-  assert.match(run(['help']), /^  kestrel nudge on \[--before 5\] \[--min 100000\]$/m)
+  assert.match(run(['help']), /^  widal nudge on \[--before 5\] \[--min 100000\]$/m)
 })
 
-test('turning the notification on says to run "kestrel install" when the status line has no refresh timer', () => {
+test('turning the notification on says to run "widal connect" when the status line has no refresh timer', () => {
   freshHome()
-  const note = /\nNote: the notification comes from the status line, and that has to run on a timer\. Run "kestrel install"\.\n$/
+  const note = /\nNote: the notification comes from the status line, and that has to run on a timer\. Run "widal connect"\.\n$/
   // No status line of this tool at all.
   writeFileSync(SETTINGS, JSON.stringify(OTHER))
   assert.match(run(['nudge', 'on']), note)
   // This tool's status line without a timer.
-  installStatusLine('/bin/kestrel', { refresh: 0 })
+  installStatusLine(own(), { refresh: 0 })
   assert.match(run(['nudge', 'on']), note)
   // Turning it off needs no timer.
   assert.doesNotMatch(run(['nudge', 'off']), /Note/)
-  installStatusLine('/bin/kestrel', { refresh: 30 })
+  installStatusLine(own(), { refresh: 30 })
   assert.doesNotMatch(run(['nudge', 'on']), /Note/)
   // The settings of Claude Code are not changed by any of this.
-  assert.deepEqual(settings(), { ...OTHER, statusLine: { type: 'command', command: '/bin/kestrel statusline', refreshInterval: 30 } })
+  assert.deepEqual(settings(), { ...OTHER, statusLine: { type: 'command', command: `${own()} statusline`, refreshInterval: 30 } })
 })
 
 // What Claude Code gives the hook for a sent prompt. The hook must not read or keep the prompt.
 const PROMPT = { session_id: 'one', hook_event_name: 'UserPromptSubmit', cwd: '/work/repo', prompt: 'a private prompt' }
-const coldText = (ended, what) => `kestrel: this session's cache ended at ${ended}. ${what} Before a long break next time: /compact, or start a new session.`
+const coldText = (ended, what) => `widal: this session's cache ended at ${ended}. ${what} Before a long break next time: /compact, or start a new session.`
 
 test('a prompt to a session whose cache has ended gets one warning with the tokens that were sent again', () => {
   freshHome()
@@ -1163,7 +1165,7 @@ test('the hook for a sent prompt is silent for a warm cache, a small context, an
   assert.equal(coldStartHook(cached('no-cache', undefined), back, {}), undefined)
   // A session the status line has not seen, and an input without a session.
   assert.equal(coldStartHook({ ...PROMPT, session_id: 'never-seen' }, back, {}), undefined)
-  assert.equal(existsSync(join(process.env.KESTREL_HOME, 'sessions', 'never-seen.json')), false)
+  assert.equal(existsSync(join(process.env.WIDAL_HOME, 'sessions', 'never-seen.json')), false)
   assert.equal(coldStartHook({}, back, {}), undefined)
   // What counts as small is the "min" of the notification, also while the notification is off.
   saveConfig({ nudge: { on: false, min: 600000 } })
@@ -1205,7 +1207,7 @@ test('the hook for a sent prompt says how the person pays as the status line of 
   // A session file from before the status line saved how the person pays, or with something else
   // in that place: the hook decides with what it has.
   freshHome()
-  const sessions = join(process.env.KESTREL_HOME, 'sessions')
+  const sessions = join(process.env.WIDAL_HOME, 'sessions')
   mkdirSync(sessions, { recursive: true })
   const old = { day: '2026-11-12', cost: 12.4, dayStart: 0, at: NOW, cacheUntil: NOW + 52 * MIN, ttl: '1h', recache: 527119, ctx: 527119, project: 'work/repo', model: 'claude-fable-5-2' }
   for (const [id, more] of [['old', {}], ['odd', { billing: 5 }], ['old-with-limits', {}]]) writeFileSync(join(sessions, `${id}.json`), JSON.stringify({ ...old, ...more }))
@@ -1285,14 +1287,14 @@ test('when Claude Code no longer gives the end of the cache, the saved end stays
   assert.equal(coldStartHook(PROMPT, back + 30 * MIN, {}), undefined)
 })
 
-test('"kestrel hook cold-start" prints the warning once, and never fails or blocks a prompt', () => {
+test('"widal hook cold-start" prints the warning once, and never fails or blocks a prompt', () => {
   freshHome()
   // Two session files as the status line writes them. The command takes the time from the clock,
   // so the end is one that has passed on any clock: noon on a day long ago, in UTC.
   const longAgo = Date.UTC(2001, 0, 1, 12)
-  mkdirSync(join(process.env.KESTREL_HOME, 'sessions'), { recursive: true })
+  mkdirSync(join(process.env.WIDAL_HOME, 'sessions'), { recursive: true })
   for (const id of ['one', 'two']) {
-    writeFileSync(join(process.env.KESTREL_HOME, 'sessions', `${id}.json`), JSON.stringify({ day: '2001-01-01', cost: 12.4, dayStart: 0, at: longAgo, billing: 'subscription', cacheUntil: longAgo, ttl: '1h', recache: 527119, ctx: 527119, project: 'work/repo', model: 'claude-fable-5-2' }))
+    writeFileSync(join(process.env.WIDAL_HOME, 'sessions', `${id}.json`), JSON.stringify({ day: '2001-01-01', cost: 12.4, dayStart: 0, at: longAgo, billing: 'subscription', cacheUntil: longAgo, ttl: '1h', recache: 527119, ctx: 527119, project: 'work/repo', model: 'claude-fable-5-2' }))
   }
   // The command shows the end as a clock time in its own time zone. The test gives it one, so
   // that the expected time is the same on every machine and with every TZ variable of this run.
@@ -1308,7 +1310,7 @@ test('"kestrel hook cold-start" prints the warning once, and never fails or bloc
   // An input that is not JSON, and a session file that is broken: no output, and no failure.
   const garbage = exec(['hook', 'cold-start'], {}, 'not json')
   assert.deepEqual([garbage.status, garbage.stdout, garbage.stderr], [0, '', ''])
-  writeFileSync(join(process.env.KESTREL_HOME, 'sessions', 'broken.json'), '{"cacheUntil": 5, "recache"')
+  writeFileSync(join(process.env.WIDAL_HOME, 'sessions', 'broken.json'), '{"cacheUntil": 5, "recache"')
   const broken = exec(['hook', 'cold-start'], {}, JSON.stringify({ ...PROMPT, session_id: 'broken' }))
   assert.deepEqual([broken.status, broken.stdout, broken.stderr], [0, '', ''])
   assert.doesNotMatch(filesText(), /private/)
@@ -1320,51 +1322,51 @@ test('the change "cold-start-warn" adds the hook for a sent prompt and takes it 
   const addContext = { hooks: [{ type: 'command', command: '/x/add-context.sh' }] }
   const before = { theme: 'dark', hooks: { PreToolUse: [autoAllow], UserPromptSubmit: [addContext] } }
   writeFileSync(SETTINGS, JSON.stringify(before))
-  const ours = { hooks: [{ type: 'command', command: '/bin/kestrel hook cold-start', timeout: 5 }] }
+  const ours = { hooks: [{ type: 'command', command: `${own()} hook cold-start`, timeout: 5 }] }
 
-  const said = applyAction('cold-start-warn', '/bin/kestrel').join('\n')
+  const said = applyAction('cold-start-warn', own()).join('\n')
   assert.match(said, /It only warns: it never stops or changes a prompt\./)
-  assert.match(said, /Take it back with: kestrel undo cold-start-warn/)
+  assert.match(said, /Take it back with: widal undo cold-start-warn/)
   assert.deepEqual(settings(), { theme: 'dark', hooks: { PreToolUse: [autoAllow], UserPromptSubmit: [addContext, ours] } })
   assert.deepEqual(Object.keys(appliedActions()), ['cold-start-warn'])
   // A second apply adds nothing.
-  assert.deepEqual(applyAction('cold-start-warn', '/bin/kestrel'), ['cold-start-warn is already applied.'])
+  assert.deepEqual(applyAction('cold-start-warn', own()), ['cold-start-warn is already applied.'])
   assert.deepEqual(settings().hooks.UserPromptSubmit, [addContext, ours])
 
   // This tool's other hooks are for other events. They stay when this one is taken back.
-  setHook('/bin/kestrel', true)
-  applyAction('model-switch-cost', '/bin/kestrel')
-  assert.match(undoAction('cold-start-warn', '/bin/kestrel')[0], /cold-start-warn is taken back/)
+  setHook(own(), true)
+  applyAction('model-switch-cost', own())
+  assert.match(undoAction('cold-start-warn', own())[0], /cold-start-warn is taken back/)
   assert.deepEqual(settings().hooks.UserPromptSubmit, [addContext])
-  assert.deepEqual(settings().hooks.PreToolUse.map((m) => m.hooks[0].command), ['/x/auto-allow.sh', '/bin/kestrel hook'])
-  assert.deepEqual(settings().hooks.PreModelSwitch.map((m) => m.hooks[0].command), ['/bin/kestrel hook model-switch'])
+  assert.deepEqual(settings().hooks.PreToolUse.map((m) => m.hooks[0].command), ['/x/auto-allow.sh', `${own()} hook`])
+  assert.deepEqual(settings().hooks.PreModelSwitch.map((m) => m.hooks[0].command), [`${own()} hook model-switch`])
   assert.equal(settings().theme, 'dark')
   assert.deepEqual(Object.keys(appliedActions()), ['model-switch-cost'])
-  assert.match(undoAction('cold-start-warn', '/bin/kestrel')[0], /was not applied by this tool/)
+  assert.match(undoAction('cold-start-warn', own())[0], /was not applied by this tool/)
 
   // Without another hook for a sent prompt, taking it back leaves no empty list.
   writeFileSync(SETTINGS, JSON.stringify({ theme: 'dark', hooks: { PreToolUse: [autoAllow] } }))
-  applyAction('cold-start-warn', '/bin/kestrel')
+  applyAction('cold-start-warn', own())
   assert.deepEqual(settings().hooks, { PreToolUse: [autoAllow], UserPromptSubmit: [ours] })
-  undoAction('cold-start-warn', '/bin/kestrel')
+  undoAction('cold-start-warn', own())
   assert.deepEqual(settings(), { theme: 'dark', hooks: { PreToolUse: [autoAllow] } })
   // "uninstall" takes the hook out as well, and keeps the other one.
   writeFileSync(SETTINGS, JSON.stringify(before))
-  applyAction('cold-start-warn', '/bin/kestrel')
+  applyAction('cold-start-warn', own())
   assert.equal(uninstall(), true)
   assert.deepEqual(settings(), before)
 })
 
-test('"kestrel apply" lists and makes the change "cold-start-warn", and "status" shows it', () => {
+test('"widal apply" lists and makes the change "cold-start-warn", and "status" shows it', () => {
   freshHome()
   writeFileSync(SETTINGS, JSON.stringify(OTHER))
   assert.match(run(['apply']), /^  cold-start-warn\n    Adds a hook to Claude Code that runs when you send a prompt\./m)
-  assert.match(run(['status']), /^Change: cold-start-warn +not applied$/m)
+  assert.match(run(['doctor']), /^Change: cold-start-warn +not applied$/m)
   assert.match(run(['apply', 'cold-start-warn']), /It only warns: it never stops or changes a prompt\./)
   // The settings call the link in this tool's own folder, not the one on the PATH.
-  const command = `${join(process.env.KESTREL_HOME, 'bin', 'kestrel')} hook cold-start`
+  const command = `${join(process.env.WIDAL_HOME, 'bin', 'widal')} hook cold-start`
   assert.deepEqual(settings(), { ...OTHER, hooks: { ...OTHER.hooks, UserPromptSubmit: [{ hooks: [{ type: 'command', command, timeout: 5 }] }] } })
-  assert.match(run(['status']), /^Change: cold-start-warn +applied on \d{4}-\d\d-\d\d$/m)
+  assert.match(run(['doctor']), /^Change: cold-start-warn +applied on \d{4}-\d\d-\d\d$/m)
   assert.match(run(['undo', 'cold-start-warn']), /cold-start-warn is taken back/)
   assert.deepEqual(settings(), OTHER)
 })
@@ -1487,7 +1489,7 @@ test('the plan\'s limits: a reading is given until its end time, and not from th
 })
 
 test('the plan\'s limits: a reading whose end time cannot be true is ignored, and does not stand in the way of a true one', () => {
-  const file = () => join(process.env.KESTREL_HOME, 'limits.json')
+  const file = () => join(process.env.WIDAL_HOME, 'limits.json')
   const both = (pct, five, week) => ({ five_hour: { used_percentage: pct, resets_at: five }, seven_day: { used_percentage: pct, resets_at: week } })
   // An end time in milliseconds, read as seconds, lies thousands of years ahead.
   freshHome()
@@ -1583,7 +1585,7 @@ test('a 5 minute cache warns from exactly 1 minute before its end, and a 1 hour 
 
 test('session files that the status line has not seen for more than 14 days are deleted, at most once a day', () => {
   freshHome()
-  const home = process.env.KESTREL_HOME
+  const home = process.env.WIDAL_HOME
   const sessions = join(home, 'sessions')
   mkdirSync(sessions, { recursive: true })
   const put = (id, at) => writeFileSync(join(sessions, `${id}.json`), JSON.stringify({ day: '2026-10-29', cost: 3, dayStart: 0, at }))
@@ -1617,7 +1619,7 @@ test('session files that the status line has not seen for more than 14 days are 
 
 test('a look for old session files that fails does not break the status line', () => {
   freshHome()
-  const home = process.env.KESTREL_HOME
+  const home = process.env.WIDAL_HOME
   // A folder stands where the time of the last look is kept, so that time cannot be saved.
   mkdirSync(join(home, 'sweep.json'), { recursive: true })
   mkdirSync(join(home, 'sessions'), { recursive: true })
@@ -1630,7 +1632,7 @@ test('a look for old session files that fails does not break the status line', (
 
 test('a session id that is not a plain name does not become a file name: the file is "unknown.json"', () => {
   freshHome()
-  const home = process.env.KESTREL_HOME
+  const home = process.env.WIDAL_HOME
   const sessions = join(home, 'sessions')
   saveConfig({ limits: { session: 10, action: 'ask' } })
   // A file one folder up, where "../x" would point. Nothing reads it and nothing writes it.
@@ -1654,12 +1656,12 @@ test('a session id that is not a plain name does not become a file name: the fil
   freshHome()
   for (const id of ['..', '.', '.hidden', 'a/b', 'a\\b', 'a b', 'a\nb', 'café', '', 'x'.repeat(101), 5, null, undefined, ['a']]) {
     line(session({ session_id: id }))
-    assert.deepEqual(readdirSync(join(process.env.KESTREL_HOME, 'sessions')), ['unknown.json'], JSON.stringify(id))
+    assert.deepEqual(readdirSync(join(process.env.WIDAL_HOME, 'sessions')), ['unknown.json'], JSON.stringify(id))
   }
   // A plain name is used as it is: letters, digits, ".", "_" and "-", up to 100 characters.
   const plain = ['7f3a9c1e-22b4-4d0a-9c3e-5a1b2c3d4e5f', 'a.b_c-D9', '-', '_x.', 'x'.repeat(100)]
   for (const id of plain) line(session({ session_id: id }))
-  assert.deepEqual(readdirSync(join(process.env.KESTREL_HOME, 'sessions')).sort(), [...plain.map((id) => `${id}.json`), 'unknown.json'].sort())
+  assert.deepEqual(readdirSync(join(process.env.WIDAL_HOME, 'sessions')).sort(), [...plain.map((id) => `${id}.json`), 'unknown.json'].sort())
 })
 
 test('the tokens to send again are the size of the context when Claude Code gives none or 0: on the line, in the notification and in the warning for a sent prompt', () => {
@@ -1673,7 +1675,7 @@ test('the tokens to send again are the size of the context when Claude Code give
     assert.deepEqual(sent, [], name)
     // The notification, 3 minutes before the end of a warm cache.
     line(input({ warm: true, ttl: '1h', expires_at: sec(NOW + 3 * MIN), recache_tokens_if_cold }))
-    assert.deepEqual(sent, [['kestrel: work/repo cache ends at 12:03', IDLE_BODY('12:03')]], name)
+    assert.deepEqual(sent, [['widal: work/repo cache ends at 12:03', IDLE_BODY('12:03')]], name)
     // The warning for a prompt that is sent after the end.
     assert.deepEqual(coldStartHook(PROMPT, NOW + HOUR, {}), { systemMessage: coldText('12:03', 'This prompt sent 527k tokens again.') }, name)
   }
@@ -1682,15 +1684,15 @@ test('the tokens to send again are the size of the context when Claude Code give
   saveConfig({ nudge: { on: true } })
   assert.deepEqual(coloured(input({ warm: false, recache_tokens_if_cold: 300000 }))[1], ['cache gone: the next call re-sends 300k', 'bad'])
   line(input({ warm: true, ttl: '1h', expires_at: sec(NOW + 3 * MIN), recache_tokens_if_cold: 300000 }))
-  assert.deepEqual(sent, [['kestrel: work/repo cache ends at 12:03', IDLE_BODY('12:03', '300k')]])
+  assert.deepEqual(sent, [['widal: work/repo cache ends at 12:03', IDLE_BODY('12:03', '300k')]])
   assert.deepEqual(coldStartHook(PROMPT, NOW + HOUR, {}), { systemMessage: coldText('12:03', 'This prompt sent 300k tokens again.') })
 })
 
-test('"kestrel nudge on" takes --before from 1 to 30 and --min from 1, and a bad number fails and changes nothing', () => {
+test('"widal nudge on" takes --before from 1 to 30 and --min from 1, and a bad number fails and changes nothing', () => {
   freshHome()
-  const config = () => JSON.parse(readFileSync(join(process.env.KESTREL_HOME, 'config.json'), 'utf8'))
+  const config = () => JSON.parse(readFileSync(join(process.env.WIDAL_HOME, 'config.json'), 'utf8'))
   writeFileSync(SETTINGS, JSON.stringify(OTHER))
-  installStatusLine('/bin/kestrel')
+  installStatusLine(own())
   // The lowest and the highest number that are taken.
   assert.equal(exec(['nudge', 'on', '--before', '1', '--min', '1']).status, 0)
   assert.deepEqual(config().nudge, { on: true, before: 1, min: 1 })
@@ -1698,10 +1700,10 @@ test('"kestrel nudge on" takes --before from 1 to 30 and --min from 1, and a bad
   assert.deepEqual(config().nudge, { on: true, before: 30, min: 1 })
   // One step outside: the command fails with one sentence, and the settings stay.
   for (const [args, sentence] of [
-    [['--before', '0'], 'kestrel: --before is a whole number of minutes from 1 to 30.\n'],
-    [['--before', '31'], 'kestrel: --before is a whole number of minutes from 1 to 30.\n'],
-    [['--min', '0'], 'kestrel: --min is a whole number of tokens, 1 or more.\n'],
-    [['--min', '99999999999999999999'], 'kestrel: --min is a whole number of tokens, 1 or more.\n'],
+    [['--before', '0'], 'widal: --before is a whole number of minutes from 1 to 30.\n'],
+    [['--before', '31'], 'widal: --before is a whole number of minutes from 1 to 30.\n'],
+    [['--min', '0'], 'widal: --min is a whole number of tokens, 1 or more.\n'],
+    [['--min', '99999999999999999999'], 'widal: --min is a whole number of tokens, 1 or more.\n'],
   ]) {
     const r = exec(['nudge', 'on', ...args])
     assert.deepEqual([r.status, r.stdout, r.stderr], [1, '', sentence], args.join(' '))
@@ -1713,7 +1715,7 @@ test('the hook for a sent prompt saves that it warned only after the text of the
   freshHome()
   const env = { ANTHROPIC_API_KEY: 'a-key' }
   line(session(), NOW, { env })
-  const file = join(process.env.KESTREL_HOME, 'sessions', 'one.json')
+  const file = join(process.env.WIDAL_HOME, 'sessions', 'one.json')
   const good = kept('one')
   // A model id that is not text makes the price lookup throw while the text is built.
   writeFileSync(file, JSON.stringify({ ...good, model: 5 }))
@@ -1725,10 +1727,10 @@ test('the hook for a sent prompt saves that it warned only after the text of the
   assert.equal(kept('one').coldWarnedFor, NOW + 52 * MIN)
 })
 
-test('"kestrel hook cold-start" prints nothing and exits 0 when the hook itself throws', () => {
+test('"widal hook cold-start" prints nothing and exits 0 when the hook itself throws', () => {
   freshHome()
   const longAgo = Date.UTC(2001, 0, 1, 12)
-  const sessions = join(process.env.KESTREL_HOME, 'sessions')
+  const sessions = join(process.env.WIDAL_HOME, 'sessions')
   mkdirSync(sessions, { recursive: true })
   // The same session file as in the test of the command above, with a model id that is not text.
   const broken = { day: '2001-01-01', cost: 12.4, dayStart: 0, at: longAgo, billing: 'usage', cacheUntil: longAgo, ttl: '1h', recache: 527119, ctx: 527119, project: 'work/repo', model: 5 }
@@ -1750,48 +1752,48 @@ test('"status" says that the change "cold-start-warn" is no longer in the settin
   const autoAllow = { matcher: '', hooks: [{ type: 'command', command: '/x/auto-allow.sh' }] }
   writeFileSync(SETTINGS, JSON.stringify({ theme: 'dark', hooks: { PreToolUse: [autoAllow] } }))
   assert.match(run(['apply', 'cold-start-warn']), /It only warns: it never stops or changes a prompt\./)
-  assert.match(run(['status']), /^Change: cold-start-warn +applied on \d{4}-\d\d-\d\d$/m)
+  assert.match(run(['doctor']), /^Change: cold-start-warn +applied on \d{4}-\d\d-\d\d$/m)
   // The person takes the hook out of the settings file by hand.
   writeFileSync(SETTINGS, JSON.stringify({ theme: 'dark', hooks: { PreToolUse: [autoAllow] } }))
-  assert.match(run(['status']), /^Change: cold-start-warn +applied on \d{4}-\d\d-\d\d, but no longer in the settings$/m)
+  assert.match(run(['doctor']), /^Change: cold-start-warn +applied on \d{4}-\d\d-\d\d, but no longer in the settings$/m)
   // Another tool's hook for the same event does not count as this tool's.
   writeFileSync(SETTINGS, JSON.stringify({ theme: 'dark', hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: '/x/add-context.sh' }] }] } }))
-  assert.match(run(['status']), /^Change: cold-start-warn +applied on \d{4}-\d\d-\d\d, but no longer in the settings$/m)
+  assert.match(run(['doctor']), /^Change: cold-start-warn +applied on \d{4}-\d\d-\d\d, but no longer in the settings$/m)
   // A second apply puts the hook back, and the row is as before.
   assert.match(run(['apply', 'cold-start-warn']), /It only warns: it never stops or changes a prompt\./)
-  assert.match(run(['status']), /^Change: cold-start-warn +applied on \d{4}-\d\d-\d\d$/m)
+  assert.match(run(['doctor']), /^Change: cold-start-warn +applied on \d{4}-\d\d-\d\d$/m)
 })
 
 test('taking this tool\'s hook out of a group keeps the other tool\'s hook in that group', () => {
   freshHome()
   const other = { type: 'command', command: '/x/auto-allow.sh' }
-  const limit = { type: 'command', command: '/bin/kestrel hook', timeout: 5 }
-  const cold = { type: 'command', command: '/bin/kestrel hook cold-start', timeout: 5 }
+  const limit = { type: 'command', command: `${own()} hook`, timeout: 5 }
+  const cold = { type: 'command', command: `${own()} hook cold-start`, timeout: 5 }
   const addContext = { type: 'command', command: '/x/add-context.sh' }
   // Each event has one group that holds this tool's hook and another tool's hook, and one group of this tool alone.
   const shared = () => ({
     theme: 'dark',
-    statusLine: { type: 'command', command: '/bin/kestrel statusline' },
+    statusLine: { type: 'command', command: `${own()} statusline` },
     hooks: {
       PreToolUse: [{ matcher: 'Bash', hooks: [other, limit] }, { matcher: '', hooks: [limit] }],
       UserPromptSubmit: [{ hooks: [cold, addContext] }, { hooks: [cold] }],
-      PreModelSwitch: [{ hooks: [{ type: 'command', command: '/bin/kestrel hook model-switch', timeout: 5 }] }],
+      PreModelSwitch: [{ hooks: [{ type: 'command', command: `${own()} hook model-switch`, timeout: 5 }] }],
     },
   })
   // The hook that holds a limit.
   writeFileSync(SETTINGS, JSON.stringify(shared()))
-  assert.equal(setHook('/bin/kestrel', false), true)
+  assert.equal(setHook(own(), false), true)
   assert.deepEqual(settings().hooks.PreToolUse, [{ matcher: 'Bash', hooks: [other] }])
   assert.deepEqual(settings().hooks.UserPromptSubmit, shared().hooks.UserPromptSubmit)
   // Turned on again, it gets a group of its own, and the other tool's group stays as it is.
-  assert.equal(setHook('/bin/kestrel', true), true)
+  assert.equal(setHook(own(), true), true)
   assert.deepEqual(settings().hooks.PreToolUse, [{ matcher: 'Bash', hooks: [other] }, { matcher: '', hooks: [limit] }])
-  assert.equal(setHook('/bin/kestrel', true), false)
+  assert.equal(setHook(own(), true), false)
 
   // The hook of a change, taken back with "undo".
   writeFileSync(SETTINGS, JSON.stringify(shared()))
-  applyAction('cold-start-warn', '/bin/kestrel')
-  assert.match(undoAction('cold-start-warn', '/bin/kestrel')[0], /cold-start-warn is taken back/)
+  applyAction('cold-start-warn', own())
+  assert.match(undoAction('cold-start-warn', own())[0], /cold-start-warn is taken back/)
   assert.deepEqual(settings().hooks.UserPromptSubmit, [{ hooks: [addContext] }])
   assert.deepEqual(settings().hooks.PreToolUse, shared().hooks.PreToolUse)
 
@@ -1803,46 +1805,46 @@ test('taking this tool\'s hook out of a group keeps the other tool\'s hook in th
   assert.equal(uninstall(), false)
 })
 
-test('a command of another tool whose name only ends in "kestrel" is not this tool\'s: it stays in its group, and it stays the status line', () => {
+test('a command of another tool whose name only ends in "widal" is not this tool\'s: it stays in its group, and it stays the status line', () => {
   freshHome()
-  const theirs = { type: 'command', command: '/usr/bin/other-kestrel hook' }
-  const theirsToo = { type: 'command', command: '/usr/bin/my_kestrel hook keep-warm' }
-  const theirPrompt = { type: 'command', command: '/usr/bin/other-kestrel hook cold-start' }
+  const theirs = { type: 'command', command: '/usr/bin/other-widal hook' }
+  const theirsToo = { type: 'command', command: '/usr/bin/my_widal hook keep-warm' }
+  const theirPrompt = { type: 'command', command: '/usr/bin/other-widal hook cold-start' }
   // This tool at another path, from an older install. That one is this tool's, and is replaced.
   const oursElsewhere = { type: 'command', command: '/opt/foo/kestrel hook keep-warm', asyncRewake: true, timeout: 3600 }
-  const ours = { type: 'command', command: '/bin/kestrel hook keep-warm', asyncRewake: true, timeout: 3600 }
-  const limit = { type: 'command', command: '/bin/kestrel hook', timeout: 5 }
+  const ours = { type: 'command', command: `${own()} hook keep-warm`, asyncRewake: true, timeout: 3600 }
+  const limit = { type: 'command', command: `${own()} hook`, timeout: 5 }
   const before = {
     theme: 'dark',
-    statusLine: { type: 'command', command: '/usr/bin/other-kestrel statusline' },
+    statusLine: { type: 'command', command: '/usr/bin/other-widal statusline' },
     hooks: { Stop: [{ hooks: [oursElsewhere, theirs, theirsToo] }], PreToolUse: [{ matcher: '', hooks: [theirs] }], UserPromptSubmit: [{ hooks: [theirPrompt] }] },
   }
   writeFileSync(SETTINGS, JSON.stringify(before))
 
   // A change adds this tool's hook, and takes only this tool's hooks out of a group.
-  applyAction('keep-warm', '/bin/kestrel')
+  applyAction('keep-warm', own())
   assert.deepEqual(settings().hooks.Stop, [{ hooks: [theirs, theirsToo] }, { hooks: [ours] }])
-  undoAction('keep-warm', '/bin/kestrel')
+  undoAction('keep-warm', own())
   assert.deepEqual(settings().hooks.Stop, [{ hooks: [theirs, theirsToo] }])
   // The other tool's hook for a sent prompt is not this tool's change either: once this tool's
   // hook is taken out by hand, the change is no longer in the settings.
-  applyAction('cold-start-warn', '/bin/kestrel')
+  applyAction('cold-start-warn', own())
   writeFileSync(SETTINGS, JSON.stringify({ ...settings(), hooks: { ...settings().hooks, UserPromptSubmit: [{ hooks: [theirPrompt] }] } }))
-  assert.match(run(['status']), /^Change: cold-start-warn +applied on \d{4}-\d\d-\d\d, but no longer in the settings$/m)
-  undoAction('cold-start-warn', '/bin/kestrel')
+  assert.match(run(['doctor']), /^Change: cold-start-warn +applied on \d{4}-\d\d-\d\d, but no longer in the settings$/m)
+  undoAction('cold-start-warn', own())
   assert.deepEqual(settings().hooks.UserPromptSubmit, [{ hooks: [theirPrompt] }])
 
   // The hook that holds a limit.
   assert.equal(installed().hook, false)
-  assert.equal(setHook('/bin/kestrel', true), true)
+  assert.equal(setHook(own(), true), true)
   assert.deepEqual(settings().hooks.PreToolUse, [{ matcher: '', hooks: [theirs] }, { matcher: '', hooks: [limit] }])
   assert.equal(installed().hook, true)
-  assert.equal(setHook('/bin/kestrel', false), true)
+  assert.equal(setHook(own(), false), true)
   assert.deepEqual(settings().hooks.PreToolUse, [{ matcher: '', hooks: [theirs] }])
 
   // The status line of the other tool is kept, and "uninstall" finds nothing of this tool.
-  assert.equal(installStatusLine('/bin/kestrel'), 'Claude Code already has a status line (/usr/bin/other-kestrel statusline). It was kept. Use --force to replace it.')
-  assert.deepEqual(installed(), { statusLine: false, otherStatusLine: '/usr/bin/other-kestrel statusline', hook: false, refresh: 0 })
+  assert.equal(installStatusLine(own()), 'Claude Code already has a status line (/usr/bin/other-widal statusline). It was kept. Use --force to replace it.')
+  assert.deepEqual(installed(), { statusLine: false, otherStatusLine: '/usr/bin/other-widal statusline', hook: false, refresh: 0 })
   assert.equal(uninstall(), false)
   assert.deepEqual(settings(), { ...before, hooks: { ...before.hooks, Stop: [{ hooks: [theirs, theirsToo] }] } })
 })
@@ -1856,12 +1858,12 @@ test('the settings file is replaced as a whole: a reader that has it open still 
   // be empty for a moment, and this reader would get the new text or a part of it.
   const reader = openSync(SETTINGS, 'r')
   try {
-    installStatusLine('/bin/kestrel')
+    installStatusLine(own())
     assert.equal(readFileSync(reader, 'utf8'), old)
   } finally {
     closeSync(reader)
   }
-  assert.deepEqual(settings(), { ...OTHER, statusLine: { type: 'command', command: '/bin/kestrel statusline', refreshInterval: 30 } })
+  assert.deepEqual(settings(), { ...OTHER, statusLine: { type: 'command', command: `${own()} statusline`, refreshInterval: 30 } })
   assert.equal(statSync(SETTINGS).mode & 0o777, 0o600)
   // The new file that took its place has not left anything behind.
   assert.deepEqual(readdirSync(process.env.CLAUDE_CONFIG_DIR).filter((f) => f.startsWith('settings.json.')), [])
@@ -1872,9 +1874,9 @@ test('the settings file is replaced as a whole: a reader that has it open still 
   rmSync(SETTINGS)
   symlinkSync(real, SETTINGS)
   try {
-    setHook('/bin/kestrel', true)
+    setHook(own(), true)
     assert.equal(lstatSync(SETTINGS).isSymbolicLink(), true)
-    assert.deepEqual(JSON.parse(readFileSync(real, 'utf8')).hooks.PreToolUse.at(-1), { matcher: '', hooks: [{ type: 'command', command: '/bin/kestrel hook', timeout: 5 }] })
+    assert.deepEqual(JSON.parse(readFileSync(real, 'utf8')).hooks.PreToolUse.at(-1), { matcher: '', hooks: [{ type: 'command', command: `${own()} hook`, timeout: 5 }] })
     assert.deepEqual(readdirSync(dir).filter((f) => f.startsWith('kept-elsewhere.json.')), [])
   } finally {
     // The other tests get a plain file again.
@@ -1889,43 +1891,43 @@ test('settings that are not in the shape Claude Code writes are not changed, and
   // The file holds a list, text, a number or nothing, where an object is expected.
   for (const odd of ['[]', '[{"theme":"dark"}]', '"text"', '5', 'null']) {
     writeFileSync(SETTINGS, odd)
-    for (const change of [() => applyAction('effort-default', '/bin/kestrel'), () => applyAction('subagent-model', '/bin/kestrel'), () => applyAction('keep-warm', '/bin/kestrel'), () => installStatusLine('/bin/kestrel'), () => setHook('/bin/kestrel', true), () => uninstall()]) {
+    for (const change of [() => applyAction('effort-default', own()), () => applyAction('subagent-model', own()), () => applyAction('keep-warm', own()), () => installStatusLine(own()), () => setHook(own(), true), () => uninstall()]) {
       assert.throws(change, { message: `${SETTINGS} does not hold a JSON object, so this tool does not change it.` }, odd)
     }
     assert.equal(text(), odd)
   }
   // Nothing counts as applied, and keep-warm was not turned on.
   assert.deepEqual(appliedActions(), {})
-  assert.equal(existsSync(join(process.env.KESTREL_HOME, 'config.json')), false)
+  assert.equal(existsSync(join(process.env.WIDAL_HOME, 'config.json')), false)
   // The command says the same in one line, and fails.
   writeFileSync(SETTINGS, '[]')
   const failed = exec(['apply', 'effort-default'])
-  assert.deepEqual([failed.status, failed.stdout, failed.stderr], [1, '', `kestrel: ${SETTINGS} does not hold a JSON object, so this tool does not change it.\n`])
+  assert.deepEqual([failed.status, failed.stdout, failed.stderr], [1, '', `widal: ${SETTINGS} does not hold a JSON object, so this tool does not change it.\n`])
   assert.equal(text(), '[]')
 
   // An "env" that is text, a list or a number. Text would become one key per letter.
   for (const env of ['abc', ['a', 'b'], 5]) {
     const odd = JSON.stringify({ theme: 'dark', env })
     writeFileSync(SETTINGS, odd)
-    assert.throws(() => applyAction('subagent-model', '/bin/kestrel'), { message: `"env" in ${SETTINGS} is not an object, so "CLAUDE_CODE_SUBAGENT_MODEL" cannot be set in it.` })
+    assert.throws(() => applyAction('subagent-model', own()), { message: `"env" in ${SETTINGS} is not an object, so "CLAUDE_CODE_SUBAGENT_MODEL" cannot be set in it.` })
     assert.equal(text(), odd)
   }
   // "hooks" that is text, and an event that holds text.
   let odd = JSON.stringify({ theme: 'dark', hooks: 'abc' })
   writeFileSync(SETTINGS, odd)
-  assert.throws(() => applyAction('keep-warm', '/bin/kestrel'), { message: `"hooks" in ${SETTINGS} is not an object, so this tool does not change it.` })
-  assert.throws(() => setHook('/bin/kestrel', true), { message: `"hooks" in ${SETTINGS} is not an object, so this tool does not change it.` })
+  assert.throws(() => applyAction('keep-warm', own()), { message: `"hooks" in ${SETTINGS} is not an object, so this tool does not change it.` })
+  assert.throws(() => setHook(own(), true), { message: `"hooks" in ${SETTINGS} is not an object, so this tool does not change it.` })
   assert.equal(text(), odd)
   odd = JSON.stringify({ theme: 'dark', hooks: { Stop: 'x', PreToolUse: { a: 1 } } })
   writeFileSync(SETTINGS, odd)
-  assert.throws(() => applyAction('keep-warm', '/bin/kestrel'), { message: `"hooks.Stop" in ${SETTINGS} is not a list, so this tool does not change it.` })
-  assert.throws(() => setHook('/bin/kestrel', true), { message: `"hooks.PreToolUse" in ${SETTINGS} is not a list, so this tool does not change it.` })
+  assert.throws(() => applyAction('keep-warm', own()), { message: `"hooks.Stop" in ${SETTINGS} is not a list, so this tool does not change it.` })
+  assert.throws(() => setHook(own(), true), { message: `"hooks.PreToolUse" in ${SETTINGS} is not a list, so this tool does not change it.` })
   assert.equal(text(), odd)
   assert.deepEqual(appliedActions(), {})
-  assert.equal(existsSync(join(process.env.KESTREL_HOME, 'config.json')), false)
+  assert.equal(existsSync(join(process.env.WIDAL_HOME, 'config.json')), false)
   // What is installed can still be looked at, and "uninstall" takes out what is this tool's and leaves the rest.
-  const limit = { type: 'command', command: '/bin/kestrel hook', timeout: 5 }
-  writeFileSync(SETTINGS, JSON.stringify({ statusLine: { type: 'command', command: '/bin/kestrel statusline', refreshInterval: 'often' }, hooks: { Stop: 'x', PreToolUse: [{ hooks: 'y' }, 7, { hooks: [limit] }] } }))
+  const limit = { type: 'command', command: `${own()} hook`, timeout: 5 }
+  writeFileSync(SETTINGS, JSON.stringify({ statusLine: { type: 'command', command: `${own()} statusline`, refreshInterval: 'often' }, hooks: { Stop: 'x', PreToolUse: [{ hooks: 'y' }, 7, { hooks: [limit] }] } }))
   assert.deepEqual(installed(), { statusLine: true, otherStatusLine: undefined, hook: true, refresh: 0 })
   assert.equal(uninstall(), true)
   assert.deepEqual(settings(), { hooks: { Stop: 'x', PreToolUse: [{ hooks: 'y' }, 7] } })
@@ -1935,11 +1937,11 @@ test('settings that are not in the shape Claude Code writes are not changed, and
 test('a number in the settings that JavaScript cannot hold is written back as it was read', () => {
   freshHome()
   writeFileSync(SETTINGS, '{"theme":"dark","large":12345678901234567890,"list":[-98765432109876543210,1e400,9007199254740991,3,0.5],"env":{"SEED":18446744073709551615}}')
-  installStatusLine('/bin/kestrel')
-  applyAction('subagent-model', '/bin/kestrel')
-  applyAction('keep-warm', '/bin/kestrel')
-  undoAction('keep-warm', '/bin/kestrel')
-  undoAction('subagent-model', '/bin/kestrel')
+  installStatusLine(own())
+  applyAction('subagent-model', own())
+  applyAction('keep-warm', own())
+  undoAction('keep-warm', own())
+  undoAction('subagent-model', own())
   assert.equal(uninstall(), true)
   assert.equal(readFileSync(SETTINGS, 'utf8').replace(/\s/g, ''), '{"theme":"dark","large":12345678901234567890,"list":[-98765432109876543210,1e400,9007199254740991,3,0.5],"env":{"SEED":18446744073709551615},"hooks":{}}')
   writeFileSync(SETTINGS, JSON.stringify(OTHER))
@@ -1952,12 +1954,12 @@ test('two changes in the same millisecond keep both copies of the settings file'
   try {
     const first = JSON.stringify({ theme: 'dark' })
     writeFileSync(SETTINGS, first)
-    installStatusLine('/bin/kestrel')
+    installStatusLine(own())
     const second = readFileSync(SETTINGS, 'utf8')
-    setHook('/bin/kestrel', true)
+    setHook(own(), true)
     const third = readFileSync(SETTINGS, 'utf8')
-    setHook('/bin/kestrel', false)
-    const backup = join(process.env.KESTREL_HOME, 'backup')
+    setHook(own(), false)
+    const backup = join(process.env.WIDAL_HOME, 'backup')
     const time = new Date(NOW).toISOString().replace(/[:.]/g, '-')
     assert.deepEqual(readdirSync(backup).sort(), [`settings.${time}-2.json`, `settings.${time}-3.json`, `settings.${time}.json`])
     assert.deepEqual([`settings.${time}.json`, `settings.${time}-2.json`, `settings.${time}-3.json`].map((name) => readFileSync(join(backup, name), 'utf8')), [first, second, third])
@@ -1972,7 +1974,7 @@ const { keepWarmConfig, keepWarmRecord, keepWarmReport } = await import('../src/
 
 // What Claude Code gives the hook that runs after an answer. The hook must not read or keep the answer.
 const STOP = { session_id: 'one', hook_event_name: 'Stop', cwd: '/work/repo', stop_hook_active: false, last_assistant_message: 'a private answer' }
-const WAKE = "kestrel keep-warm: nobody typed for a while and this session's cache was about to end. Reply with the single word: ok"
+const WAKE = "widal keep-warm: nobody typed for a while and this session's cache was about to end. Reply with the single word: ok"
 /** A session on a subscription whose only limit is green. Its cache lasts 1 hour and ends at `end`: 52 minutes after noon unless another end is given. */
 const idle = (end = NOW + 52 * MIN, extra = {}) => session({ rate_limits: { seven_day: WEEK }, prompt_cache: { warm: true, ttl: '1h', expires_at: sec(end), recache_tokens_if_cold: 527119 }, ...extra })
 /** The plan of the keep-warm hook for an answer that ended at `now`, with an empty environment. */
@@ -1984,7 +1986,7 @@ const keepWarmOn = (settings = {}) => {
   line(idle())
 }
 /** Changes what is kept about a session, as the status line or a hook would. */
-const keep = (id, change) => writeFileSync(join(process.env.KESTREL_HOME, 'sessions', `${id}.json`), JSON.stringify({ ...kept(id), ...change }))
+const keep = (id, change) => writeFileSync(join(process.env.WIDAL_HOME, 'sessions', `${id}.json`), JSON.stringify({ ...kept(id), ...change }))
 /** The record of keep-warm for the session "one", for an idle period that began at noon. */
 const RECORDED = { session: 'one', project: 'work/repo', model: 'claude-fable-5-2', idleSince: NOW }
 
@@ -2015,7 +2017,7 @@ test('keep-warm makes no plan while it is off, and none for a session the status
   assert.equal(kept('one').at, NOW)
   // A session the status line has not seen gets no file, and an input without a session gets nothing.
   assert.equal(planAt(NOW + MIN, { ...STOP, session_id: 'never-seen' }), undefined)
-  assert.equal(existsSync(join(process.env.KESTREL_HOME, 'sessions', 'never-seen.json')), false)
+  assert.equal(existsSync(join(process.env.WIDAL_HOME, 'sessions', 'never-seen.json')), false)
   assert.equal(planAt(NOW + MIN, {}), undefined)
   assert.equal(keepWarmPlan(undefined, NOW + MIN, { env: {} }), undefined)
   // Nothing of the answer is kept.
@@ -2266,7 +2268,7 @@ test('the record of keep-warm has one entry per idle period with a wake: what th
 test('the record of keep-warm keeps the last 200 idle periods', () => {
   keepWarmOn()
   const old = Array.from({ length: 200 }, (_, i) => ({ session: `s${i}`, project: 'work/repo', model: 'claude-fable-5-2', idleSince: NOW - (200 - i) * DAY, wakes: 1, read: 1000, last: 1000 }))
-  writeFileSync(join(process.env.KESTREL_HOME, 'keep-warm.json'), JSON.stringify(old))
+  writeFileSync(join(process.env.WIDAL_HOME, 'keep-warm.json'), JSON.stringify(old))
   const plan = planAt(NOW)
   line(idle(), NOW + 45.5 * MIN)
   assert.equal(keepWarmDue('one', plan.token, NOW + 46 * MIN), true)
@@ -2279,7 +2281,7 @@ test('the record of keep-warm keeps the last 200 idle periods', () => {
   assert.equal(keepWarmRecord().length, 200)
   assert.deepEqual(keepWarmRecord().at(-1), { ...RECORDED, wakes: 2, read: 1054238, last: 527119 })
   // A record that is not a list counts as empty.
-  writeFileSync(join(process.env.KESTREL_HOME, 'keep-warm.json'), '{"broken"')
+  writeFileSync(join(process.env.WIDAL_HOME, 'keep-warm.json'), '{"broken"')
   assert.deepEqual(keepWarmRecord(), [])
 })
 
@@ -2430,12 +2432,12 @@ test('an idle session is woken shortly before each end of its cache until the ca
   // 5 minutes before the end, the notification comes, and says why.
   now = end - 5 * MIN
   shown()
-  assert.deepEqual(sent, [['kestrel: work/repo cache ends at 15:42', `Keep-warm stopped after 3 hours. ${IDLE_BODY('15:42')}`]])
+  assert.deepEqual(sent, [['widal: work/repo cache ends at 15:42', `Keep-warm stopped after 3 hours. ${IDLE_BODY('15:42')}`]])
 })
 
-test('"kestrel hook keep-warm" prints nothing and exits 0 without a wake, and wakes the session with its sentence on stderr and exit code 2', () => {
+test('"widal hook keep-warm" prints nothing and exits 0 without a wake, and wakes the session with its sentence on stderr and exit code 2', () => {
   freshHome()
-  const sessions = join(process.env.KESTREL_HOME, 'sessions')
+  const sessions = join(process.env.WIDAL_HOME, 'sessions')
   mkdirSync(sessions, { recursive: true })
   // The command takes the time from the clock. So the session's file is one that the status line
   // wrote just now, for a cache that ends in 5 minutes: the time for the wake has come.
@@ -2471,7 +2473,7 @@ test('"kestrel hook keep-warm" prints nothing and exits 0 without a wake, and wa
   // A hook that throws prints nothing and exits 0. Here a folder stands where the record is
   // kept, so the wake cannot be recorded.
   freshHome()
-  const home = process.env.KESTREL_HOME
+  const home = process.env.WIDAL_HOME
   mkdirSync(join(home, 'sessions'), { recursive: true })
   mkdirSync(join(home, 'keep-warm.json'))
   writeFileSync(join(home, 'sessions', 'one.json'), JSON.stringify(open))
@@ -2492,14 +2494,14 @@ test('a wake that cannot be recorded is not counted: the line does not say "kept
   line(idle(), NOW + 45.5 * MIN)
   // A folder stands where the record is kept, so the wake cannot be recorded. The hook throws,
   // and the command then ends without a wake.
-  mkdirSync(join(process.env.KESTREL_HOME, 'keep-warm.json'))
+  mkdirSync(join(process.env.WIDAL_HOME, 'keep-warm.json'))
   const before = kept('one')
   assert.throws(() => keepWarmDue('one', plan.token, NOW + 46 * MIN))
   assert.deepEqual(kept('one'), before)
   assert.deepEqual(kept('one').keepWarm, { token: plan.token, idleSince: NOW, wakes: 0 })
   // Four minutes before the end of the cache: nothing was kept warm, and no wake is to come.
   assert.equal(line(idle(), NOW + 48 * MIN), 'week 36% used (read 48 min ago), 44% of the week gone | cache warm, 4 min left | context 527k (53%) | effort high')
-  assert.deepEqual(sent, [['kestrel: work/repo cache ends at 12:52', IDLE_BODY('12:52')]])
+  assert.deepEqual(sent, [['widal: work/repo cache ends at 12:52', IDLE_BODY('12:52')]])
 })
 
 test('no wake while a limit of the plan is yellow or red at the time of the wake, also when it was green when the answer ended', () => {
@@ -2576,7 +2578,7 @@ test('the status line says "kept warm" and "stopped" only while the session is i
   // A tool of that turn runs for most of an hour. The notification before the end of the cache
   // comes as usual, without the sentence that keep-warm has stopped.
   at(237, 5000, 241)
-  assert.deepEqual(sent, [['kestrel: work/repo cache ends at 16:01', IDLE_BODY('16:01')]])
+  assert.deepEqual(sent, [['widal: work/repo cache ends at 16:01', IDLE_BODY('16:01')]])
   // Without a model call after the wake turn the session is still idle: at the cap the line says that keep-warm has stopped.
   keepWarmOn()
   at(0, 1000, 52)
@@ -2686,86 +2688,86 @@ test('the change "keep-warm" adds the hook that waits in the background and turn
   const before = { theme: 'dark', hooks: { PreToolUse: [autoAllow], Stop: [sayDone] } }
   writeFileSync(SETTINGS, JSON.stringify(before))
   saveConfig({ nudge: { on: true } })
-  const config = () => JSON.parse(readFileSync(join(process.env.KESTREL_HOME, 'config.json'), 'utf8'))
+  const config = () => JSON.parse(readFileSync(join(process.env.WIDAL_HOME, 'config.json'), 'utf8'))
   // The hook's entry: it runs in the background, wakes the session with exit code 2, and may wait for an hour.
-  const ours = { hooks: [{ type: 'command', command: '/bin/kestrel hook keep-warm', asyncRewake: true, timeout: 3600 }] }
+  const ours = { hooks: [{ type: 'command', command: `${own()} hook keep-warm`, asyncRewake: true, timeout: 3600 }] }
 
-  const said = applyAction('keep-warm', '/bin/kestrel')
+  const said = applyAction('keep-warm', own())
   assert.equal(said[0], 'Added a hook to Claude Code that runs after each answer, and turned keep-warm on. It wakes an idle session shortly before its cache ends, for up to 3 hours without you.')
   // The note says plainly what it is: an experiment that spends the plan's limit while the person is away, and that stops after the cap.
   assert.match(said[1], /^It is an experiment, and it spends your plan's limit while you are away: it can cost more than it saves\. It stops after the cap\./)
-  assert.match(said[1], /Check the effect with: kestrel measure keep-warm$/)
-  assert.equal(said[2], 'Take it back with: kestrel undo keep-warm')
+  assert.match(said[1], /Check the effect with: widal measure keep-warm$/)
+  assert.equal(said[2], 'Take it back with: widal undo keep-warm')
   assert.deepEqual(settings(), { theme: 'dark', hooks: { PreToolUse: [autoAllow], Stop: [sayDone, ours] } })
   assert.deepEqual(config(), { nudge: { on: true }, keepWarm: { on: true, capHours: 3 } })
   assert.deepEqual(Object.keys(appliedActions()), ['keep-warm'])
   // A second apply adds nothing.
-  assert.deepEqual(applyAction('keep-warm', '/bin/kestrel'), ['keep-warm is already applied.'])
+  assert.deepEqual(applyAction('keep-warm', own()), ['keep-warm is already applied.'])
   assert.deepEqual(settings().hooks.Stop, [sayDone, ours])
 
   // Another cap. The hook is there once, and the other settings of keep-warm stay.
   saveConfig({ ...config(), keepWarm: { ...config().keepWarm, before: 8 } })
-  assert.match(applyAction('keep-warm', '/bin/kestrel', NOW, ['--cap-hours', '1.5'])[0], /for up to 1\.5 hours without you\.$/)
+  assert.match(applyAction('keep-warm', own(), NOW, ['--cap-hours', '1.5'])[0], /for up to 1\.5 hours without you\.$/)
   assert.deepEqual(config().keepWarm, { on: true, capHours: 1.5, before: 8 })
   assert.deepEqual(settings().hooks.Stop, [sayDone, ours])
-  assert.deepEqual(applyAction('keep-warm', '/bin/kestrel', NOW, ['--cap-hours', '1.5']), ['keep-warm is already applied.'])
-  assert.match(applyAction('keep-warm', '/bin/kestrel', NOW, ['--cap-hours', '1'])[0], /for up to 1 hour without you\.$/)
+  assert.deepEqual(applyAction('keep-warm', own(), NOW, ['--cap-hours', '1.5']), ['keep-warm is already applied.'])
+  assert.match(applyAction('keep-warm', own(), NOW, ['--cap-hours', '1'])[0], /for up to 1 hour without you\.$/)
   // A cap that is not a number of hours changes nothing.
   for (const bad of ['0', '-1', '24.5', 'long', '1e1', '']) {
-    assert.throws(() => applyAction('keep-warm', '/bin/kestrel', NOW, ['--cap-hours', bad]), /--cap-hours is a number of hours, above 0 and at most 24\./, bad)
+    assert.throws(() => applyAction('keep-warm', own(), NOW, ['--cap-hours', bad]), /--cap-hours is a number of hours, above 0 and at most 24\./, bad)
   }
-  assert.throws(() => applyAction('keep-warm', '/bin/kestrel', NOW, ['--hours', '2']), /keep-warm does not take "--hours"\. It takes: --cap-hours <value>/)
+  assert.throws(() => applyAction('keep-warm', own(), NOW, ['--hours', '2']), /keep-warm does not take "--hours"\. It takes: --cap-hours <value>/)
   assert.deepEqual(config().keepWarm, { on: true, capHours: 1, before: 8 })
-  assert.equal(applyAction('keep-warm', '/bin/kestrel', NOW, ['--cap-hours', '24']).length, 3)
+  assert.equal(applyAction('keep-warm', own(), NOW, ['--cap-hours', '24']).length, 3)
 
   // Undo takes the hook out and turns keep-warm off. The other hooks and settings stay.
-  assert.deepEqual(undoAction('keep-warm', '/bin/kestrel'), ['keep-warm is taken back. The hook is out of Claude Code, and keep-warm is off.'])
+  assert.deepEqual(undoAction('keep-warm', own()), ['keep-warm is taken back. The hook is out of Claude Code, and keep-warm is off.'])
   assert.deepEqual(settings(), before)
   assert.deepEqual(config(), { nudge: { on: true }, keepWarm: { on: false, capHours: 24, before: 8 } })
   assert.deepEqual(Object.keys(appliedActions()), [])
-  assert.match(undoAction('keep-warm', '/bin/kestrel')[0], /was not applied by this tool/)
+  assert.match(undoAction('keep-warm', own())[0], /was not applied by this tool/)
   // Without another hook for the same event, taking it back leaves no empty list.
   writeFileSync(SETTINGS, JSON.stringify({ theme: 'dark', hooks: { PreToolUse: [autoAllow] } }))
-  applyAction('keep-warm', '/bin/kestrel')
+  applyAction('keep-warm', own())
   assert.deepEqual(settings(), { theme: 'dark', hooks: { PreToolUse: [autoAllow], Stop: [ours] } })
-  undoAction('keep-warm', '/bin/kestrel')
+  undoAction('keep-warm', own())
   assert.deepEqual(settings(), { theme: 'dark', hooks: { PreToolUse: [autoAllow] } })
   // "uninstall" takes the hook out as well, and keeps the other one.
   writeFileSync(SETTINGS, JSON.stringify(before))
-  applyAction('keep-warm', '/bin/kestrel')
+  applyAction('keep-warm', own())
   assert.equal(uninstall(), true)
   assert.deepEqual(settings(), before)
 })
 
-test('"kestrel apply" lists and makes the change "keep-warm", "status" shows it, and nothing turns it on before that', () => {
+test('"widal apply" lists and makes the change "keep-warm", "status" shows it, and nothing turns it on before that', () => {
   freshHome()
   writeFileSync(SETTINGS, JSON.stringify(OTHER))
-  const config = () => JSON.parse(readFileSync(join(process.env.KESTREL_HOME, 'config.json'), 'utf8'))
+  const config = () => JSON.parse(readFileSync(join(process.env.WIDAL_HOME, 'config.json'), 'utf8'))
   // The list says plainly what it is.
   const list = run(['apply'])
   assert.match(list, /^  keep-warm\n    An experiment\. Adds a hook to Claude Code that runs after each answer\./m)
   assert.match(list, /Each wake spends some of your plan's limit while you are away \(money, when you pay by the token\)\. It stops after 3 hours without you, or after the hours that --cap-hours names\.$/m)
-  assert.match(run(['status']), /^Change: keep-warm +not applied$/m)
+  assert.match(run(['doctor']), /^Change: keep-warm +not applied$/m)
   // Off until it is applied: an install and the other commands leave it alone.
-  run(['install'])
+  run(['connect'])
   run(['nudge', 'on'])
   assert.equal(config().keepWarm, undefined)
   // The install adds the hook of the security checks at the end of a turn, and no other.
-  const turn = { hooks: [{ type: 'command', command: `${join(process.env.KESTREL_HOME, 'bin', 'kestrel')} hook check-turn`, timeout: 5 }] }
+  const turn = { hooks: [{ type: 'command', command: `${join(process.env.WIDAL_HOME, 'bin', 'widal')} hook check-turn`, timeout: 5 }] }
   assert.deepEqual(settings().hooks.Stop, [turn])
 
   assert.match(run(['apply', 'keep-warm', '--cap-hours', '2']), /^Added a hook to Claude Code that runs after each answer, and turned keep-warm on\. It wakes an idle session shortly before its cache ends, for up to 2 hours without you\.\n/)
   // The settings call the link in this tool's own folder, not the one on the PATH.
-  const command = `${join(process.env.KESTREL_HOME, 'bin', 'kestrel')} hook keep-warm`
+  const command = `${join(process.env.WIDAL_HOME, 'bin', 'widal')} hook keep-warm`
   // The hook of the security checks stays next to it.
   assert.deepEqual(settings().hooks.Stop, [turn, { hooks: [{ type: 'command', command, asyncRewake: true, timeout: 3600 }] }])
   assert.deepEqual(config().keepWarm, { on: true, capHours: 2 })
-  assert.match(run(['status']), /^Change: keep-warm +applied on \d{4}-\d\d-\d\d$/m)
+  assert.match(run(['doctor']), /^Change: keep-warm +applied on \d{4}-\d\d-\d\d$/m)
   // Turned off by hand in the settings of this tool, it is no longer in place.
   saveConfig({ ...config(), keepWarm: { on: false, capHours: 2 } })
-  assert.match(run(['status']), /^Change: keep-warm +applied on \d{4}-\d\d-\d\d, but no longer in the settings$/m)
+  assert.match(run(['doctor']), /^Change: keep-warm +applied on \d{4}-\d\d-\d\d, but no longer in the settings$/m)
   const bad = exec(['apply', 'keep-warm', '--cap-hours', 'forever'])
-  assert.deepEqual([bad.status, bad.stdout, bad.stderr], [1, '', 'kestrel: --cap-hours is a number of hours, above 0 and at most 24.\n'])
+  assert.deepEqual([bad.status, bad.stdout, bad.stderr], [1, '', 'widal: --cap-hours is a number of hours, above 0 and at most 24.\n'])
   assert.match(run(['undo', 'keep-warm']), /^keep-warm is taken back\. The hook is out of Claude Code, and keep-warm is off\.\n$/)
   assert.deepEqual(settings().hooks.Stop, [turn])
   assert.deepEqual(config().keepWarm, { on: false, capHours: 2 })
@@ -2820,7 +2822,7 @@ test('while keep-warm wakes a session there is no notification before the end of
   const lastMinutes = () => {
     for (const later of [47, 48, 51.5]) line(idle(), NOW + later * MIN)
   }
-  const usual = [['kestrel: work/repo cache ends at 12:52', IDLE_BODY('12:52')]]
+  const usual = [['widal: work/repo cache ends at 12:52', IDLE_BODY('12:52')]]
   // Keep-warm is on, and its hook has not run for this session: the notification comes as usual.
   start()
   lastMinutes()
@@ -2850,7 +2852,7 @@ test('while keep-warm wakes a session there is no notification before the end of
   assert.deepEqual(sent, [])
   // A wake whose turn has not moved the end after 3 minutes: the notification comes after all.
   line(idle(NOW + 106 * MIN), NOW + 103 * MIN + 1)
-  assert.deepEqual(sent, [['kestrel: work/repo cache ends at 13:46', IDLE_BODY('13:46')]])
+  assert.deepEqual(sent, [['widal: work/repo cache ends at 13:46', IDLE_BODY('13:46')]])
 
   // A wake that does not come. The token of the plan is still in the session's file, but no hook
   // is there to wake the session: it was ended, or it found a reason not to wake. Until one
@@ -2884,7 +2886,7 @@ test('while keep-warm wakes a session there is no notification before the end of
     line(idle(NOW + 222 * MIN), now)
   }
   capped(NOW + 217 * MIN)
-  assert.deepEqual(sent, [['kestrel: work/repo cache ends at 15:42', `Keep-warm stopped after 3 hours. ${IDLE_BODY('15:42')}`]])
+  assert.deepEqual(sent, [['widal: work/repo cache ends at 15:42', `Keep-warm stopped after 3 hours. ${IDLE_BODY('15:42')}`]])
   // Once per end, as before.
   line(idle(NOW + 222 * MIN), NOW + 218 * MIN)
   assert.equal(sent.length, 1)
@@ -2920,9 +2922,9 @@ test('the hook for a sent prompt stays silent on a wake turn, because the cache 
   assert.deepEqual(kept('one').keepWarm, state)
 })
 
-test('"kestrel measure keep-warm" gives the numbers of the record, and says whether keep-warm saved more than it cost', () => {
+test('"widal measure keep-warm" gives the numbers of the record, and says whether keep-warm saved more than it cost', () => {
   freshHome()
-  const home = process.env.KESTREL_HOME
+  const home = process.env.WIDAL_HOME
   mkdirSync(home, { recursive: true })
   /** An idle period on Claude Fable 5.2 with 2 wakes, each of a context of 500,000 tokens. */
   const period = (i, more = {}) => ({ session: `s${i}`, project: 'work/repo', model: 'claude-fable-5-2', idleSince: NOW + i * DAY, wakes: 2, read: 1000000, last: 500000, ...more })
@@ -2930,7 +2932,7 @@ test('"kestrel measure keep-warm" gives the numbers of the record, and says whet
   const row = (text, name) => text.split('\n').find((l) => l.startsWith(name))?.slice(name.length).trim()
   const closing = (text) => text.split('\n\n').at(-1).split('\n')[0]
   // Nothing was woken yet.
-  assert.equal(keepWarmReport({ mode: 'subscription' }), 'Keep-warm has not woken a session yet, so there is nothing to measure. It is off. Turn it on with: kestrel apply keep-warm')
+  assert.equal(keepWarmReport({ mode: 'subscription' }), 'Keep-warm has not woken a session yet, so there is nothing to measure. It is off. Turn it on with: widal apply keep-warm')
   saveConfig({ keepWarm: { on: true } })
   assert.equal(keepWarmReport({ mode: 'subscription' }), 'Keep-warm has not woken a session yet, so there is nothing to measure.')
 
@@ -3419,26 +3421,26 @@ test('no text from the log ends up in the session\'s file, in any other file of 
   }
 })
 
-test('"kestrel hint" shows the settings, turns the hint on and off, and "status" has a row for it', () => {
+test('"widal hint" shows the settings, turns the hint on and off, and "status" has a row for it', () => {
   freshHome()
-  const config = () => JSON.parse(readFileSync(join(process.env.KESTREL_HOME, 'config.json'), 'utf8'))
+  const config = () => JSON.parse(readFileSync(join(process.env.WIDAL_HOME, 'config.json'), 'utf8'))
   const when = 'from the last 30 model calls of a session: a lower level when 80% or more of them are simple work, a higher level from 5 tool errors'
   // The same command turns the hint to compact on and off, and says so in a second line.
   const compact = 'at a break in the work: when 100,000 tokens or less are left before Claude Code compacts on its own, when a task just ended and the context has 150,000 tokens or more, or when the context grew by 150,000 tokens'
   const compactOn = `Compaction hint on the status line: on, ${compact}.\n`
   const compactOff = `Compaction hint on the status line: off (when on: ${compact}).\n`
-  // The value of the row of "kestrel status" for the hint.
-  const row = () => run(['status']).split('\n').find((l) => l.startsWith('Effort hint')).replace(/^Effort hint +/, '')
+  // The value of the row of "widal doctor" for the hint.
+  const row = () => run(['doctor']).split('\n').find((l) => l.startsWith('Effort hint')).replace(/^Effort hint +/, '')
   // The hint is on until the person turns it off.
   const shown = run(['hint'])
   assert.ok(shown.startsWith(`Effort hint on the status line: on, ${when}.\n`), shown)
   assert.match(shown, /A change of the effort level keeps the cache\. You type the command: nothing changes on its own\.\n/)
-  assert.match(shown, /\nTurn both off with "kestrel hint off", and on with "kestrel hint on"\.\n$/)
+  assert.match(shown, /\nTurn both off with "widal hint off", and on with "widal hint on"\.\n$/)
   assert.equal(row(), `on, ${when}`)
-  assert.equal(existsSync(join(process.env.KESTREL_HOME, 'config.json')), false)
+  assert.equal(existsSync(join(process.env.WIDAL_HOME, 'config.json')), false)
 
   writeFileSync(SETTINGS, JSON.stringify(OTHER))
-  installStatusLine('/bin/kestrel')
+  installStatusLine(own())
   saveConfig({ limits: { day: 200, action: 'warn' } })
   assert.equal(run(['hint', 'off']), `Effort hint on the status line: off (when on: ${when}).\n${compactOff}`)
   assert.deepEqual(config(), { limits: { day: 200, action: 'warn' }, hint: { on: false, calls: 30, simple: 0.8, errors: 5 }, compactHint: { on: false, growth: 150000, near: 100000 } })
@@ -3459,15 +3461,15 @@ test('"kestrel hint" shows the settings, turns the hint on and off, and "status"
   assert.deepEqual(config().hint, { on: false, calls: 40, simple: 0.9, errors: 8 })
   // What is not "on" or "off" fails and changes nothing.
   const bad = exec(['hint', 'sometimes'])
-  assert.deepEqual([bad.status, bad.stdout, bad.stderr], [1, '', 'kestrel: Use "kestrel hint on" or "kestrel hint off".\n'])
+  assert.deepEqual([bad.status, bad.stdout, bad.stderr], [1, '', 'widal: Use "widal hint on" or "widal hint off".\n'])
   assert.deepEqual(config().hint, { on: false, calls: 40, simple: 0.9, errors: 8 })
   // Without this tool's status line there is nowhere to show the hint, and turning it on says so.
   writeFileSync(SETTINGS, JSON.stringify(OTHER))
-  assert.match(run(['hint', 'on']), /\nNote: the hint is shown on the status line\. Run "kestrel install" first\.\n$/)
+  assert.match(run(['hint', 'on']), /\nNote: the hint is shown on the status line\. Run "widal connect" first\.\n$/)
   assert.doesNotMatch(run(['hint', 'off']), /Note/)
   // The settings of Claude Code are not changed by any of this.
   assert.deepEqual(settings(), OTHER)
-  assert.match(run(['help']), /^  kestrel hint on\|off +turn those hints on or off$/m)
+  assert.match(run(['help']), /^  widal hint on\|off +turn those hints on or off$/m)
 })
 
 test('after a change of account: a fresh reading wins over a kept one with a later end', () => {

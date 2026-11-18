@@ -1,12 +1,12 @@
 // The security checks as a whole: when they run, the hooks that start them, the gate before a push,
-// the part of the status line, and the command "kestrel check".
+// the part of the status line, and the command "widal check".
 //
 // When the checks run:
-//   - the settings: when a session starts (the hook "check-settings"), and in "kestrel check --run";
+//   - the settings: when a session starts (the hook "check-settings"), and in "widal check --run";
 //   - what the agent did, the code it changed and, when switched on, the text of the session: when
 //     an agent's turn ends (the hook "check-turn"), for that session and its repository, and in
-//     "kestrel check --run".
-// The two hooks start the work in the background, as the status line starts "kestrel
+//     "widal check --run".
+// The two hooks start the work in the background, as the status line starts "widal
 // refresh-today", and return at once. A session never waits for a check. A second start for the
 // same repository (or the settings) within 60 seconds is skipped.
 //
@@ -14,7 +14,7 @@
 // merge" while a high finding of the code or the actions is open in that repository makes Claude
 // Code ask the person first. It never refuses.
 //
-// Kestrel checks technical controls and flags risks. It does not make a company compliant or
+// Widal.Code checks technical controls and flags risks. It does not make a company compliant or
 // certify it. That sentence goes with every list of findings.
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -39,7 +39,7 @@ export const NOTE = CHECKS_NOTE
 // A second start for the same repository within this time is skipped.
 const START_EVERY = 60e3
 // The command's file, next to this folder.
-const COMMAND = fileURLToPath(new URL('../cli/kestrel.mjs', import.meta.url))
+const COMMAND = fileURLToPath(new URL('../cli/widal.mjs', import.meta.url))
 
 /** A session id as Claude Code gives it, when it is a plain name, else undefined. It becomes part of a finding's id and scope. */
 export const plainId = (id) => (typeof id === 'string' && /^[A-Za-z0-9_-][A-Za-z0-9._-]{0,99}$/.test(id) ? id : undefined)
@@ -69,7 +69,7 @@ function mayStart(key, now) {
   return true
 }
 
-/** Starts "kestrel security-run" in the background with these arguments. The hook never waits for it. */
+/** Starts "widal security-run" in the background with these arguments. The hook never waits for it. */
 function startRun(args, spawner) {
   spawner(process.execPath, [COMMAND, 'security-run', ...args], { detached: true, stdio: 'ignore' }).unref()
 }
@@ -153,7 +153,7 @@ export function runTurn({ session, transcript, cwd, env = process.env, now = Dat
 }
 
 /**
- * "kestrel security-run": the work that the two hooks start in the background. `what` is "settings"
+ * "widal security-run": the work that the two hooks start in the background. `what` is "settings"
  * or "turn". It prints nothing. The command catches every error.
  */
 export function securityRun({ what, cwd, session, transcript, env = process.env, now = Date.now() }) {
@@ -211,13 +211,13 @@ export function gateHook(input, { cfg = config() } = {}) {
   if (!high.length) return undefined
   const titles = [...new Set(high.map((f) => plain(f.title)))]
   const shown = titles.length > 3 ? `${titles.slice(0, 3).join('; ')}; and ${titles.length - 3} more` : titles.join('; ')
-  const reason = `Kestrel: ${high.length === 1 ? '1 high risk is' : `${high.length} high risks are`} open in this repository: ${shown}. See them with kestrel check.`
+  const reason = `Widal.Code: ${high.length === 1 ? '1 high risk is' : `${high.length} high risks are`} open in this repository: ${shown}. See them with widal check.`
   return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: reason } }
 }
 
 export { riskPart } from './risk.mjs'
 
-/** The controls of a finding for the frameworks that are on: from its rule when it is one of Kestrel's, else from its own list. */
+/** The controls of a finding for the frameworks that are on: from its rule when it is one of Widal.Code's, else from its own list. */
 function shownControls(f, frameworks) {
   return RULES[f.rule] ? controlsFor(RULES[f.rule].controls, frameworks) : storedControlsFor(f.controls, frameworks)
 }
@@ -275,13 +275,13 @@ export function runNow({ cwd, env = process.env, now = Date.now(), cfg = config(
   } else if (checks.code) said.push('The code: this folder is not in a git repository.')
   if (checks.actions || checks.data) said.push(`The sessions: ${sessions.length} of this folder in the last 7 days.`)
   const off = ['settings', 'actions', 'code', 'data'].filter((c) => !checks[c])
-  if (off.length) said.push(`Off: ${off.join(', ')} (kestrel settings set security.checks.<name> on).`)
+  if (off.length) said.push(`Off: ${off.join(', ')} (widal settings set security.checks.<name> on).`)
   return said
 }
 
 const KIND_WORDS = { settings: 'Settings', actions: 'Actions', code: 'Code', data: 'Data', cloud: 'Cloud' }
 
-/** The open findings with the controls of the frameworks that are on, as "kestrel check --json" gives them. */
+/** The open findings with the controls of the frameworks that are on, as "widal check --json" gives them. */
 export function reportData({ cfg = config(), now = Date.now() } = {}) {
   const own = securityConfig(cfg).frameworks
   const findings = openFindings().map((f) => ({ ...f, controls: shownControls(f, frameworksForFinding(f, cfg, own)) }))
@@ -290,7 +290,7 @@ export function reportData({ cfg = config(), now = Date.now() } = {}) {
   return { at: now, frameworks: own, counts, findings, note: NOTE }
 }
 
-/** "kestrel check" as text: the frameworks that are on, the open findings by kind, the most severe first, and the sentence. */
+/** "widal check" as text: the frameworks that are on, the open findings by kind, the most severe first, and the sentence. */
 export function checkText(data, { cwd = process.cwd(), cfg = config(), ran = [] } = {}) {
   const names = (list) => (list.length ? list.map((id) => FRAMEWORK_LABEL[id] ?? id).join(', ') : 'none')
   const out = [`Frameworks that are on: ${names(data.frameworks)}.`]
@@ -307,7 +307,7 @@ export function checkText(data, { cwd = process.cwd(), cfg = config(), ran = [] 
   }
   out.push(...ran)
   const c = data.counts
-  out.push('', data.findings.length ? `Open findings: ${c.high} high, ${c.medium} medium, ${c.low} low${c.info ? `, ${c.info} info` : ''}.` : 'No open findings. Run the checks for this folder now with: kestrel check --run')
+  out.push('', data.findings.length ? `Open findings: ${c.high} high, ${c.medium} medium, ${c.low} low${c.info ? `, ${c.info} info` : ''}.` : 'No open findings. Run the checks for this folder now with: widal check --run')
   for (const kind of KINDS) {
     const list = data.findings.filter((f) => f.kind === kind)
     if (!list.length) continue
@@ -353,11 +353,11 @@ export function checkCsv({ cfg = config() } = {}) {
 }
 
 /**
- * The command "kestrel check". `run` runs the checks for `cwd` first, `json` gives the data, and
+ * The command "widal check". `run` runs the checks for `cwd` first, `json` gives the data, and
  * `exportFile` writes the CSV for an audit to that file. Returns what to print.
  */
 export function checkCommand({ json = false, run = false, exportFile, cwd = process.cwd(), env = process.env, now = Date.now() } = {}) {
-  if (exportFile === true) throw new Error('--export needs a file, for example: kestrel check --export findings.csv')
+  if (exportFile === true) throw new Error('--export needs a file, for example: widal check --export findings.csv')
   const cfg = config()
   const ran = run ? runNow({ cwd, env, now, cfg }) : []
   if (exportFile !== undefined) {

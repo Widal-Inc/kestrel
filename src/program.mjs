@@ -1,7 +1,7 @@
 // The name of the program that a shell command runs, such as "npm", "git" or "pytest".
 //
-// "kestrel findings" splits the results of shell commands by program, so that a person sees which
-// programs fill the context. From a command Kestrel keeps this one name and nothing else: never
+// "widal findings" splits the results of shell commands by program, so that a person sees which
+// programs fill the context. From a command Widal.Code keeps this one name and nothing else: never
 // an argument, never the rest of the command.
 //
 // The name is the first word of the command, reduced to its base name ("/usr/bin/git" gives
@@ -10,7 +10,7 @@
 // test") are skipped and never kept, because their value can be a secret. A name has letters,
 // digits, ".", "-" and "_" only, and at most 24 characters.
 //
-// When Kestrel cannot be sure which word is the program, the command gives "(other)", so that no
+// When Widal.Code cannot be sure which word is the program, the command gives "(other)", so that no
 // stray text is kept. That is the case when a quote, a backslash or a "$(" or "`" comes before the
 // program's word (a value in quotes can hold spaces, so the word after a space may be a part of
 // it), when the word looks like a key or a token, and when it is a home folder such as
@@ -30,7 +30,7 @@ const PLAIN_VALUE = /^[A-Za-z_][A-Za-z0-9_]*=[^'"`\\(){}]*$/
 // one word, or one text in quotes that is closed.
 const CD_PREFIX = /^cd\s+("[^"]*"|'[^']*'|[^\s'"`\\;&|()]+)\s*(&&|;)\s*/
 // The starts of keys and tokens that some services give: AWS access keys, GitHub, GitLab, Slack,
-// Stripe and OpenAI style keys, Google API keys and tokens, npm and Hugging Face tokens, a Kestrel
+// Stripe and OpenAI style keys, Google API keys and tokens, npm and Hugging Face tokens, a Widal.Code
 // board token, and a JSON web token.
 const KEY_PREFIX = /^(AKIA|ASIA|AGPA|AIDA|AROA|ANPA|AIza|ya29\.|ghp_|gho_|ghs_|ghu_|ghr_|github_pat_|glpat-|xox[abeprs]-|xapp-|sk-|sk_|pk_|rk_|npm_|hf_|kbm_|eyJ)/
 // A home folder: its last part is the name of a person's account.

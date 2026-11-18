@@ -8,15 +8,17 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
-const dir = mkdtempSync(join(tmpdir(), 'kestrel-value-test-'))
+const dir = mkdtempSync(join(tmpdir(), 'widal-code-value-test-'))
 // Every folder the tool reads or writes is a made-up one, before any module of the tool is loaded.
 process.env.HOME = join(dir, 'person')
-process.env.KESTREL_HOME = join(dir, 'home')
+// The link that Claude Code's settings call, in the tool's folder in the made-up home folder.
+const OWN = join(process.env.HOME, '.widal', 'bin', 'widal')
+process.env.WIDAL_HOME = join(dir, 'home')
 process.env.CLAUDE_CONFIG_DIR = join(dir, 'claude')
 process.env.CODEX_HOME = join(dir, 'codex')
-process.env.KESTREL_COWORK_DIR = join(dir, 'cowork')
+process.env.WIDAL_COWORK_DIR = join(dir, 'cowork')
 mkdirSync(process.env.CLAUDE_CONFIG_DIR, { recursive: true })
-mkdirSync(process.env.KESTREL_HOME, { recursive: true })
+mkdirSync(process.env.WIDAL_HOME, { recursive: true })
 // A variable of the person who runs the tests would change what "apply bash-output-cap" says.
 delete process.env.BASH_MAX_OUTPUT_LENGTH
 
@@ -78,13 +80,13 @@ const records = (steps, options) => parse(logLines(steps, options), options?.fil
 /** Writes accounts.json and limits.json of the tool, or takes them away with undefined. */
 function files({ accounts, limits } = {}) {
   for (const [name, value] of [['accounts.json', accounts], ['limits.json', limits]]) {
-    const file = join(process.env.KESTREL_HOME, name)
+    const file = join(process.env.WIDAL_HOME, name)
     if (value === undefined) rmSync(file, { force: true })
     else writeFileSync(file, JSON.stringify(value))
   }
 }
 
-/** The lines of one numbered finding of "kestrel findings", by the start of its title. */
+/** The lines of one numbered finding of "widal findings", by the start of its title. */
 function finding(text, title) {
   const blocks = text.split('\n\n')
   const block = blocks.find((b) => new RegExp(`^\\d+\\. ${title}`).test(b))
@@ -167,7 +169,7 @@ test('a cap on the output of shell commands: the replay keeps the preview\'s sha
   assert.match(cap.evidence, /^2 results of shell commands that worked were longer than 10,000 characters\. Entering and carried on the later calls, they cost /)
   const text = findings(calls, { days: 7 })
   const lines = finding(text, 'Tool results in the context')
-  assert.equal(lines.at(-1), `   Fix: kestrel apply bash-output-cap (the replay of these 7 days: ${money(cap.saving)} less). Claude then gets at most 10,000 characters of a command's output inline, and a preview and a file for longer output.`)
+  assert.equal(lines.at(-1), `   Fix: widal apply bash-output-cap (the replay of these 7 days: ${money(cap.saving)} less). Claude then gets at most 10,000 characters of a command's output inline, and a preview and a file for longer output.`)
   // The same calls as if Cowork had made them: a setting of Claude Code does not reach them.
   const asCowork = calls.map((r) => ({ ...r, s: 'cowork', id: `cw-${r.id}` }))
   assert.equal(proposals(asCowork, { ownFile: () => undefined }).all.find((x) => x.id === 'bash-output-cap').saving, 0)
@@ -190,63 +192,63 @@ test('the replay of the cap leaves out failed commands, and its risk says that t
   assert.match(cap.risk, /The setting also sets the window of output that Claude Code reads back, and the excerpt of a failed command is cut from that window: with a smaller cap, a long error can show less of its output\.$/)
   assert.doesNotMatch(cap.risk, /keeps its excerpt/)
   // For one day, the fix says "this day".
-  assert.match(findings(calls, { days: 1, now: START + 3600e3 }), /Fix: kestrel apply bash-output-cap \(the replay of this day: \$\d+\.\d\d less\)/)
+  assert.match(findings(calls, { days: 1, now: START + 3600e3 }), /Fix: widal apply bash-output-cap \(the replay of this day: \$\d+\.\d\d less\)/)
 })
 
 test('"apply bash-output-cap" says what value it replaced, and that Claude Code ignores BASH_MAX_OUTPUT_LENGTH while the setting is on', () => {
   const settings = join(process.env.CLAUDE_CONFIG_DIR, 'settings.json')
   const first = (said) => said[0].split('\n')
   writeFileSync(settings, JSON.stringify({ bashOutputMaxChars: 50000, env: { BASH_MAX_OUTPUT_LENGTH: '100000' } }))
-  assert.deepEqual(first(apply('bash-output-cap', '/bin/kestrel', START)), [
+  assert.deepEqual(first(apply('bash-output-cap', OWN, START)), [
     'Set "bashOutputMaxChars" to 10000 in Claude Code\'s settings. Claude gets at most that many characters of a successful command\'s output inline.',
-    'It was 50000 before. kestrel undo bash-output-cap puts that back.',
+    'It was 50000 before. widal undo bash-output-cap puts that back.',
     'BASH_MAX_OUTPUT_LENGTH is set to 100000 in the "env" of Claude Code\'s settings. Claude Code ignores it while "bashOutputMaxChars" is set.',
   ])
   // Applied again with another size: the value from before is still the one that undo puts back.
-  assert.equal(first(apply('bash-output-cap', '/bin/kestrel', START, ['--chars', '20000']))[1], 'It was 50000 before. kestrel undo bash-output-cap puts that back.')
-  undo('bash-output-cap', '/bin/kestrel')
+  assert.equal(first(apply('bash-output-cap', OWN, START, ['--chars', '20000']))[1], 'It was 50000 before. widal undo bash-output-cap puts that back.')
+  undo('bash-output-cap', OWN)
   assert.deepEqual(JSON.parse(readFileSync(settings, 'utf8')), { bashOutputMaxChars: 50000, env: { BASH_MAX_OUTPUT_LENGTH: '100000' } })
   // Set in the environment of this program: said too. A value that is not a number is not printed.
   writeFileSync(settings, JSON.stringify({}))
   const before = process.env.BASH_MAX_OUTPUT_LENGTH
   process.env.BASH_MAX_OUTPUT_LENGTH = 'not a number'
   try {
-    assert.deepEqual(first(apply('bash-output-cap', '/bin/kestrel', START)).slice(1), ['BASH_MAX_OUTPUT_LENGTH is set in your environment. Claude Code ignores it while "bashOutputMaxChars" is set.'])
+    assert.deepEqual(first(apply('bash-output-cap', OWN, START)).slice(1), ['BASH_MAX_OUTPUT_LENGTH is set in your environment. Claude Code ignores it while "bashOutputMaxChars" is set.'])
   } finally {
     if (before === undefined) delete process.env.BASH_MAX_OUTPUT_LENGTH
     else process.env.BASH_MAX_OUTPUT_LENGTH = before
   }
-  undo('bash-output-cap', '/bin/kestrel')
+  undo('bash-output-cap', OWN)
   // Nothing set before and no variable: one sentence only.
-  assert.equal(first(apply('bash-output-cap', '/bin/kestrel', START)).length, 1)
-  undo('bash-output-cap', '/bin/kestrel')
+  assert.equal(first(apply('bash-output-cap', OWN, START)).length, 1)
+  undo('bash-output-cap', OWN)
 })
 
 test('"apply bash-output-cap" sets bashOutputMaxChars, takes --chars from 4000 to 128000, and undo puts back what was there', () => {
   const settings = join(process.env.CLAUDE_CONFIG_DIR, 'settings.json')
   const read = () => JSON.parse(readFileSync(settings, 'utf8'))
   writeFileSync(settings, JSON.stringify({ theme: 'dark' }))
-  const said = apply('bash-output-cap', '/bin/kestrel', START)
+  const said = apply('bash-output-cap', OWN, START)
   assert.equal(said[0], 'Set "bashOutputMaxChars" to 10000 in Claude Code\'s settings. Claude gets at most that many characters of a successful command\'s output inline.')
   assert.match(said[1], /^It needs Claude Code 2\.1\.261 or later/)
-  assert.equal(said.at(-1), 'Take it back with: kestrel undo bash-output-cap')
+  assert.equal(said.at(-1), 'Take it back with: widal undo bash-output-cap')
   assert.deepEqual(read(), { theme: 'dark', bashOutputMaxChars: 10000 })
-  assert.deepEqual(apply('bash-output-cap', '/bin/kestrel'), ['bash-output-cap is already applied.'])
+  assert.deepEqual(apply('bash-output-cap', OWN), ['bash-output-cap is already applied.'])
   // Another size: undo still goes back to what was there first.
-  apply('bash-output-cap', '/bin/kestrel', START, ['--chars', '20000'])
+  apply('bash-output-cap', OWN, START, ['--chars', '20000'])
   assert.equal(read().bashOutputMaxChars, 20000)
-  for (const bad of ['3999', '128001', 'abc', '1e4']) assert.throws(() => apply('bash-output-cap', '/bin/kestrel', START, ['--chars', bad]), /--chars is a whole number from 4000 to 128000\./, bad)
-  assert.match(undo('bash-output-cap', '/bin/kestrel')[0], /^bash-output-cap is taken back\./)
+  for (const bad of ['3999', '128001', 'abc', '1e4']) assert.throws(() => apply('bash-output-cap', OWN, START, ['--chars', bad]), /--chars is a whole number from 4000 to 128000\./, bad)
+  assert.match(undo('bash-output-cap', OWN)[0], /^bash-output-cap is taken back\./)
   assert.deepEqual(read(), { theme: 'dark' })
   assert.equal(applied()['bash-output-cap'], undefined)
   // A value that was there comes back, and one that the person changed after the apply stays.
   writeFileSync(settings, JSON.stringify({ bashOutputMaxChars: 50000 }))
-  apply('bash-output-cap', '/bin/kestrel', START)
-  undo('bash-output-cap', '/bin/kestrel')
+  apply('bash-output-cap', OWN, START)
+  undo('bash-output-cap', OWN)
   assert.deepEqual(read(), { bashOutputMaxChars: 50000 })
-  apply('bash-output-cap', '/bin/kestrel', START)
+  apply('bash-output-cap', OWN, START)
   writeFileSync(settings, JSON.stringify({ bashOutputMaxChars: 7000 }))
-  assert.deepEqual(undo('bash-output-cap', '/bin/kestrel'), [
+  assert.deepEqual(undo('bash-output-cap', OWN), [
     'bash-output-cap is taken back, except for one setting.',
     '"bashOutputMaxChars" in Claude Code\'s settings was not put back, because it was changed after this tool set it: it is 7000 now, and it was 50000 before the change.',
   ])
@@ -279,7 +281,7 @@ test('repeated tool calls are one line per session and tool, with the cost of th
   assert.ok(lines.includes(`   Grep ran 4 times with a repeated input (1 input, each 4 times or more) in work/shop-web, about ${money(byTool.Grep.cost)}. Likely cause: a loop, or a check that is repeated on purpose.`), lines.join('\n'))
   // No session id: the folder stands for it.
   assert.ok(!lines.join('\n').includes('repeats-1'))
-  assert.match(lines.at(-1), /^ {3}Fix: kestrel apply compact-keep\./)
+  assert.match(lines.at(-1), /^ {3}Fix: widal apply compact-keep\./)
 })
 
 test('each finding ends with the command that fixes it, with the saving of advise\'s replay of the same calls', () => {
@@ -294,8 +296,8 @@ test('each finding ends with the command that fixes it, with the saving of advis
   const lost = finding(text, 'The cache was lost')
   assert.ok(saving('subagent-cache-1h') > 0)
   assert.deepEqual(lost.slice(-2), [
-    `   Fix for the subagents: kestrel apply subagent-cache-1h (the replay of these 7 days: ${money(saving('subagent-cache-1h'))} less). It gives subagents a 1 hour cache.`,
-    '   Fix for the main sessions: kestrel apply keep-warm, an experiment. It wakes an idle session with one short turn shortly before its cache ends, for up to 3 hours without you.',
+    `   Fix for the subagents: widal apply subagent-cache-1h (the replay of these 7 days: ${money(saving('subagent-cache-1h'))} less). It gives subagents a 1 hour cache.`,
+    '   Fix for the main sessions: widal apply keep-warm, an experiment. It wakes an idle session with one short turn shortly before its cache ends, for up to 3 hours without you.',
   ])
   // Each item of the lists is a line of its own.
   const causes = lost.indexOf('   Causes:')
@@ -307,11 +309,11 @@ test('each finding ends with the command that fixes it, with the saving of advis
   const above = finding(text, 'Carrying context above 200k tokens')
   const atCap = p.all.find((x) => x.id === 'autocompact-window').points.find((x) => x.tokens === 200000).saving
   assert.ok(atCap > 0)
-  assert.equal(above.at(-1), `   Fix: kestrel apply autocompact-window --tokens 200000 (the replay of these 7 days: ${money(atCap)} less). Claude Code then compacts a context on its own at 200k tokens.`)
+  assert.equal(above.at(-1), `   Fix: widal apply autocompact-window --tokens 200000 (the replay of these 7 days: ${money(atCap)} less). Claude Code then compacts a context on its own at 200k tokens.`)
 
   const subagents = finding(text, 'Subagents')
   assert.ok(saving('subagent-model') > 0)
-  assert.equal(subagents.at(-1), `   Fix: kestrel apply subagent-model (the replay of these 7 days: ${money(saving('subagent-model'))} less). Subagents then run on Claude Sonnet 5.5. Compare the work before and after with: kestrel measure subagent-model`)
+  assert.equal(subagents.at(-1), `   Fix: widal apply subagent-model (the replay of these 7 days: ${money(saving('subagent-model'))} less). Subagents then run on Claude Sonnet 5.5. Compare the work before and after with: widal measure subagent-model`)
 })
 
 test('on a subscription the dollars are API value, by the token they are spend, and a period that mixes them shows them apart', () => {
@@ -373,7 +375,7 @@ test('the Max type is priced by its tier: 5x is Claude Max at $100, 20x is Claud
   files({ accounts: { accounts: { [key]: { org: 'Acme', organizationType: 'claude_max' } }, signedIn: {} } })
   try {
     const text = summary(records([{}, {}]), { days: 1, now: START + DAY })
-    assert.match(text, /\n {2}Acme \(claude:aaaaaaaa\): Claude Max or Ultra\n {4}API value in 1 day: \$\d+\.\d\d\. Price not set: kestrel accounts price claude:aaaaaaaa <dollars>\n/)
+    assert.match(text, /\n {2}Acme \(claude:aaaaaaaa\): Claude Max or Ultra\n {4}API value in 1 day: \$\d+\.\d\d\. Price not set: widal accounts price claude:aaaaaaaa <dollars>\n/)
     files({ accounts: { accounts: { [key]: { org: 'Acme', organizationType: 'claude_max', maxTier: '20x' } }, signedIn: {} } })
     assert.match(summary(records([{}, {}]), { days: 1, now: START + DAY }), /\n {4}API value in 1 day: \$\d+\.\d\d\. The plan's price for 1 day: \$6\.67\. That is less than 0\.1 times the plan's price\.\n/)
   } finally {
@@ -389,7 +391,7 @@ test('a price that is not known asks for one, a free plan is not compared, and a
     const text = summary([...team, ...cowork], { days: 7, now: START + DAY })
     // One plan for both, with the dollars of both.
     const value = sum(analyze([...team, ...cowork]).calls, (e) => e.c.total)
-    assert.ok(text.includes(`\nPlans\n  claude:aaaaaaaa: team_tier_1\n    API value in 7 days: ${money(value)}. Price not set: kestrel accounts price claude:aaaaaaaa <dollars>\n`), text)
+    assert.ok(text.includes(`\nPlans\n  claude:aaaaaaaa: team_tier_1\n    API value in 7 days: ${money(value)}. Price not set: widal accounts price claude:aaaaaaaa <dollars>\n`), text)
     const free = records([{}]).map((r) => ({ ...r, s: 'codex', id: `cx-${r.id}`, acct: 'codex:free' }))
     assert.match(summary(free, { days: 7, now: START + DAY }), /\n {2}codex:free: ChatGPT Free, \$0 a month \(the plan's public price\)\n {4}API value in 7 days: \$\d+\.\d\d\. A free plan, so there is no price to compare with\.\n/)
   } finally {
@@ -416,7 +418,7 @@ test('findings give a share of the weekly limit for cache losses, context and to
     assert.ok(finding(text, 'The cache was lost').includes(`   That is about ${share(waste)}% of your weekly limit (estimate from this week's use).`), text)
     assert.ok(finding(text, 'Carrying context above').some((l) => /^ {3}That is about [\d.]+% of your weekly limit \(estimate from this week's use\)\.$/.test(l)))
     assert.ok(finding(text, 'Tool results in the context').some((l) => /^ {3}That is about [\d.]+% of your weekly limit \(estimate from this week's use\)\.$/.test(l)))
-    assert.ok(text.endsWith(`The share of a weekly limit is an estimate. Anthropic does not publish how the limit counts tokens. Kestrel divides the API value of the account's calls from the start of the week to the time of the reading by the percent that the reading gives: ${money(perPct)} of API value per 1% for claude:aaaaaaaa. The percent also counts chat, the phone and other computers, so the share is too high when the plan was used there too.`))
+    assert.ok(text.endsWith(`The share of a weekly limit is an estimate. Anthropic does not publish how the limit counts tokens. Widal.Code divides the API value of the account's calls from the start of the week to the time of the reading by the percent that the reading gives: ${money(perPct)} of API value per 1% for claude:aaaaaaaa. The percent also counts chat, the phone and other computers, so the share is too high when the plan was used there too.`))
     // Under 5% used, a few calls would change the estimate by a lot: no share.
     files({ limits: week(4) })
     assert.doesNotMatch(findings(calls, { days: 7, now }), /weekly limit/)

@@ -5,12 +5,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
-const dir = mkdtempSync(join(tmpdir(), 'kestrel-findings-test-'))
+const dir = mkdtempSync(join(tmpdir(), 'widal-code-findings-test-'))
 process.env.HOME = join(dir, 'person')
-process.env.KESTREL_HOME = join(dir, 'home')
+process.env.WIDAL_HOME = join(dir, 'home')
 process.env.CLAUDE_CONFIG_DIR = join(dir, 'claude')
 process.env.CODEX_HOME = join(dir, 'codex')
-process.env.KESTREL_COWORK_DIR = join(dir, 'cowork')
+process.env.WIDAL_COWORK_DIR = join(dir, 'cowork')
 
 const { countOpen, findingsFile, openFindings, readFindings, saveFindings, validFinding } = await import('../src/findings.mjs')
 

@@ -1,12 +1,12 @@
 // How each account pays, the price of its plan, and the words for the dollars of the reports.
 //
-// Kestrel prices every call at list prices: what the same tokens cost by the token. For an
+// Widal.Code prices every call at list prices: what the same tokens cost by the token. For an
 // account that pays by the token (an API key, a cloud provider) that is the real bill, so the
 // reports call it spend. For an account on a subscription (Claude Pro, Max or Ultra, a Team or
 // Enterprise seat, a ChatGPT plan for Codex) the person pays the plan's price instead. There the
 // reports call the same dollars "API value": what the same use would cost by the token.
 //
-// The price of a plan comes from the person ("kestrel accounts price <key> <dollars>", kept in
+// The price of a plan comes from the person ("widal accounts price <key> <dollars>", kept in
 // accounts.json), else from the small table below of plans whose price is public and fixed. Team
 // and Enterprise seats and every other plan have no price in the table.
 //
@@ -22,13 +22,13 @@ import { money } from './format.mjs'
 const idOf = (key) => key.slice(key.indexOf(':') + 1)
 
 /**
- * The plans of Claude whose monthly price Kestrel knows, in dollars a month, as claude.com/pricing
+ * The plans of Claude whose monthly price Widal.Code knows, in dollars a month, as claude.com/pricing
  * gave them on 16 Nov 2026: Pro $20 billed monthly ($17 a month billed yearly), Max $100 ("5x Pro
  * usage") and Ultra $200. Claude Code names Pro and Max by the type of organisation in
  * .claude.json: "claude_pro" and "claude_max". A Max account also has a rate limit tier that ends
  * in "max_5x" or "max_20x" (see maxTierOf in accounts.mjs), and the pricing page links Ultra to
  * "max_20x". So "claude_max" with "5x" is Max, and with "20x" is Ultra. "claude_max" without a
- * tier has no price here: Kestrel does not guess between the two.
+ * tier has no price here: Widal.Code does not guess between the two.
  */
 export const CLAUDE_PLANS = {
   claude_pro: { name: 'Claude Pro', monthly: 20 },
@@ -40,7 +40,7 @@ export const MAX_PLANS = {
 }
 /** The name of a "claude_max" plan whose tier is not known. */
 const MAX_OR_ULTRA = 'Claude Max or Ultra'
-/** The ChatGPT plans of Codex whose monthly price Kestrel knows, by the plan type in Codex's log. */
+/** The ChatGPT plans of Codex whose monthly price Widal.Code knows, by the plan type in Codex's log. */
 export const CODEX_PLANS = {
   plus: { name: 'ChatGPT Plus', monthly: 20 },
   free: { name: 'ChatGPT Free', monthly: 0 },
@@ -56,7 +56,7 @@ const planEntry = (key, state) => state.accounts.get(planKeyOf(key))
  * How an account pays: "subscription", "usage", "cloud" or "unknown". A Claude account is a
  * subscription when Claude Code gave its plan's limits, or when .claude.json names a
  * subscription or a Claude plan. Codex with a plan type is on a ChatGPT plan. Cowork runs on a
- * Claude plan, of the Claude account with the same id when Kestrel knows it.
+ * Claude plan, of the Claude account with the same id when Widal.Code knows it.
  */
 export function kindOf(key, state, hasLimits) {
   if (key === 'api') return 'usage'
@@ -114,7 +114,7 @@ export function planPrice(key, state = readAccounts()) {
  * How the calls of an account are paid, for the words of the dollars: "subscription" (the dollars
  * are API value), "token" (they are spend) or "unknown". `stored` is what `storedLimits` gives:
  * an account with a reading of its plan's limits is on a subscription. An account whose kind is
- * not known follows "kestrel plan" when the person set it by hand.
+ * not known follows "widal plan" when the person set it by hand.
  */
 export function payingOf(key, state, { stored = storedLimits(), cfg = config() } = {}) {
   const k = typeof key === 'string' ? key : 'unknown'
@@ -163,7 +163,7 @@ export function paidLines({ token, subscription, unknown }) {
   if (!kinds.length) return []
   if (kinds.length === 1 && has.token) return [`Spend: ${money(token)}, paid by the token, at list prices.`]
   if (kinds.length === 1 && has.subscription) return [`On subscriptions: ${money(subscription)} of API value. That is what the same use would cost by the token. You pay your plan's price, not this.`]
-  if (kinds.length === 1) return [`${money(unknown)} at list prices. Kestrel does not know how this is paid. Tell it with "kestrel plan subscription" or "kestrel plan usage".`]
+  if (kinds.length === 1) return [`${money(unknown)} at list prices. Widal.Code does not know how this is paid. Tell it with "widal plan subscription" or "widal plan usage".`]
   const out = []
   if (has.token) out.push(`Paid by the token: ${money(token)} (spend, at list prices)`)
   if (has.subscription) out.push(`On subscriptions: ${money(subscription)} of API value (what the same use would cost by the token)`)
@@ -202,7 +202,7 @@ export function plansLines(items, { key, cost, days, now = Date.now(), state = r
   if (!plans.size) return []
   const out = ['Plans']
   for (const [pk, p] of [...plans].sort((a, b) => b[1].value - a[1].value)) {
-    // The account that Kestrel knows by name: the plan's own key, else the first key of the period.
+    // The account that Widal.Code knows by name: the plan's own key, else the first key of the period.
     const shown = state.accounts.has(pk) ? pk : [...p.keys][0]
     const name = planName(shown, state)
     const price = planPrice(shown, state)
@@ -213,7 +213,7 @@ export function plansLines(items, { key, cost, days, now = Date.now(), state = r
     const limits = readLimits(now, pk)
     if (WINDOWS.some(({ key: w }) => limits[w])) out.push(`    Limits now: ${limitParts(limits, now).map(([text]) => text).reverse().join('; ')}`)
     const value = `API value in ${dayWords(days)}: ${money(p.value)}.`
-    if (!price) out.push(`    ${value} Price not set: kestrel accounts price ${shortKey(shown)} <dollars>`)
+    if (!price) out.push(`    ${value} Price not set: widal accounts price ${shortKey(shown)} <dollars>`)
     else if (!(price.monthly > 0)) out.push(`    ${value} A free plan, so there is no price to compare with.`)
     else {
       const forDays = (price.monthly * days) / 30
@@ -236,7 +236,7 @@ const WEEK = 7 * 86400e3
  * and `cost` its dollars. `since` is the start of the calls that were read: a week that began
  * before it is left out, because its dollars are not all there.
  *
- * This is an estimate. Anthropic does not publish how the limit counts tokens, so Kestrel assumes
+ * This is an estimate. Anthropic does not publish how the limit counts tokens, so Widal.Code assumes
  * that each dollar of API value uses the same share of the limit.
  */
 export function weekRates(items, { key, ts, cost, now = Date.now(), since = -Infinity, state = readAccounts(), stored = storedLimits(), cfg = config() }) {

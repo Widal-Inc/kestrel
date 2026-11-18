@@ -1,13 +1,13 @@
-// Every setting a person may change, in one place, and the command "kestrel settings".
+// Every setting a person may change, in one place, and the command "widal settings".
 //
 // Each setting has a key, a plain label, a group, the values it takes and the value it has now.
-// "kestrel settings --json" gives them all as data, for the pane in Claude Code. "kestrel settings
-// set <key> <value>" changes one and keeps what was there before, so that "kestrel settings undo"
-// puts it back (one step). In a terminal, "kestrel settings" alone is a list to move through and
+// "widal settings --json" gives them all as data, for the pane in Claude Code. "widal settings
+// set <key> <value>" changes one and keeps what was there before, so that "widal settings undo"
+// puts it back (one step). In a terminal, "widal settings" alone is a list to move through and
 // change with the keys.
 //
-// The settings live where the older commands keep them, so "kestrel hud", "kestrel hint" and
-// "kestrel nudge" change the same ones: `hud`, `hint`, `compactHint` and `nudge` in this tool's
+// The settings live where the older commands keep them, so "widal hud", "widal hint" and
+// "widal nudge" change the same ones: `hud`, `hint`, `compactHint` and `nudge` in this tool's
 // config. The security frameworks and checks are new: `security` in the config, for the person.
 // The frameworks can be set for one repository instead, in <folder>/.claude/loobster-frameworks.json,
 // the file the owner's other plugin already uses. When that file names frameworks, it wins over
@@ -15,7 +15,7 @@
 //
 // The checks themselves are in other files: the local checks in src/security.mjs, the cloud checks in
 // src/cloud.mjs, and what they found in src/findings.mjs. Wherever the choices or the findings show, one
-// sentence says that Kestrel checks technical controls and does not certify anything.
+// sentence says that Widal.Code checks technical controls and does not certify anything.
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -105,9 +105,9 @@ function readProject(file) {
   try {
     value = JSON.parse(raw)
   } catch {
-    throw new Error(`${file} is not valid JSON, so Kestrel leaves it as it is.`)
+    throw new Error(`${file} is not valid JSON, so Widal.Code leaves it as it is.`)
   }
-  if (!isObject(value)) throw new Error(`${file} does not hold a JSON object, so Kestrel leaves it as it is.`)
+  if (!isObject(value)) throw new Error(`${file} does not hold a JSON object, so Widal.Code leaves it as it is.`)
   return { exists: true, value }
 }
 
@@ -148,7 +148,7 @@ function settingsList(cfg, fw) {
     { key: 'hud.layout', group: 'Status line', label: 'Layout of the status line', values: ['lines', 'one'], value: h.layout, default: 'lines' },
     ...HUD_LINES.map((line) => ({ key: `hud.lines.${line}`, group: 'Status line', label: LINE_LABELS[line], values: ON_OFF, value: onOff(h.lines.includes(line)), default: 'on' })),
     { key: 'hud.bars', group: 'Status line', label: 'Bars for the context and the limits', values: ON_OFF, value: onOff(h.bars), default: 'on' },
-    { key: 'hud.names', group: 'Status line', label: 'Names of tasks and agents, on your screen (and on the Kestrel board, when linked)', values: ON_OFF, value: onOff(h.names), default: 'on' },
+    { key: 'hud.names', group: 'Status line', label: 'Names of tasks and agents, on your screen (and on the Widal.Code board, when linked)', values: ON_OFF, value: onOff(h.names), default: 'on' },
     { key: 'hint.effort', group: 'Hints', label: 'The hint about the effort level', values: ON_OFF, value: onOff(hintConfig(cfg).on), default: 'on' },
     { key: 'hint.compact', group: 'Hints', label: 'The hint to compact', values: ON_OFF, value: onOff(compactHintConfig(cfg).on), default: 'on' },
     { key: 'hint.nudge', group: 'Hints', label: 'The notification before a cache ends', values: ON_OFF, value: onOff(nudgeConfig(cfg).on), default: 'off' },
@@ -183,7 +183,7 @@ function saveKey(key, value, what) {
  * Changes the list of frameworks, for the person or for a repository. `change` gets the list as it
  * is and gives the new one. In a repository's file the frameworks start from what is on there
  * now: its own list, or else the person's, so that what the person sees is what is saved. Ids that
- * Kestrel does not know stay in that file. Returns whether anything changed.
+ * Widal.Code does not know stay in that file. Returns whether anything changed.
  */
 function changeFrameworks(change, folder, what) {
   const order = (list) => [...FRAMEWORK_IDS.filter((id) => list.includes(id)), ...list.filter((id) => !FRAMEWORK_IDS.includes(id))]
@@ -207,12 +207,12 @@ function changeFrameworks(change, folder, what) {
 }
 
 /**
- * Changes one setting. `key` and `value` are as "kestrel settings set" takes them. `project` is
+ * Changes one setting. `key` and `value` are as "widal settings set" takes them. `project` is
  * the folder of a repository, for the frameworks only. Returns the lines to print. A wrong key or
  * value fails with one plain sentence, and nothing is saved.
  */
 export function setSetting(key, value, { project } = {}) {
-  const undoLine = 'Take it back with: kestrel settings undo'
+  const undoLine = 'Take it back with: widal settings undo'
   const where = project ? ` for ${project}` : ''
   const written = project ? [`Written to ${projectFile(project)}.`] : []
   if (key === 'security.set') {
@@ -224,7 +224,7 @@ export function setSetting(key, value, { project } = {}) {
     return [`Saved${where}: the ${set.label} set switched on ${inWords(labels)}.`, ...written, CHECKS_NOTE, undoLine].join('\n')
   }
   const setting = settingsList({}, { on: [] }).find((s) => s.key === key)
-  if (!setting) throw new Error(`"${key}" is not a setting. See them all with: kestrel settings`)
+  if (!setting) throw new Error(`"${key}" is not a setting. See them all with: widal settings`)
   if (!setting.values.includes(value)) throw new Error(`"${value}" is not a value of ${key}. Use one of: ${setting.values.join(', ')}.`)
   const framework = key.startsWith('security.frameworks.')
   if (project && !framework) throw new Error(`Only the frameworks can be set for a project. Set ${key} without --project.`)
@@ -256,7 +256,7 @@ export function setSetting(key, value, { project } = {}) {
         const rank = HUD_LINES.indexOf(line)
         lines.splice(lines.reduce((at, l, i) => (HUD_LINES.indexOf(l) < rank ? i + 1 : at), 0), 0, line)
       } else if (!lines.length) {
-        throw new Error('At least one line of the status line stays on. For one line, use: kestrel settings set hud.layout one')
+        throw new Error('At least one line of the status line stays on. For one line, use: widal settings set hud.layout one')
       }
       next = { ...h, lines }
     }
@@ -269,7 +269,7 @@ export function setSetting(key, value, { project } = {}) {
   return [`Saved: ${what}.`, undoLine].join('\n')
 }
 
-/** Puts back what the last "kestrel settings set" replaced. One step: a second undo has nothing left to take back. */
+/** Puts back what the last "widal settings set" replaced. One step: a second undo has nothing left to take back. */
 export function undoSetting() {
   const record = readJson(undoFile())
   if (!isObject(record) || !['config', 'project'].includes(record.target)) return 'There is no change to take back.'
@@ -293,12 +293,12 @@ export function undoSetting() {
 }
 
 // The command's own file, to ask it for the accounts.
-const COMMAND = fileURLToPath(new URL('../cli/kestrel.mjs', import.meta.url))
+const COMMAND = fileURLToPath(new URL('../cli/widal.mjs', import.meta.url))
 const text = (v) => (typeof v === 'string' && v ? plain(v) : null)
 
 /**
- * The accounts that Kestrel knows, from its own small file accounts.json, in the shape of
- * "kestrel accounts --json". Reading all logs for this would make the settings slow to open.
+ * The accounts that Widal.Code knows, from its own small file accounts.json, in the shape of
+ * "widal accounts --json". Reading all logs for this would make the settings slow to open.
  */
 function fromFile() {
   const { accounts } = readAccounts()
@@ -307,7 +307,7 @@ function fromFile() {
 }
 
 /**
- * The accounts with their labels, from "kestrel accounts --json", or null when that command is not
+ * The accounts with their labels, from "widal accounts --json", or null when that command is not
  * there or gives no list. Only what a label needs is kept: the key, the label, the tool, the kind
  * and the plan. `run` stands in for running the command in a test.
  */
@@ -356,26 +356,26 @@ export function settingsText(data, { cwd = process.cwd() } = {}) {
     }
     rows.push([`  ${s.key}`, valueWords(s), s.label])
   }
-  const out = ['Kestrel settings. Change one with: kestrel settings set <key> <value>', '', table(rows), '']
+  const out = ['Widal.Code settings. Change one with: widal settings set <key> <value>', '', table(rows), '']
   out.push('Sets switch several frameworks on at once:')
-  out.push(table(data.sets.map((s) => [`  kestrel settings set security.set ${s.value}`, s.frameworks.map((id) => FRAMEWORK_LABEL[id]).join(', ')])), '')
+  out.push(table(data.sets.map((s) => [`  widal settings set security.set ${s.value}`, s.frameworks.map((id) => FRAMEWORK_LABEL[id]).join(', ')])), '')
   out.push(CHECKS_NOTE)
   const fw = data.frameworks
   if (fw.project) out.push(fw.from === 'project' ? `The frameworks above are those of ${fw.project}, from ${fw.file}.` : `The frameworks above are your own: ${fw.file} names none.`)
-  else if (existsSync(projectFile(cwd))) out.push(`This folder has frameworks of its own in ${projectFile(cwd)}. Show them with: kestrel settings --project .`)
+  else if (existsSync(projectFile(cwd))) out.push(`This folder has frameworks of its own in ${projectFile(cwd)}. Show them with: widal settings --project .`)
   out.push('For one repository, add --project <folder>. The frameworks then go to <folder>/.claude/loobster-frameworks.json, and that file wins over your own setting there.')
   if (data.accounts?.length) {
-    out.push('', 'Accounts:', table(data.accounts.map((a) => [`  ${a.key}`, a.label ?? ''])), 'Change a label with: kestrel accounts label <key> "<label>"')
+    out.push('', 'Accounts:', table(data.accounts.map((a) => [`  ${a.key}`, a.label ?? ''])), 'Change a label with: widal accounts label <key> "<label>"')
   }
-  out.push('', 'Take the last change back with: kestrel settings undo')
+  out.push('', 'Take the last change back with: widal settings undo')
   return out.join('\n')
 }
 
-// The terminal's other screen and the cursor, as in "kestrel top".
+// The terminal's other screen and the cursor, as in "widal top".
 const ENTER = '\x1b[?1049h\x1b[?25l'
 const LEAVE = '\x1b[?25h\x1b[?1049l'
 const SIGNALS = ['SIGTERM', 'SIGHUP']
-const HELP = 'Kestrel settings · up and down (or j and k) move, space or Enter changes, u undoes, q quits'
+const HELP = 'Widal.Code settings · up and down (or j and k) move, space or Enter changes, u undoes, q quits'
 
 /** The rows of the list: a heading for each group, a row for each setting, and the sets after the frameworks. */
 function listRows(data) {
@@ -425,7 +425,7 @@ export async function settingsLive({ input, output, project, accounts = null }) 
     const lines = rows.map((r, i) => rowLine(r, i === at))
     const foot = ['', CHECKS_NOTE]
     if (data.frameworks.project) foot.push(`Frameworks for ${data.frameworks.project}.`)
-    if (data.accounts?.length) foot.push(`Accounts: ${data.accounts.map((a) => `${a.label ?? a.key}`).join(', ')}. Change a label with: kestrel accounts label <key> "<label>"`)
+    if (data.accounts?.length) foot.push(`Accounts: ${data.accounts.map((a) => `${a.label ?? a.key}`).join(', ')}. Change a label with: widal accounts label <key> "<label>"`)
     foot.push(message)
     // Only the rows that fit are drawn, with the cursor's row among them.
     const room = Math.max(3, (output.rows ?? 24) - foot.length - 2)
@@ -503,7 +503,7 @@ export async function settingsLive({ input, output, project, accounts = null }) 
 }
 
 /**
- * The command "kestrel settings". `args` are the words after "settings". Returns what to print,
+ * The command "widal settings". `args` are the words after "settings". Returns what to print,
  * or nothing when the list in the terminal ran. A wrong word, key or value fails with one plain
  * sentence.
  *
@@ -512,10 +512,10 @@ export async function settingsLive({ input, output, project, accounts = null }) 
  *   undo                     put back what the last change replaced
  *
  * `project` is the folder that --project names. `input` and `output` stand in for the terminal,
- * and `loadAccounts` for asking "kestrel accounts --json".
+ * and `loadAccounts` for asking "widal accounts --json".
  */
 export async function settingsCommand(args, { json = false, project, input = process.stdin, output = process.stdout, loadAccounts = accountsNow } = {}) {
-  if (project === true) throw new Error('--project needs a folder, for example: kestrel settings --project .')
+  if (project === true) throw new Error('--project needs a folder, for example: widal settings --project .')
   const folder = project === undefined ? undefined : projectFolder(project)
   const [word, ...rest] = args
   if (word === undefined) {
@@ -524,12 +524,12 @@ export async function settingsCommand(args, { json = false, project, input = pro
     return settingsText(settingsData({ project: folder, accounts: loadAccounts() }))
   }
   if (word === 'set') {
-    if (rest.length !== 2) throw new Error('Use "kestrel settings set <key> <value>", for example: kestrel settings set security.frameworks.hipaa on')
+    if (rest.length !== 2) throw new Error('Use "widal settings set <key> <value>", for example: widal settings set security.frameworks.hipaa on')
     return setSetting(rest[0], rest[1], { project: folder })
   }
   if (word === 'undo') {
-    if (rest.length) throw new Error(`"kestrel settings undo" takes no more words, and "${rest[0]}" was given.`)
+    if (rest.length) throw new Error(`"widal settings undo" takes no more words, and "${rest[0]}" was given.`)
     return undoSetting()
   }
-  throw new Error(`"${word}" is not one of set, undo. Use "kestrel settings", "kestrel settings set <key> <value>" or "kestrel settings undo".`)
+  throw new Error(`"${word}" is not one of set, undo. Use "widal settings", "widal settings set <key> <value>" or "widal settings undo".`)
 }

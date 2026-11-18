@@ -4,7 +4,7 @@
   "display_name": "Kestrel",
   "version": "0.2.0",
   "description": "Shows what your AI agents spend (Claude Code, Codex and Cowork on this computer), and how to use less of your plan.",
-  "long_description": "Kestrel reads the logs that Claude Code, Codex and Cowork keep on this computer, and answers questions about them in a chat: what your agents spent this week, by project and model, how much of your plan's limits is used, and where you can save.\n\nAsk for example: \"What did my agents spend this week, and where can I save?\"\n\nDollar figures are list prices per token. When you pay by the token they are spend. On a subscription they are API value: what the same use would cost by the token, next to your plan's price. There the plan's percent is what counts.\n\nKestrel cannot see chat on claude.ai, in the Claude app or on the phone, sessions in the cloud, or other computers.\n\nIt also lists the open findings of Kestrel's security checks, with where each one is, the controls it touches and its fix. Kestrel flags risks and certifies nothing.\n\nPrivacy: reads local agent logs, returns numbers only, sends nothing anywhere. It never returns the text of a session, and it never changes a setting.",
+  "long_description": "Widal.Code reads the logs that Claude Code, Codex and Cowork keep on this computer, and answers questions about them in a chat: what your agents spent this week, by project and model, how much of your plan's limits is used, and where you can save.\n\nAsk for example: \"What did my agents spend this week, and where can I save?\"\n\nDollar figures are list prices per token. When you pay by the token they are spend. On a subscription they are API value: what the same use would cost by the token, next to your plan's price. There the plan's percent is what counts.\n\nWidal.Code cannot see chat on claude.ai, in the Claude app or on the phone, sessions in the cloud, or other computers.\n\nIt also lists the open findings of Widal.Code's security checks, with where each one is, the controls it touches and its fix. Widal.Code flags risks and certifies nothing.\n\nPrivacy: reads local agent logs, returns numbers only, sends nothing anywhere. It never returns the text of a session, and it never changes a setting.",
   "author": {
     "name": "Widal, Inc.",
     "email": "hello@widal.com",
@@ -21,20 +21,20 @@
   "icon": "icon.png",
   "server": {
     "type": "node",
-    "entry_point": "cli/kestrel.mjs",
+    "entry_point": "cli/widal.mjs",
     "mcp_config": {
       "command": "node",
       "args": [
-        "${__dirname}/cli/kestrel.mjs",
-        "mcp"
+        "${__dirname}/cli/widal.mjs",
+        "desktop-mcp"
       ],
       "env": {}
     }
   },
   "tools": [
     {
-      "name": "what_kestrel_sees",
-      "description": "Which agent logs Kestrel finds on this computer (Claude Code, Codex, Cowork), how many and how new, and what it cannot see. Use it first when unsure what there is, or when another answer is empty."
+      "name": "what_widal_code_sees",
+      "description": "Which agent logs Widal.Code finds on this computer (Claude Code, Codex, Cowork), how many and how new, and what it cannot see. Use it first when unsure what there is, or when another answer is empty."
     },
     {
       "name": "spend_summary",
@@ -42,7 +42,7 @@
     },
     {
       "name": "plan_limits",
-      "description": "How the person pays, the plan's limits and how much of them is used, as far as Kestrel knows, and where each number comes from. Use it for questions about the plan, its limits or the percent used."
+      "description": "How the person pays, the plan's limits and how much of them is used, as far as Widal.Code knows, and where each number comes from. Use it for questions about the plan, its limits or the percent used."
     },
     {
       "name": "spend_advice",
@@ -70,7 +70,7 @@
     },
     {
       "name": "security_check",
-      "description": "The open findings of Kestrel's security checks (the agents' settings, their actions, the code they changed, and cloud accounts checked on request), each with its kind, title, where it is, the controls of the frameworks that are on and the fix. Use it when the person asks about security risks or compliance, such as HIPAA or SOC 2."
+      "description": "The open findings of Widal.Code's security checks (the agents' settings, their actions, the code they changed, and cloud accounts checked on request), each with its kind, title, where it is, the controls of the frameworks that are on and the fix. Use it when the person asks about security risks or compliance, such as HIPAA or SOC 2."
     }
   ],
   "keywords": [

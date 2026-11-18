@@ -1,4 +1,4 @@
-// Tests for the cloud checks ("kestrel cloud-check aws|vercel|github"), the pane's Security tab and
+// Tests for the cloud checks ("widal cloud-check aws|vercel|github"), the pane's Security tab and
 // the desktop tool security_check. Run: node --test
 //
 // The real aws, prowler, vercel and gh are never reached. Every test puts a folder of stand-in
@@ -20,12 +20,12 @@ import { join, resolve } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-const dir = mkdtempSync(join(tmpdir(), 'kestrel-cloud-test-'))
+const dir = mkdtempSync(join(tmpdir(), 'widal-code-cloud-test-'))
 process.env.HOME = join(dir, 'person')
-process.env.KESTREL_HOME = join(dir, 'home')
+process.env.WIDAL_HOME = join(dir, 'home')
 process.env.CLAUDE_CONFIG_DIR = join(dir, 'claude')
 process.env.CODEX_HOME = join(dir, 'codex')
-process.env.KESTREL_COWORK_DIR = join(dir, 'cowork')
+process.env.WIDAL_COWORK_DIR = join(dir, 'cowork')
 // This process's own PATH holds only the stand-ins too, so that nothing can reach a real tool.
 const BIN = join(dir, 'bin')
 mkdirSync(BIN, { recursive: true })
@@ -33,7 +33,7 @@ process.env.PATH = BIN
 for (const name of ['VERCEL_TOKEN', 'AWS_PROFILE', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN']) delete process.env[name]
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url)).replace(/[/\\]$/, '')
-const KESTREL = join(ROOT, 'cli', 'kestrel.mjs')
+const WIDAL = join(ROOT, 'cli', 'widal.mjs')
 // A word in every place where a provider's answer holds text about a resource, a secret or a
 // person. No finding, no printed line and no prompt may hold it.
 const MARKER = 'PELICANSECRET'
@@ -129,7 +129,7 @@ const { CHECK_NOTE } = await import('../src/finding-words.mjs')
 let machines = 0
 /**
  * A made-up computer with stand-ins for `tools` on its PATH: a home folder with ~/.aws/config and
- * a credentials file that nothing may open, Kestrel's folder, and the stand-ins' plan and log.
+ * a credentials file that nothing may open, Widal.Code's folder, and the stand-ins' plan and log.
  * This process points at it. Returns the environment for the tools and a way to set the plan.
  */
 function machine(tools = ['aws', 'prowler', 'vercel', 'gh']) {
@@ -144,20 +144,20 @@ function machine(tools = ['aws', 'prowler', 'vercel', 'gh']) {
     chmodSync(join(bin, tool), 0o755)
   }
   const env = {
-    PATH: bin, HOME: home, KESTREL_HOME: join(home, '.kestrel'), CLAUDE_CONFIG_DIR: join(home, '.claude'), CODEX_HOME: join(home, '.codex'), KESTREL_COWORK_DIR: join(home, 'cowork'),
+    PATH: bin, HOME: home, WIDAL_HOME: join(home, '.widal'), CLAUDE_CONFIG_DIR: join(home, '.claude'), CODEX_HOME: join(home, '.codex'), WIDAL_COWORK_DIR: join(home, 'cowork'),
     STANDIN_PLAN: join(home, 'plan.json'), STANDIN_LOG: join(home, 'calls.jsonl'), STANDIN_TRAP: TRAP, NO_COLOR: '1',
   }
   writeFileSync(env.STANDIN_LOG, '')
-  for (const key of ['HOME', 'KESTREL_HOME', 'CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'KESTREL_COWORK_DIR']) process.env[key] = env[key]
+  for (const key of ['HOME', 'WIDAL_HOME', 'CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'WIDAL_COWORK_DIR']) process.env[key] = env[key]
   const plan = (value) => writeFileSync(env.STANDIN_PLAN, JSON.stringify(value))
   const calls = (tool) => readFileSync(env.STANDIN_LOG, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)).filter((c) => !tool || c.tool === tool)
   plan({})
   return { home, env, plan, calls }
 }
 /** Runs the command itself on a made-up computer, with the trap in its process too. */
-const kestrel = (m, args, more = {}) => spawnSync(process.execPath, [KESTREL, ...args], { encoding: 'utf8', env: { ...m.env, NODE_OPTIONS: `--import ${pathToFileURL(TRAP_MODULE)}`, ...more } })
+const widal = (m, args, more = {}) => spawnSync(process.execPath, [WIDAL, ...args], { encoding: 'utf8', env: { ...m.env, NODE_OPTIONS: `--import ${pathToFileURL(TRAP_MODULE)}`, ...more } })
 /** The findings file as text, to look for what must never be in it. */
-const stored = (m) => (existsSync(join(m.env.KESTREL_HOME, 'findings.json')) ? readFileSync(join(m.env.KESTREL_HOME, 'findings.json'), 'utf8') : '')
+const stored = (m) => (existsSync(join(m.env.WIDAL_HOME, 'findings.json')) ? readFileSync(join(m.env.WIDAL_HOME, 'findings.json'), 'utf8') : '')
 
 // A small stand-in of builder A's catalog, src/controls.mjs: a label and whether the id is confirmed.
 const CATALOG = {
@@ -267,7 +267,7 @@ test('aws with Prowler: the compliance flags follow the frameworks that are on, 
   assert.deepEqual(found[1].controls, [{ framework: 'pci', id: '10.2.1', confirmed: false }])
   // What it printed: the findings, where Prowler's report is, and the sentence.
   assert.match(out, /^Checked AWS account 123456789012 in eu-central-1 with Prowler \(hipaa_aws, iso27001_2022_aws, soc2_aws\)\. Read only\./)
-  assert.match(out, /Prowler's own report named every resource it checked, so Kestrel deleted it after reading it\./)
+  assert.match(out, /Prowler's own report named every resource it checked, so Widal.Code deleted it after reading it\./)
   // The folder of the report is gone.
   const folder = m.calls('prowler').at(-1).args.at(m.calls('prowler').at(-1).args.indexOf('--output-directory') + 1)
   assert.equal(existsSync(folder), false)
@@ -290,7 +290,7 @@ test('aws with Prowler: the time limit stops it, a failed run says why, and neit
   m.plan({ aws: [STS], prowler: [{ when: '^aws ', sleepMs: 5000 }] })
   const started = Date.now()
   await assert.rejects(cloudCheck('aws', { minutes: '0.02' }, { env: m.env, frameworks: ['hipaa'], now: NOW + 1, catalog: CATALOG }), {
-    message: 'Prowler did not finish within 0.02 minutes, so nothing was saved. Give it more time with --minutes, for example: kestrel cloud-check aws --minutes 1',
+    message: 'Prowler did not finish within 0.02 minutes, so nothing was saved. Give it more time with --minutes, for example: widal cloud-check aws --minutes 1',
   })
   assert.ok(Date.now() - started < 4500, 'the stand-in was stopped at the limit')
   m.plan({ aws: [STS], prowler: [{ when: '^aws ', status: 1, stderr: 'Traceback (most recent call last):\n  botocore.exceptions.NoCredentialsError\n' }] })
@@ -345,8 +345,8 @@ test('aws without Prowler: with nothing deployed, or nothing that may be read, o
   const [info] = readFindings()
   assert.equal(info.id, 'cloud.aws.nothing-to-read:123456789012')
   assert.equal(info.severity, 'info')
-  assert.equal(info.title, 'AWS has no compliance results that Kestrel can read')
-  assert.match(info.detail, /^No AWS Config conformance pack is deployed, and Security Hub CSPM is not switched on, or Kestrel may not read it\. To get results, switch on Security Hub CSPM/)
+  assert.equal(info.title, 'AWS has no compliance results that Widal.Code can read')
+  assert.match(info.detail, /^No AWS Config conformance pack is deployed, and Security Hub CSPM is not switched on, or Widal.Code may not read it\. To get results, switch on Security Hub CSPM/)
   assert.ok(info.detail.includes(PRICES.securityHub) && info.detail.includes(PRICES.config))
   assert.match(info.detail, /about \$0\.001 per check of one resource in one region, after a 30 day free trial/)
   assert.match(out, /1 open finding in AWS \(0 high, 0 medium, 0 low, 1 info\)/)
@@ -358,7 +358,7 @@ test('aws without Prowler: with nothing deployed, or nothing that may be read, o
     { when: '^securityhub get-findings', ...awsError('AccessDeniedException', 'GetFindings', 'User is not authorized') },
   ] })
   await cloudCheck('aws', {}, { env: m.env, frameworks: ['hipaa'], now: NOW + 1, catalog: CATALOG })
-  assert.match(readFindings()[0].detail, /^Kestrel may not read AWS Config \(the read needs the policy SecurityAudit\), and Kestrel may not read Security Hub/)
+  assert.match(readFindings()[0].detail, /^Widal.Code may not read AWS Config \(the read needs the policy SecurityAudit\), and Widal.Code may not read Security Hub/)
   m.plan({ aws: [STS, { when: '^configservice describe-conformance-packs', stdout: { ConformancePackDetails: [] } }, { when: '^securityhub get-findings', stdout: { Findings: [] } }] })
   const later = await cloudCheck('aws', {}, { env: m.env, frameworks: ['hipaa'], now: NOW + 2, catalog: CATALOG })
   assert.equal(readFindings()[0].status, 'resolved')
@@ -370,21 +370,21 @@ test('aws without Prowler: with nothing deployed, or nothing that may be read, o
 
 test('aws: not installed and not signed in are one sentence each, from the command too, with no stack trace and nothing saved', async () => {
   let m = machine([])
-  await assert.rejects(cloudCheck('aws', {}, { env: m.env, frameworks: [] }), { message: 'The AWS command line tool (aws) is not installed, so Kestrel cannot read AWS. Install it and sign in, then run this again.' })
+  await assert.rejects(cloudCheck('aws', {}, { env: m.env, frameworks: [] }), { message: 'The AWS command line tool (aws) is not installed, so Widal.Code cannot read AWS. Install it and sign in, then run this again.' })
   m = machine(['aws', 'prowler'])
   // The AWS CLI's exit code for missing credentials is 253.
   m.plan({ aws: [{ when: '^sts', status: 253, stderr: '\nUnable to locate credentials. You can configure credentials by running "aws configure".\n' }] })
-  const r = kestrel(m, ['cloud-check', 'aws', '--profile', 'work'])
+  const r = widal(m, ['cloud-check', 'aws', '--profile', 'work'])
   assert.equal(r.status, 1)
   assert.equal(r.stdout, '')
-  assert.equal(r.stderr, 'kestrel: The AWS command line tool is not signed in for the profile work. Sign in (for example with "aws sso login" or "aws configure"), then run this again.\n')
+  assert.equal(r.stderr, 'widal: The AWS command line tool is not signed in for the profile work. Sign in (for example with "aws sso login" or "aws configure"), then run this again.\n')
   assert.equal(m.calls('prowler').length, 0)
   assert.equal(stored(m), '')
   // Wrong words and options get one sentence too.
-  assert.equal(kestrel(m, ['cloud-check']).stderr, 'kestrel: Name a provider: kestrel cloud-check aws, kestrel cloud-check vercel or kestrel cloud-check github.\n')
-  assert.equal(kestrel(m, ['cloud-check', 'azure']).stderr, 'kestrel: "azure" is not a provider Kestrel checks. Use one of: kestrel cloud-check aws, kestrel cloud-check vercel, kestrel cloud-check github.\n')
-  assert.equal(kestrel(m, ['cloud-check', 'aws', '--repo', 'a/b']).stderr, 'kestrel: --repo is not an option of "kestrel cloud-check aws". Its options are: --profile, --region, --minutes.\n')
-  assert.equal(kestrel(m, ['cloud-check', 'github', '--repo']).stderr, 'kestrel: --repo needs a value.\n')
+  assert.equal(widal(m, ['cloud-check']).stderr, 'widal: Name a provider: widal cloud-check aws, widal cloud-check vercel or widal cloud-check github.\n')
+  assert.equal(widal(m, ['cloud-check', 'azure']).stderr, 'widal: "azure" is not a provider Widal.Code checks. Use one of: widal cloud-check aws, widal cloud-check vercel, widal cloud-check github.\n')
+  assert.equal(widal(m, ['cloud-check', 'aws', '--repo', 'a/b']).stderr, 'widal: --repo is not an option of "widal cloud-check aws". Its options are: --profile, --region, --minutes.\n')
+  assert.equal(widal(m, ['cloud-check', 'github', '--repo']).stderr, 'widal: --repo needs a value.\n')
 })
 
 // ---- Vercel fixtures ----
@@ -470,7 +470,7 @@ test('vercel with VERCEL_TOKEN: trusted IPs and the environment variables from t
   const baa = open.find((f) => f.rule === 'cloud.vercel.hipaa-baa')
   assert.equal(baa.severity, 'info')
   assert.equal(baa.scope, 'cloud:vercel:team_xyz')
-  assert.match(baa.detail, /^Vercel signs a Business Associate Agreement only on Pro with the HIPAA BAA add-on .* and on Enterprise\. Kestrel cannot see whether yours is signed\./)
+  assert.match(baa.detail, /^Vercel signs a Business Associate Agreement only on Pro with the HIPAA BAA add-on .* and on Enterprise\. Widal.Code cannot see whether yours is signed\./)
   assert.match(out, /web: protected by Vercel Authentication \(all_except_custom_domains\), Password Protection \(preview\); the firewall is on\./)
   assert.ok(!out.includes('skipped'))
   // Never the token, a value, or the bypass.
@@ -494,7 +494,7 @@ test('vercel: not installed, not signed in, and a folder that is not linked are 
   m.plan({ vercel: [{ when: '^whoami', status: 1, stdout: { loggedIn: false, cliVersion: '50.0.0' } }] })
   await assert.rejects(cloudCheck('vercel', {}, { env: m.env, frameworks: [] }), { message: 'The Vercel command line tool is not signed in. Sign in with "vercel login", or set VERCEL_TOKEN, then run this again.' })
   m.plan({ vercel: [{ when: '^whoami', stdout: WHOAMI }, { when: '^project protection', status: 1, stderr: 'Error: Your codebase is not linked to a Vercel project. Run link first, then retry project commands.\n' }] })
-  await assert.rejects(cloudCheck('vercel', {}, { env: m.env, frameworks: [] }), { message: 'This folder is not linked to a Vercel project. Name one: kestrel cloud-check vercel --project <name>' })
+  await assert.rejects(cloudCheck('vercel', {}, { env: m.env, frameworks: [] }), { message: 'This folder is not linked to a Vercel project. Name one: widal cloud-check vercel --project <name>' })
   // An older Vercel CLI (seen live: 49.2.0) knows no "--json" for whoami: it is too old, not signed out.
   m.plan({ vercel: [{ when: '^whoami --json', status: 1, stderr: 'Vercel CLI 49.2.0\nError: unknown or unexpected option: --json\n' }, { when: '^whoami$', stdout: 'someone\n' }] })
   await assert.rejects(cloudCheck('vercel', {}, { env: m.env, frameworks: [] }), { message: 'The Vercel command line tool on this computer is too old for these checks (Vercel CLI 49.2.0): it has no "--json" answers and no "vercel project protection". Update it with "npm i -g vercel", then run this again. Nothing was saved.' })
@@ -532,7 +532,7 @@ const githubPlan = (overrides = []) => ({ gh: [
 test('github, a repository of an organisation: each check, a 403 for code scanning, the counts only, and the command saves what it found', () => {
   const m = machine(['gh'])
   m.plan(githubPlan())
-  const r = kestrel(m, ['cloud-check', 'github'])
+  const r = widal(m, ['cloud-check', 'github'])
   assert.equal(r.status, 0, r.stderr)
   const calls = m.calls('gh').map((c) => c.args.join(' '))
   assert.equal(calls[0], 'repo view --json nameWithOwner')
@@ -605,10 +605,10 @@ test('github: what only admins and owners may see is one sentence and no finding
   const out = await cloudCheck('github', {}, { env: m.env, frameworks: [], now: NOW, catalog: CATALOG })
   assert.deepEqual(readFindings().map((f) => f.rule), ['cloud.github.code-scanning-off'])
   for (const sentence of [
-    'No ruleset requires a review on main, and Kestrel may not read its branch protection: that needs admin rights to the repository.',
-    'GitHub shows whether secret scanning and push protection are on only to admins of the repository, so Kestrel could not check them.',
-    'Kestrel may not read the Dependabot alerts (Resource not accessible by personal access token).',
-    'GitHub shows whether example-org requires two-factor sign-in only to its owners, so Kestrel could not check it.',
+    'No ruleset requires a review on main, and Widal.Code may not read its branch protection: that needs admin rights to the repository.',
+    'GitHub shows whether secret scanning and push protection are on only to admins of the repository, so Widal.Code could not check them.',
+    'Widal.Code may not read the Dependabot alerts (Resource not accessible by personal access token).',
+    'GitHub shows whether example-org requires two-factor sign-in only to its owners, so Widal.Code could not check it.',
   ]) assert.ok(out.includes(sentence), sentence)
 
   // Not signed in: gh ends with exit code 4.
@@ -671,7 +671,7 @@ async function loadMod() {
   return hooks
 }
 
-// The answer of "kestrel check --json" (the contract between the two builds): the frameworks that
+// The answer of "widal check --json" (the contract between the two builds): the frameworks that
 // are on, the counts, the open findings the most severe first, and the sentence. One finding has a
 // field that would hold matched text, and a detail: neither may go into the prompt.
 const FIRST = Date.parse('2026-11-13T09:30:00')
@@ -682,16 +682,16 @@ const CHECK = {
       id: 'settings.bypass:settings', rule: 'settings.bypass', kind: 'settings', severity: 'high', title: 'Claude Code may skip every permission prompt', detail: `The setting ${MARKER}-DETAIL is on`,
       where: { file: '/home/someone/.claude/settings.json' }, scope: 'settings', snippet: MARKER,
       controls: [{ framework: 'owasp-agentic', id: 'ASI03', confirmed: false, label: 'Identity and privilege abuse' }, { framework: 'hipaa', id: '164.312(a)', confirmed: true, label: 'Access control' }, { framework: 'soc2', id: 'CC6.1', confirmed: false }],
-      fix: { action: 'no-bypass', words: 'kestrel apply no-bypass' }, source: 'kestrel', status: 'open', firstSeen: FIRST, lastSeen: NOW,
+      fix: { action: 'no-bypass', words: 'widal apply no-bypass' }, source: 'kestrel', status: 'open', firstSeen: FIRST, lastSeen: NOW,
     },
     {
       id: 'cloud.vercel.previews-open:prj_web1', rule: 'cloud.vercel.previews-open', kind: 'cloud', severity: 'medium', title: 'Preview deployments are open to anyone with the link',
       where: { provider: 'vercel', project: 'web' }, scope: 'cloud:vercel:prj_web1', controls: [{ framework: 'soc2', id: 'CC6.1', confirmed: false }], fix: null, source: 'vercel', status: 'open', firstSeen: FIRST, lastSeen: NOW,
     },
   ],
-  note: 'Kestrel checks technical controls and flags risks. It does not certify anything.',
+  note: 'Widal.Code checks technical controls and flags risks. It does not certify anything.',
 }
-/** The settings as "kestrel settings --json" gives them: here only the frameworks that the tab names. */
+/** The settings as "widal settings --json" gives them: here only the frameworks that the tab names. */
 const SETTINGS = {
   settings: [
     { key: 'security.frameworks.hipaa', group: 'Frameworks: Healthcare', label: 'HIPAA', kind: 'on-off', values: ['on', 'off'], value: 'on', default: 'off' },
@@ -706,11 +706,11 @@ function paneStandIn(answers, submit = async ({ text }) => ({ text })) {
   answers = { 'top --once --json': ok({ at: NOW, count: 0, limits: [], sessions: [], waste: 'Waste today: none.', next: null }), ...answers }
   const calls = { runs: [], prompts: [] }
   const $ = {
-    plugin: { name: 'kestrel', root: ROOT },
+    plugin: { name: 'widal', root: ROOT },
     ui: { resolve: () => ELEMENTS, open: async () => ({ isPlaced: true }), close: async () => {}, invalidate: () => {} },
     process: {
       run: async (argv, init) => {
-        assert.deepEqual(argv.slice(0, 2), ['node', KESTREL])
+        assert.deepEqual(argv.slice(0, 2), ['node', WIDAL])
         assert.ok(init.timeoutMs >= 60e3 && init.timeoutMs <= 600e3)
         calls.runs.push({ args: argv.slice(2), init })
         const answer = answers[argv.slice(2).join(' ')]
@@ -730,18 +730,18 @@ function paneStandIn(answers, submit = async ({ text }) => ({ text })) {
   return { $, calls }
 }
 const ok = (value) => ({ exitCode: 0, stdout: typeof value === 'string' ? value : JSON.stringify(value) })
-const paneEvent = { plugin: 'kestrel', component: 'Pane', requestId: 'kestrel', surface: 'terminal', viewport: { columns: 320, rows: 50 }, props: { title: 'Kestrel', bodyColumns: 300, placement: 'dock' } }
+const paneEvent = { plugin: 'widal', component: 'Pane', requestId: 'widal', surface: 'terminal', viewport: { columns: 320, rows: 50 }, props: { title: 'Widal.Code', bodyColumns: 300, placement: 'dock' } }
 
 test('the pane\'s Security tab: the frameworks, the counts and the sentence at the top, a row per finding, its detail, Fix asks then applies and gets Undo, and Run checks', async () => {
   const s = paneStandIn({
     'settings --json': ok(SETTINGS), 'check --json': ok(CHECK),
-    'apply no-bypass': ok('Turned off the mode that skips permission prompts in Claude Code\'s settings.\nA backup is in ~/.kestrel/backup/.\n'),
+    'apply no-bypass': ok('Turned off the mode that skips permission prompts in Claude Code\'s settings.\nA backup is in ~/.widal/backup/.\n'),
     'undo no-bypass': ok('no-bypass is taken back.\n'),
     'check --run': ok('The checks ran: 2 open findings.\n'),
   })
   const hooks = await loadMod()
   const draw = () => hooks['ui.render'](s.$, paneEvent, async () => ({}))
-  await hooks['command.run'](s.$, { command: 'kestrel:open', args: '' }, async () => ({}))
+  await hooks['command.run'](s.$, { command: 'widal:open', args: '' }, async () => ({}))
   await settle()
   control(await draw(), 'tab-security').props.onPress({})
   await settle()
@@ -753,13 +753,13 @@ test('the pane\'s Security tab: the frameworks, the counts and the sentence at t
     'Frameworks that are on',
     'HIPAA, OWASP Top 10 for Agentic Applications',
     'Open findings: 1 high, 1 medium, 0 low, 0 info',
-    'Kestrel checks technical controls and flags risks. It does not certify anything.',
+    'Widal.Code checks technical controls and flags risks. It does not certify anything.',
     ' ',
     'HIGH  Claude Code may skip every permission prompt  /home/someone/.claude/settings.json  OWASP Top 10 for Agentic Applications ASI03 Identity and privilege abuse (id to check); HIPAA 164.312(a) Access control',
   ])
   // A finding that touches no framework that is on shows no control: SOC 2 is off.
   assert.equal(control(tree, 'finding-cloud.vercel.previews-open:prj_web1').props.label, 'MEDIUM  Preview deployments are open to anyone with the link  Vercel project web')
-  assert.ok(shown.includes('Cloud checks run only when you ask, in a terminal: kestrel cloud-check aws, vercel or github.'))
+  assert.ok(shown.includes('Cloud checks run only when you ask, in a terminal: widal cloud-check aws, vercel or github.'))
   assert.ok(!shown.join('\n').includes(MARKER))
 
   // A row opens the detail: every field, the fix command, first and last seen.
@@ -778,8 +778,8 @@ test('the pane\'s Security tab: the frameworks, the counts and the sentence at t
     `What: The setting ${MARKER}-DETAIL is on`,
     'Controls of the frameworks that are on: OWASP Top 10 for Agentic Applications ASI03 Identity and privilege abuse (id to check); HIPAA 164.312(a) Access control',
     'Every control it touches: OWASP Top 10 for Agentic Applications ASI03 (id to check); HIPAA 164.312(a); SOC 2 CC6.1 (id to check)',
-    'Found by: kestrel',
-    'Fix: kestrel apply no-bypass',
+    'Found by: Widal.Code',
+    'Fix: widal apply no-bypass',
     `First seen: ${at(FIRST)}`,
     `Last seen: ${at(NOW)}`,
     ' ',
@@ -795,7 +795,7 @@ test('the pane\'s Security tab: the frameworks, the counts and the sentence at t
   control(tree, 'security-no').props.onPress({})
   tree = await draw()
   assert.ok(control(tree, 'finding-fix'))
-  // Yes runs "kestrel apply", shows its first line, and the fix gets Undo.
+  // Yes runs "widal apply", shows its first line, and the fix gets Undo.
   control(tree, 'finding-fix').props.onPress({})
   control(await draw(), 'security-yes').props.onPress({})
   await settle()
@@ -812,10 +812,10 @@ test('the pane\'s Security tab: the frameworks, the counts and the sentence at t
   control(await draw(), 'finding-cloud.vercel.previews-open:prj_web1').props.onPress({})
   tree = await draw()
   assert.equal(control(tree, 'finding-fix'), undefined)
-  assert.ok(words(tree).includes('Fix: none that Kestrel makes. The finding says what to change.'))
+  assert.ok(words(tree).includes('Fix: none that Widal.Code makes. The finding says what to change.'))
   control(tree, 'finding-back').props.onPress({})
 
-  // Run checks runs "kestrel check --run" for the session's folder, then reads the findings again.
+  // Run checks runs "widal check --run" for the session's folder, then reads the findings again.
   control(await draw(), 'run-checks').props.onPress({})
   assert.ok(words(await draw()).includes('Running the checks...'))
   await settle()
@@ -832,7 +832,7 @@ test('the pane\'s Security tab: Hand to the agent asks once, then submits one pr
   const s = paneStandIn({ 'settings --json': ok(SETTINGS), 'check --json': ok(CHECK) }, async ({ text }) => (refuse ? { drop: 'A hook of another plugin refused it.' } : { text }))
   const hooks = await loadMod()
   const draw = () => hooks['ui.render'](s.$, paneEvent, async () => ({}))
-  await hooks['command.run'](s.$, { command: 'kestrel:open', args: '' }, async () => ({}))
+  await hooks['command.run'](s.$, { command: 'widal:open', args: '' }, async () => ({}))
   await settle()
   control(await draw(), 'tab-security').props.onPress({})
   await settle()
@@ -846,7 +846,7 @@ test('the pane\'s Security tab: Hand to the agent asks once, then submits one pr
   assert.equal(s.calls.prompts.length, 1)
   const [{ text, ...rest }] = s.calls.prompts
   assert.deepEqual(rest, {})
-  assert.equal(text, 'Kestrel found: Claude Code may skip every permission prompt in /home/someone/.claude/settings.json. Controls: OWASP Top 10 for Agentic Applications ASI03 Identity and privilege abuse (id to check); HIPAA 164.312(a) Access control. Please fix it, explain what you changed, and do not print any secret.')
+  assert.equal(text, 'Widal.Code found: Claude Code may skip every permission prompt in /home/someone/.claude/settings.json. Controls: OWASP Top 10 for Agentic Applications ASI03 Identity and privilege abuse (id to check); HIPAA 164.312(a) Access control. Please fix it, explain what you changed, and do not print any secret.')
   assert.ok(!text.includes(MARKER), 'neither the matched text nor the detail goes in')
   tree = await draw()
   assert.ok(words(tree).includes('Sent to Claude in this session. It answers in the chat.'))
@@ -863,24 +863,24 @@ test('the pane\'s Security tab: Hand to the agent asks once, then submits one pr
   control(await draw(), 'finding-hand').props.onPress({})
   control(await draw(), 'security-yes').props.onPress({})
   await settle()
-  assert.equal(s.calls.prompts.at(-1).text, 'Kestrel found: Preview deployments are open to anyone with the link in Vercel project web. Controls: none named. Please fix it, explain what you changed, and do not print any secret.')
+  assert.equal(s.calls.prompts.at(-1).text, 'Widal.Code found: Preview deployments are open to anyone with the link in Vercel project web. Controls: none named. Please fix it, explain what you changed, and do not print any secret.')
 })
 
 // ---- The desktop tool ----
 
 test('the desktop tool security_check over the server: the open findings with kinds, titles, places, controls and fixes, and never a finding that holds matched text', { timeout: 60e3 }, async (t) => {
   const m = machine([])
-  mkdirSync(m.env.KESTREL_HOME, { recursive: true })
-  writeFileSync(join(m.env.KESTREL_HOME, 'config.json'), JSON.stringify({ security: { frameworks: ['hipaa', 'hitrust'] } }))
+  mkdirSync(m.env.WIDAL_HOME, { recursive: true })
+  writeFileSync(join(m.env.WIDAL_HOME, 'config.json'), JSON.stringify({ security: { frameworks: ['hipaa', 'hitrust'] } }))
   const finding = (fields) => ({ kind: 'cloud', scope: 'cloud:aws:123456789012', controls: [], fix: null, source: 'kestrel', status: 'open', firstSeen: FIRST, lastSeen: NOW, ...fields })
-  writeFileSync(join(m.env.KESTREL_HOME, 'findings.json'), JSON.stringify({ at: NOW, findings: [
-    finding({ id: 'a', rule: 'settings.bypass', kind: 'settings', scope: 'settings', severity: 'high', title: 'Claude Code may skip every permission prompt', where: { file: '/home/someone/.claude/settings.json' }, controls: [{ framework: 'hipaa', id: '164.312(a)', confirmed: true, label: 'Access control' }], fix: { action: 'no-bypass', words: 'kestrel apply no-bypass' } }),
+  writeFileSync(join(m.env.WIDAL_HOME, 'findings.json'), JSON.stringify({ at: NOW, findings: [
+    finding({ id: 'a', rule: 'settings.bypass', kind: 'settings', scope: 'settings', severity: 'high', title: 'Claude Code may skip every permission prompt', where: { file: '/home/someone/.claude/settings.json' }, controls: [{ framework: 'hipaa', id: '164.312(a)', confirmed: true, label: 'Access control' }], fix: { action: 'no-bypass', words: 'widal apply no-bypass' } }),
     finding({ id: 'b', rule: 'cloud.aws.securityhub.S3.8', severity: 'medium', title: 'S3 general purpose buckets should block public access', where: { provider: 'aws', account: '123456789012', resource: 'arn:aws:s3:::exports', region: 'eu-west-1' }, controls: [{ framework: 'iso27001', id: 'A.8.3', confirmed: false }], reported: ['AWS Foundational Security Best Practices'] }),
     finding({ id: 'c', rule: 'cloud.aws.x', severity: 'low', title: 'A resolved one', where: {}, status: 'resolved', resolvedAt: NOW }),
     // A finding that holds what was matched is refused by the store, so it never shows.
     finding({ id: 'd', rule: 'code.secret', severity: 'high', title: 'A secret in the code', where: {}, match: MARKER }),
   ] }))
-  const child = spawn(process.execPath, [KESTREL, 'mcp'], { env: m.env, stdio: ['pipe', 'pipe', 'pipe'] })
+  const child = spawn(process.execPath, [WIDAL, 'desktop-mcp'], { env: m.env, stdio: ['pipe', 'pipe', 'pipe'] })
   // A failed assertion must not leave the server waiting on its input: the test run would never end.
   t.after(() => child.kill())
   const lines = []
@@ -912,25 +912,25 @@ test('the desktop tool security_check over the server: the open findings with ki
   const two = (n) => String(n).padStart(2, '0')
   const at = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}` }
   assert.equal(text, [
-    "Kestrel's security checks: 2 open findings (1 high, 1 medium, 0 low, 0 info).",
+    "Widal.Code's security checks: 2 open findings (1 high, 1 medium, 0 low, 0 info).",
     'Frameworks that are on: HIPAA, HITRUST CSF.',
     '',
     'HIGH  Claude Code may skip every permission prompt (settings)',
     '  Where: /home/someone/.claude/settings.json',
     '  Controls: HIPAA 164.312(a) Access control; HITRUST: through the controls it shares with HIPAA and ISO 27001',
-    '  Fix: kestrel apply no-bypass',
+    '  Fix: widal apply no-bypass',
     `  First seen ${at(FIRST)}, last seen ${at(NOW)}.`,
     '',
     'MEDIUM  S3 general purpose buckets should block public access (cloud)',
     '  Where: AWS account 123456789012, arn:aws:s3:::exports, region eu-west-1',
     '  Controls: ISO 27001 A.8.3 (id to check); HITRUST: through the controls it shares with HIPAA and ISO 27001',
     '  Frameworks the tool reported: AWS Foundational Security Best Practices',
-    '  Fix: none that Kestrel makes. The finding says what to change.',
+    '  Fix: none that Widal.Code makes. The finding says what to change.',
     `  First seen ${at(FIRST)}, last seen ${at(NOW)}.`,
     '',
     CHECK_NOTE,
     '',
-    'A change with a "kestrel apply" command is made in a terminal, with that command: Kestrel in the desktop app never changes a setting.',
+    'A change with a "widal apply" command is made in a terminal, with that command: Widal.Code in the desktop app never changes a setting.',
   ].join('\n'))
   assert.ok(!lines.join('\n').includes(MARKER))
   child.stdin.end()
@@ -958,11 +958,11 @@ test('no credentials file was opened by any check, and no new file of this part 
   }
 })
 
-test('"kestrel check --cloud github" runs the same check as "kestrel cloud-check github"', () => {
+test('"widal check --cloud github" runs the same check as "widal cloud-check github"', () => {
   // A PATH with only an empty folder: gh is not there, so both commands give the same one sentence.
   const empty = mkdtempSync(join(dir, 'empty-path-'))
-  const env = { ...process.env, PATH: empty, HOME: join(dir, 'person'), KESTREL_HOME: join(dir, 'home-alias'), CLAUDE_CONFIG_DIR: join(dir, 'claude'), CODEX_HOME: join(dir, 'codex'), KESTREL_COWORK_DIR: join(dir, 'cowork') }
-  const run = (args) => spawnSync(process.execPath, [KESTREL, ...args], { encoding: 'utf8', env })
+  const env = { ...process.env, PATH: empty, HOME: join(dir, 'person'), WIDAL_HOME: join(dir, 'home-alias'), CLAUDE_CONFIG_DIR: join(dir, 'claude'), CODEX_HOME: join(dir, 'codex'), WIDAL_COWORK_DIR: join(dir, 'cowork') }
+  const run = (args) => spawnSync(process.execPath, [WIDAL, ...args], { encoding: 'utf8', env })
   const alias = run(['check', '--cloud', 'github', '--repo', 'example/repo'])
   const direct = run(['cloud-check', 'github', '--repo', 'example/repo'])
   assert.match(alias.stdout + alias.stderr, /The GitHub command line tool \(gh\) is not installed/)

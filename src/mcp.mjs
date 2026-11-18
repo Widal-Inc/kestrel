@@ -1,4 +1,4 @@
-// The server that the Claude desktop app starts: "kestrel mcp".
+// The server that the Claude desktop app starts: "widal desktop-mcp".
 //
 // The Model Context Protocol lets an app such as the Claude desktop app call the tools of a
 // program on the same computer. The app starts the program and talks to it over standard input
@@ -12,14 +12,14 @@
 //   - From version 2026-07-28 on, there is no such handshake. Every request names its version in
 //     its "_meta", and "server/discover" says which versions the server knows.
 //
-// Every tool only reads. Its answer is the text of one of Kestrel's reports. Those hold numbers,
+// Every tool only reads. Its answer is the text of one of Widal.Code's reports. Those hold numbers,
 // model names, project folder names, ticket names, dates, the state of each session, and the
 // names of accounts (an organisation's name, or the person's own label, never an email address
 // or a person's name), and never
 // any text of a session: no prompt, no answer, no command, no file name from a tool call, and no
 // name of a task or of a subagent. The view of the sessions that run now is the one of
-// "kestrel top" without its column of tasks, whatever the setting hud.names says. The tool
-// security_check gives the open findings of Kestrel's security checks: for each its kind, title,
+// "widal top" without its column of tasks, whatever the setting hud.names says. The tool
+// security_check gives the open findings of Widal.Code's security checks: for each its kind, title,
 // where it is, its controls and its fix. A finding never holds what was matched, so no secret,
 // no patient data and no command is in that answer either.
 //
@@ -27,7 +27,7 @@
 // about a minute. So the logs are read in the background as soon as a client has opened, and a
 // tool call waits for that read for at most 40 seconds. After that it says how far the read is,
 // and that asking again in a minute will work. The read goes on, and what it parsed is kept in
-// Kestrel's cache, as for the command.
+// Widal.Code's cache, as for the command.
 import { statSync } from 'node:fs'
 import { createInterface } from 'node:readline'
 import { format } from 'node:util'
@@ -40,6 +40,7 @@ import { WINDOWS, allLimits, billing, billingText } from './billing.mjs'
 import { limitParts } from './claude-code.mjs'
 import { findingsText } from './findings-text.mjs'
 import { count, day, plain, when } from './format.mjs'
+import { envSetting } from './paths.mjs'
 import { refreshToday } from './refresh-today.mjs'
 import { compactions, models, summary, tickets } from './report.mjs'
 import { load, logFiles } from './store.mjs'
@@ -65,7 +66,8 @@ const INVALID_PARAMS = -32602
 const UNSUPPORTED_VERSION = -32022
 
 // How long a tool call waits for the logs before it says that they are still being read. The
-// tests make it short with KESTREL_MCP_WAIT_MS. Nothing else sets that variable.
+// tests make it short with WIDAL_MCP_WAIT_MS (or KESTREL_MCP_WAIT_MS, for one release). Nothing
+// else sets that variable.
 const WAIT = 40e3
 // The logs are read for the longest period that a tool takes, 90 days, and 5 minutes more: the
 // compactions report also looks at the calls of the 5 minutes before its period.
@@ -74,39 +76,39 @@ const BEFORE = 5 * 60e3
 // A read that ended less than a minute ago is used again. One answer can take several tool
 // calls, and they then read the logs once.
 const FRESH = 60e3
-// How long a client may keep the list of tools. It changes only with a new version of Kestrel.
+// How long a client may keep the list of tools. It changes only with a new version of Widal.Code.
 const KEEP_LIST = 3600e3
 
 const CAPABILITIES = { tools: { listChanged: false } }
-const INSTRUCTIONS = "Kestrel answers what the AI agents on this computer spent and which of their sessions run now (Claude Code, Codex and Cowork), from their local logs, with numbers only. Use what_kestrel_sees first when unsure what there is. Dollar figures are list prices: spend for an account that pays by the token, and API value on a subscription (what the same use would cost by the token, not what the person pays). On a subscription the plan's percent and its price are what count. security_check gives the open findings of Kestrel's security checks; Kestrel flags risks; it does not make a company compliant or certify it."
+const INSTRUCTIONS = "Widal.Code answers what the AI agents on this computer spent and which of their sessions run now (Claude Code, Codex and Cowork), from their local logs, with numbers only. Use what_widal_code_sees first when unsure what there is. Dollar figures are list prices: spend for an account that pays by the token, and API value on a subscription (what the same use would cost by the token, not what the person pays). On a subscription the plan's percent and its price are what count. security_check gives the open findings of Widal.Code's security checks; Widal.Code flags risks; it does not make a company compliant or certify it."
 
 const SOURCES = [['claude', 'Claude Code'], ['codex', 'Codex'], ['cowork', 'Cowork']]
 const CANNOT_SEE = [
   'Chat on claude.ai, in the Claude app and on the phone, and ChatGPT: their use is not kept on this computer.',
   'Cloud sessions: Cowork, Claude Code or Codex sessions that ran in the cloud and not on this computer.',
-  'Other computers: Kestrel reads only the logs on this one.',
+  'Other computers: Widal.Code reads only the logs on this one.',
 ]
-const PRIVACY = 'Kestrel reads these logs on this computer and answers with numbers only, never with the text of a session. It sends nothing anywhere and changes no setting.'
+const PRIVACY = 'Widal.Code reads these logs on this computer and answers with numbers only, never with the text of a session. It sends nothing anywhere and changes no setting.'
 
 /** What every tool says when there are no logs at all: the person only chats, or runs the agents on another computer. */
 export const NOTHING_FOUND = [
-  'Kestrel found no logs of Claude Code, Codex or Cowork on this computer, so it has no numbers yet.',
+  'Widal.Code found no logs of Claude Code, Codex or Cowork on this computer, so it has no numbers yet.',
   'Claude does not keep chat usage on this computer, so chat on claude.ai, in the Claude app and on the phone is not counted.',
   "The plan's percent is shown in the Claude app under Settings, Usage.",
   'The numbers start once you use Cowork, Claude Code or Codex on this computer.',
 ].join(' ')
 
-// Added to an answer that names a command to change something. In the app Kestrel only reads.
-const IN_A_TERMINAL = 'A change with a "kestrel apply" command is made in a terminal, with that command: Kestrel in the desktop app never changes a setting.'
+// Added to an answer that names a command to change something. In the app Widal.Code only reads.
+const IN_A_TERMINAL = 'A change with a "widal apply" command is made in a terminal, with that command: Widal.Code in the desktop app never changes a setting.'
 
 // Where the numbers of plan_limits come from.
 const PLAN_SOURCES = [
-  "The percent: Claude Code gives the plan's limits to Kestrel's status line after each answer, and Kestrel keeps the newest reading of each account. That needs Kestrel's status line in Claude Code on this computer.",
-  "Each account has limits of its own. Kestrel tells the accounts apart by the account that Claude Code names at the start of each session's log.",
+  "The percent: Claude Code gives the plan's limits to Widal.Code's status line after each answer, and Widal.Code keeps the newest reading of each account. That needs Widal.Code's status line in Claude Code on this computer.",
+  "Each account has limits of its own. Widal.Code tells the accounts apart by the account that Claude Code names at the start of each session's log.",
   'Chat, Cowork and Claude Code share one plan, so the percent counts all three.',
-  "The Claude app shows the percent under Settings, Usage. When the two differ, the app is right: Kestrel's reading can be old.",
-  "Kestrel does not read Codex's plan or its limits.",
-  "Dollar figures in Kestrel's other answers are list prices per token. For an account that pays by the token they are spend. On a subscription they are API value: what the same use would cost by the token, not what you pay.",
+  "The Claude app shows the percent under Settings, Usage. When the two differ, the app is right: Widal.Code's reading can be old.",
+  "Widal.Code does not read Codex's plan or its limits.",
+  "Dollar figures in Widal.Code's other answers are list prices per token. For an account that pays by the token they are spend. On a subscription they are API value: what the same use would cost by the token, not what you pay.",
 ]
 
 const isObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -132,28 +134,28 @@ function newest(files) {
   return at
 }
 
-/** Which logs Kestrel finds, how many and how new, and what it cannot see. Only the times of the files are read. */
+/** Which logs Widal.Code finds, how many and how new, and what it cannot see. Only the times of the files are read. */
 function sees(files) {
-  const out = ['What Kestrel finds on this computer:']
+  const out = ['What Widal.Code finds on this computer:']
   for (const [source, name] of SOURCES) {
     const mine = files.filter((f) => f.source === source)
     const at = newest(mine)
     const found = `${count(mine.length)} ${mine.length === 1 ? 'log' : 'logs'}${at ? `, the newest from ${day(at)}` : ''}`
     out.push(`  ${name}: ${mine.length ? found : 'no logs'}.`)
   }
-  out.push('', 'What Kestrel cannot see:', ...CANNOT_SEE.map((line) => `  ${line}`), '', PRIVACY)
+  out.push('', 'What Widal.Code cannot see:', ...CANNOT_SEE.map((line) => `  ${line}`), '', PRIVACY)
   if (!files.length) out.push('', NOTHING_FOUND)
   return out.join('\n')
 }
 
 /**
- * How the person pays and the plan's limits, as far as Kestrel knows. `full` adds where each
- * number comes from. The limits are the newest reading that Claude Code gave Kestrel's status
+ * How the person pays and the plan's limits, as far as Widal.Code knows. `full` adds where each
+ * number comes from. The limits are the newest reading that Claude Code gave Widal.Code's status
  * line on this computer. A window that has ended is left out.
  */
 function planText(now, full) {
   const all = allLimits(now)
-  const out = [`How you pay, as far as Kestrel knows: ${billingText(billing({}, { now }))}.`]
+  const out = [`How you pay, as far as Widal.Code knows: ${billingText(billing({}, { now }))}.`]
   /** The lines of one account's limits. The parts come in the same order as the windows: the 5 hour limit first, then the week. */
   const lines = (limits, indent) => {
     const keys = WINDOWS.map((w) => w.key).filter((key) => limits[key])
@@ -167,7 +169,7 @@ function planText(now, full) {
     for (const [key, limits] of [...all].sort((a, b) => newest(b[1]) - newest(a[1]))) out.push(`  ${labelOf(key, state)} (${shortKey(key)}):`, ...lines(limits, '    '))
   } else if (all.size === 1) {
     out.push(full ? "The plan's limits, from the newest reading on this computer:" : "The plan's limits:", ...lines([...all.values()][0], '  '))
-  } else out.push("Kestrel has no reading of the plan's limits. The Claude app shows the percent under Settings, Usage.")
+  } else out.push("Widal.Code has no reading of the plan's limits. The Claude app shows the percent under Settings, Usage.")
   if (full) out.push('', 'Where the numbers come from:', ...PLAN_SOURCES.map((line) => `  ${line}`))
   return out.join('\n')
 }
@@ -182,11 +184,11 @@ function olderNote(records, days, now, files) {
 /** The answer when the logs are still being read the first time. `all` is 0 before the count is known. */
 function stillReading({ done, all }) {
   const far = all ? `: ${count(done)} of ${count(all)} logs done` : ''
-  return `Kestrel is still reading the session logs on this computer for the first time${far}. Ask again in a minute, and the answer will be there: the reading goes on in the background.`
+  return `Widal.Code is still reading the session logs on this computer for the first time${far}. Ask again in a minute, and the answer will be there: the reading goes on in the background.`
 }
 
 /**
- * The text of an answer, from the parts that a tool gives. Colour codes are taken out. Kestrel's
+ * The text of an answer, from the parts that a tool gives. Colour codes are taken out. Widal.Code's
  * summary ends with a line that names other reports of the command: in the app those are other
  * tools, so the line goes. An answer that names a command to change something says that the
  * change is made in a terminal.
@@ -194,8 +196,8 @@ function stillReading({ done, all }) {
 function tidy(parts) {
   let text = [parts].flat().filter((part) => part !== undefined).join('\n')
   text = text.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
-  text = text.split('\n').filter((line) => !line.startsWith('Next: "kestrel')).join('\n')
-  if (text.includes('kestrel apply')) text += `\n\n${IN_A_TERMINAL}`
+  text = text.split('\n').filter((line) => !line.startsWith('Next: "widal')).join('\n')
+  if (text.includes('widal apply')) text += `\n\n${IN_A_TERMINAL}`
   return text.replace(/\n{3,}/g, '\n\n').trim()
 }
 
@@ -211,9 +213,9 @@ const withDays = (fallback) => ({
 // same in desktop/manifest.json.
 const TOOLS = [
   {
-    name: 'what_kestrel_sees',
-    title: 'What Kestrel sees',
-    description: 'Which agent logs Kestrel finds on this computer (Claude Code, Codex, Cowork), how many and how new, and what it cannot see. Use it first when unsure what there is, or when another answer is empty.',
+    name: 'what_widal_code_sees',
+    title: 'What Widal.Code sees',
+    description: 'Which agent logs Widal.Code finds on this computer (Claude Code, Codex, Cowork), how many and how new, and what it cannot see. Use it first when unsure what there is, or when another answer is empty.',
     answer: ({ files }) => sees(files),
   },
   {
@@ -229,7 +231,7 @@ const TOOLS = [
   {
     name: 'plan_limits',
     title: "The plan's limits",
-    description: "How the person pays, the plan's limits and how much of them is used, as far as Kestrel knows, and where each number comes from. Use it for questions about the plan, its limits or the percent used.",
+    description: "How the person pays, the plan's limits and how much of them is used, as far as Widal.Code knows, and where each number comes from. Use it for questions about the plan, its limits or the percent used.",
     answer: ({ now }) => planText(now, true),
   },
   {
@@ -297,7 +299,7 @@ const TOOLS = [
     title: 'Spend by account',
     days: 7,
     description: "The dollars and the plan's limits of each account that the agents used, such as a work and a personal Claude account, Cowork and Codex: tokens, spend or API value at list prices, and each plan's price. Use it for questions such as: which of my accounts used the most this week?",
-    // The text of "kestrel accounts". It learns the name of the account signed in now, as the command does.
+    // The text of "widal accounts". It learns the name of the account signed in now, as the command does.
     answer: ({ data, days, now, files }) => {
       const records = within(data.records, days, now)
       return [accountsText(accountsData(records, { days, now, metas: data.metas }), now), olderNote(records, days, now, files)]
@@ -308,8 +310,8 @@ const TOOLS = [
     title: 'Security check',
     // It reads the store of findings, not the logs: cloud findings are there also on a computer without agent logs.
     findings: true,
-    description: "The open findings of Kestrel's security checks (the agents' settings, their actions, the code they changed, and cloud accounts checked on request), each with its kind, title, where it is, the controls of the frameworks that are on and the fix. Use it when the person asks about security risks or compliance, such as HIPAA or SOC 2.",
-    // The same findings and controls as "kestrel check": the controls of each finding's repository's frameworks.
+    description: "The open findings of Widal.Code's security checks (the agents' settings, their actions, the code they changed, and cloud accounts checked on request), each with its kind, title, where it is, the controls of the frameworks that are on and the fix. Use it when the person asks about security risks or compliance, such as HIPAA or SOC 2.",
+    // The same findings and controls as "widal check": the controls of each finding's repository's frameworks.
     answer: async ({ now }) => {
       const { reportData } = await import('./security.mjs')
       const data = reportData({ now })
@@ -336,7 +338,7 @@ function check(tool, args) {
 }
 
 /**
- * The logs of the last 90 days, read through Kestrel's cache. There is one read at a time: a call
+ * The logs of the last 90 days, read through Widal.Code's cache. There is one read at a time: a call
  * that comes while a read is going on waits for that same read.
  */
 class Logs {
@@ -393,7 +395,7 @@ async function run(tool, args, logs, wait) {
   if (error) return { text: error, isError: true }
   if (tool.findings) return { text: tidy(await tool.answer({ now: Date.now() })), isError: false }
   const files = logFiles()
-  if (!files.length) return { text: tool.name === 'what_kestrel_sees' ? sees(files) : NOTHING_FOUND, isError: false }
+  if (!files.length) return { text: tool.name === 'what_widal_code_sees' ? sees(files) : NOTHING_FOUND, isError: false }
   let data
   if (tool.days) {
     const got = await logs.get(wait)
@@ -411,9 +413,10 @@ export function serve({ input = process.stdin, output = process.stdout, errors =
   // Only protocol messages go to standard output. A part of the tool that prints by mistake
   // prints to standard error instead.
   for (const name of ['log', 'info', 'warn', 'debug']) console[name] = (...args) => errors.write(`${format(...args)}\n`)
-  const wait = /^\d+$/.test(env.KESTREL_MCP_WAIT_MS ?? '') ? Number(env.KESTREL_MCP_WAIT_MS) : WAIT
-  const logs = new Logs((message) => errors.write(`kestrel mcp: ${message}\n`))
-  const serverInfo = { name: 'kestrel', title: 'Kestrel', version: version() ?? '0.0.0' }
+  const asked = envSetting('MCP_WAIT_MS', env) ?? ''
+  const wait = /^\d+$/.test(asked) ? Number(asked) : WAIT
+  const logs = new Logs((message) => errors.write(`widal desktop-mcp: ${message}\n`))
+  const serverInfo = { name: 'widal-code', title: 'Widal.Code', version: version() ?? '0.0.0' }
   const open = new Set() // The tool calls that are not answered yet.
   const cancelled = new Set() // The ids of requests that the client cancelled.
   const send = (message) => output.write(`${JSON.stringify(message)}\n`)
@@ -435,15 +438,15 @@ export function serve({ input = process.stdin, output = process.stdout, errors =
     if (!tool) return failure(id, INVALID_PARAMS, `Unknown tool: ${short(params.name)}`)
     const task = run(tool, params.arguments ?? {}, logs, wait)
       .catch((e) => {
-        errors.write(`kestrel mcp: ${tool.name}: ${e?.stack ?? e}\n`)
+        errors.write(`widal desktop-mcp: ${tool.name}: ${e?.stack ?? e}\n`)
         const why = short(String(e?.message ?? e).split('\n')[0]).replace(/[.\s]+$/, '')
-        return { text: `Kestrel could not answer because of an error: ${why}.`, isError: true }
+        return { text: `Widal.Code could not answer because of an error: ${why}.`, isError: true }
       })
       .then(({ text, isError }) => {
         // A cancelled request gets no answer.
         if (!cancelled.delete(idKey(id))) reply({ content: [{ type: 'text', text }], isError })
       })
-      .catch((e) => errors.write(`kestrel mcp: ${e?.stack ?? e}\n`))
+      .catch((e) => errors.write(`widal desktop-mcp: ${e?.stack ?? e}\n`))
     open.add(task)
     task.finally(() => open.delete(task))
   }
@@ -514,7 +517,7 @@ export function serve({ input = process.stdin, output = process.stdout, errors =
       handle(line)
     } catch (e) {
       // A message that breaks this server must not end it.
-      errors.write(`kestrel mcp: ${e?.stack ?? e}\n`)
+      errors.write(`widal desktop-mcp: ${e?.stack ?? e}\n`)
     }
   })
   // The client closes standard input to end the server. The calls that are still open are

@@ -2,7 +2,7 @@
 //
 // An action changes one thing in ~/.claude/settings.json, or one line in the file of one of the
 // person's own subagents. The file is copied to this tool's backup folder first. What the action
-// found before it changed anything is kept in ~/.kestrel/actions.json, so that "undo" puts
+// found before it changed anything is kept in ~/.widal/actions.json, so that "undo" puts
 // back exactly that. One action, keep-warm, also turns a setting of this tool on, and off again.
 //
 // "undo" puts a value back only while the setting still holds what the action set. A value that
@@ -44,7 +44,7 @@ export const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh']
 function subagentTarget({ kind, model = CHEAPER }) {
   if (!/^[\w.:@/[\]-]+$/.test(model)) throw new Error(`"${model}" is not the name of a model. A name looks like this: ${CHEAPER}`)
   if (kind !== undefined && !agentFile(kind)) {
-    throw new Error(`"${kind}" has no file of its own in ${join(claudeDir(), 'agents')}, and a built-in kind cannot be changed on its own: use the default for all subagents (kestrel apply subagent-model).`)
+    throw new Error(`"${kind}" has no file of its own in ${join(claudeDir(), 'agents')}, and a built-in kind cannot be changed on its own: use the default for all subagents (widal apply subagent-model).`)
   }
   return { kind, model }
 }
@@ -143,7 +143,7 @@ function transcriptDaysArg({ days = '7' }) {
 export const ACTIONS = {
   'subagent-cache-1h': {
     what: 'Sets "subagentPromptCacheTtl": "1h" in Claude Code\'s settings, so that subagents keep their cache for 1 hour instead of 5 minutes.',
-    note: 'New sessions use it. Check the effect with: kestrel measure subagent-cache-1h',
+    note: 'New sessions use it. Check the effect with: widal measure subagent-cache-1h',
     apply: () => ({ value: setSetting('subagentPromptCacheTtl', '1h') }),
     undo: (before, bin, notPutBack = []) => putSettingBack('subagentPromptCacheTtl', '1h', before?.value, notPutBack),
     inPlace: () => read().subagentPromptCacheTtl === '1h',
@@ -160,7 +160,7 @@ export const ACTIONS = {
   },
   'cold-start-warn': {
     what: 'Adds a hook to Claude Code that runs when you send a prompt. When the session\'s cache has ended and its context is large, it says once what that cost: the tokens that were sent again, or the dollars when you pay by the token.',
-    note: 'It only warns: it never stops or changes a prompt. It needs this tool\'s status line, which saves when each cache ends. "Large" is the --min of "kestrel nudge": 100,000 tokens unless you changed it.',
+    note: 'It only warns: it never stops or changes a prompt. It needs this tool\'s status line, which saves when each cache ends. "Large" is the --min of "widal nudge": 100,000 tokens unless you changed it.',
     apply: (bin) => {
       setEventHook('UserPromptSubmit', `${bin} hook cold-start`, true)
       return {}
@@ -170,7 +170,7 @@ export const ACTIONS = {
   },
   'subagent-model': {
     what: `Sets the model that subagents run on: ${CHEAPER}, or the one that --model names. Without --kind it sets "${SUBAGENT_MODEL}" in the "env" of Claude Code's settings, for all subagents. With --kind <name> it sets "model:" in the file of that one subagent.`,
-    note: 'New sessions use it. Check the effect with: kestrel measure subagent-model',
+    note: 'New sessions use it. Check the effect with: widal measure subagent-model',
     options: ['--kind', '--model'],
     apply: (bin, args, earlier) => {
       const { kind, model } = subagentTarget(args)
@@ -229,7 +229,7 @@ export const ACTIONS = {
   },
   'effort-default': {
     what: `Sets "effortLevel" in Claude Code's settings: the effort that sessions start with. The level is medium, or the one that --level names (${EFFORT_LEVELS.join(', ')}).`,
-    note: 'New sessions use it. Check the effect with: kestrel measure effort-default',
+    note: 'New sessions use it. Check the effect with: widal measure effort-default',
     options: ['--level'],
     apply: (bin, args, earlier) => {
       const level = effortLevel(args)
@@ -243,7 +243,7 @@ export const ACTIONS = {
   },
   'keep-warm': {
     what: 'An experiment. Adds a hook to Claude Code that runs after each answer. When nobody types and the cache of the session is about to end, it wakes the session with one short turn, so that the cache lasts another hour. Each wake spends some of your plan\'s limit while you are away (money, when you pay by the token). It stops after 3 hours without you, or after the hours that --cap-hours names.',
-    note: 'It is an experiment, and it spends your plan\'s limit while you are away: it can cost more than it saves. It stops after the cap. It leaves a session alone when its cache lasts 5 minutes, when its context is small, and while a plan limit is yellow or red. It needs this tool\'s status line with a refresh timer ("kestrel install"). Check the effect with: kestrel measure keep-warm',
+    note: 'It is an experiment, and it spends your plan\'s limit while you are away: it can cost more than it saves. It stops after the cap. It leaves a session alone when its cache lasts 5 minutes, when its context is small, and while a plan limit is yellow or red. It needs this tool\'s status line with a refresh timer ("widal connect"). Check the effect with: widal measure keep-warm',
     options: ['--cap-hours'],
     apply: (bin, args) => {
       // The cap is checked first, so that a bad one changes nothing.
@@ -268,8 +268,8 @@ export const ACTIONS = {
     done: (args) => `Added a hook to Claude Code that runs after each answer, and turned keep-warm on. It wakes an idle session shortly before its cache ends, for up to ${hours(capHours(args))} without you.`,
   },
   'compact-keep': {
-    what: 'Adds a hook to Claude Code that runs before every compaction, automatic or by hand. It gives Claude Code a short text that says what the summary has to keep: the text that "kestrel compact-keep" shows.',
-    note: 'It only adds that text to the instructions for the summary. It never stops a compaction, and it reads nothing of the session. Set your own text with: kestrel compact-keep "<text>"',
+    what: 'Adds a hook to Claude Code that runs before every compaction, automatic or by hand. It gives Claude Code a short text that says what the summary has to keep: the text that "widal compact-keep" shows.',
+    note: 'It only adds that text to the instructions for the summary. It never stops a compaction, and it reads nothing of the session. Set your own text with: widal compact-keep "<text>"',
     apply: (bin) => {
       setEventHook('PreCompact', `${bin} hook compact-keep`, true)
       return {}
@@ -279,7 +279,7 @@ export const ACTIONS = {
   },
   'autocompact-window': {
     what: 'Sets "autoCompactWindow" in Claude Code\'s settings: the size of the context, in tokens, at which Claude Code compacts it on its own. Without the setting that is the limit of the model. The size is 300000, or the one that --tokens names (100000 to 1000000).',
-    note: 'A compaction replaces the conversation with a summary, and a summary loses detail. Nobody has measured whether the work goes on the same with a smaller context. New sessions use it. Check the effect with: kestrel measure autocompact-window',
+    note: 'A compaction replaces the conversation with a summary, and a summary loses detail. Nobody has measured whether the work goes on the same with a smaller context. New sessions use it. Check the effect with: widal measure autocompact-window',
     options: ['--tokens'],
     apply: (bin, args, earlier) => {
       const tokens = compactTokens(args)
@@ -293,7 +293,7 @@ export const ACTIONS = {
   },
   'bash-output-cap': {
     what: 'Sets "bashOutputMaxChars" in Claude Code\'s settings: how many characters of a successful shell command\'s output Claude gets inline. The size is 10000, or the one that --chars names (4000 to 128000). Without the setting it is about 30,000. Longer output goes to a file, and Claude gets a preview of 2,000 characters and the file\'s path.',
-    note: 'It needs Claude Code 2.1.261 or later, and then Claude Code no longer reads BASH_MAX_OUTPUT_LENGTH. Claude reads the file when it needs the rest of an output, and each such read is a tool call. Check the effect with: kestrel measure bash-output-cap',
+    note: 'It needs Claude Code 2.1.261 or later, and then Claude Code no longer reads BASH_MAX_OUTPUT_LENGTH. Claude reads the file when it needs the rest of an output, and each such read is a tool call. Check the effect with: widal measure bash-output-cap',
     options: ['--chars'],
     apply: (bin, args, earlier) => {
       const chars = capChars(args)
@@ -306,7 +306,7 @@ export const ACTIONS = {
     done: (args, before) => {
       const lines = [`Set "bashOutputMaxChars" to ${capChars(args)} in Claude Code's settings. Claude gets at most that many characters of a successful command's output inline.`]
       // A value the person had set: say what it was, and how to get it back.
-      if (before?.value !== undefined) lines.push(`It was ${inWords(before.value)} before. kestrel undo bash-output-cap puts that back.`)
+      if (before?.value !== undefined) lines.push(`It was ${inWords(before.value)} before. widal undo bash-output-cap puts that back.`)
       // Claude Code does not read BASH_MAX_OUTPUT_LENGTH while the setting is there. Only a number is printed.
       const env = read().env?.BASH_MAX_OUTPUT_LENGTH
       const shown = (v) => (/^\d{1,9}$/.test(String(v)) ? ` to ${v}` : '')
@@ -392,7 +392,7 @@ export const ACTIONS = {
   },
   'transcript-days': {
     what: 'Sets "cleanupPeriodDays" and "desktopSessionCleanupPeriodDays" in Claude Code\'s settings to 7 days, or to the days that --days names (1 to 365). Claude Code then deletes session transcripts that are older, also those of desktop and Cowork sessions.',
-    note: 'Claude Code deletes the older transcripts at the start of a session, without a message, and /resume no longer shows those sessions. Kestrel\'s reports read the same transcripts: after this they see that many days at most.',
+    note: 'Claude Code deletes the older transcripts at the start of a session, without a message, and /resume no longer shows those sessions. Widal.Code\'s reports read the same transcripts: after this they see that many days at most.',
     options: ['--days'],
     apply: (bin, args, earlier) => {
       const days = transcriptDaysArg(args)
@@ -444,7 +444,7 @@ export function apply(id, bin, now = Date.now(), args = []) {
   if (!state[id]) state[id] = { at: now, before }
   else if (action.options) state[id].before = before
   save(state)
-  return [action.done?.(asked, before) ?? action.what, action.note, `Take it back with: kestrel undo ${id}`]
+  return [action.done?.(asked, before) ?? action.what, action.note, `Take it back with: widal undo ${id}`]
 }
 
 /** Takes an applied action back. Returns the lines to print. */

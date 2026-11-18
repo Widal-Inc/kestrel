@@ -1,14 +1,14 @@
-// "kestrel cloud-check vercel": read-only checks of one Vercel project, with the person's own
+// "widal cloud-check vercel": read-only checks of one Vercel project, with the person's own
 // sign-in of the Vercel CLI.
 //
 // The checks, and where each one reads:
 //   - Deployment protection on previews and on production deployment URLs, and whether a password
 //     protects them: "vercel project protection <project> --json". Its answer also holds the
-//     project's protection bypass, which Kestrel never keeps or prints.
+//     project's protection bypass, which Widal.Code never keeps or prints.
 //   - The Vercel Firewall on or off: "vercel firewall status --json --project <project>".
 //   - Trusted IPs, and environment variables that are readable (Config, not Secret) while their
 //     name looks like a secret's: only Vercel's REST API answers these, GET /v9/projects/<id>.
-//     Kestrel calls it only with a token that the person puts in the environment variable
+//     Widal.Code calls it only with a token that the person puts in the environment variable
 //     VERCEL_TOKEN, sends it only to api.vercel.com, and never writes it anywhere. Of each
 //     variable it reads the name and the kind, never the value. Without the token these checks
 //     are skipped, the run says so, and their findings from an earlier run stay as they were.
@@ -43,7 +43,7 @@ export const readable = (v) => (v.visibility ? v.visibility === 'config' : ['enc
 /** Checks one Vercel project. See src/cloud.mjs for what it returns. */
 export async function vercelCheck(options, { env, frameworks, fetch }) {
   const vercel = findProgram('vercel', env)
-  if (!vercel) throw new Error('The Vercel command line tool (vercel) is not installed, so Kestrel cannot read Vercel. Install it with "npm i -g vercel" and sign in with "vercel login", then run this again.')
+  if (!vercel) throw new Error('The Vercel command line tool (vercel) is not installed, so Widal.Code cannot read Vercel. Install it with "npm i -g vercel" and sign in with "vercel login", then run this again.')
   const scope = options.team ? ['--scope', options.team] : []
   const call = (args, what) => {
     const r = runProgram(vercel, [...args, ...scope], { env })
@@ -68,11 +68,11 @@ export async function vercelCheck(options, { env, frameworks, fetch }) {
   const shown = call(['project', 'protection', ...(options.project ? [options.project] : []), '--json'], 'vercel project protection')
   if (shown.status !== 0) {
     const said = firstLine(shown.stderr)
-    if (/not linked/i.test(said)) throw new Error('This folder is not linked to a Vercel project. Name one: kestrel cloud-check vercel --project <name>')
+    if (/not linked/i.test(said)) throw new Error('This folder is not linked to a Vercel project. Name one: widal cloud-check vercel --project <name>')
     throw new Error(`The Vercel command line tool could not read the project's deployment protection: ${said || `exit code ${shown.status}`}. A newer Vercel CLI may be needed (npm i -g vercel). Nothing was saved.`)
   }
   const protection = parseJson(shown.stdout)
-  if (!protection?.projectId) throw new Error('The Vercel command line tool gave an answer about the project that Kestrel could not read. Nothing was saved.')
+  if (!protection?.projectId) throw new Error('The Vercel command line tool gave an answer about the project that Widal.Code could not read. Nothing was saved.')
   const projectId = String(protection.projectId)
   const name = String(protection.name ?? options.project ?? projectId)
   const projectScope = `cloud:vercel:${projectId}`
@@ -123,7 +123,7 @@ export async function vercelCheck(options, { env, frameworks, fetch }) {
       rule: 'cloud.vercel.readable-secret', key: `${projectId}:${v.key}`, scope: projectScope, severity: 'high', source: 'vercel',
       where: { ...where, resource: `environment variable ${v.key}` },
       title: 'An environment variable that looks like a secret is readable (Config, not Secret)',
-      detail: 'Kestrel judged it by its name only and never read its value. Make it a Secret (sensitive) variable in the project\'s settings, so that nobody can read it after it is saved.',
+      detail: 'Widal.Code judged it by its name only and never read its value. Make it a Secret (sensitive) variable in the project\'s settings, so that nobody can read it after it is saved.',
     }))
   }
   const methods = METHODS.filter(([field]) => method[field]).map(([field, label]) => `${label} (${method[field].deploymentType ?? 'set'})`)
@@ -135,10 +135,11 @@ export async function vercelCheck(options, { env, frameworks, fetch }) {
   runs.push({
     scope: teamScope,
     findings: frameworks.includes('hipaa') ? [cloudFinding({
+      // The board reads the source "kestrel" as this tool's own checks, so it stays as it was.
       rule: 'cloud.vercel.hipaa-baa', key: teamId ?? 'personal', scope: teamScope, severity: 'info', source: 'kestrel',
       where: { provider: 'vercel', ...(teamId ? { account: teamId } : {}) },
       title: 'Check that your Vercel team has a signed HIPAA BAA',
-      detail: 'Vercel signs a Business Associate Agreement only on Pro with the HIPAA BAA add-on (bought in the team\'s Billing settings) and on Enterprise. Kestrel cannot see whether yours is signed. See vercel.com/docs/security/compliance.',
+      detail: 'Vercel signs a Business Associate Agreement only on Pro with the HIPAA BAA add-on (bought in the team\'s Billing settings) and on Enterprise. Widal.Code cannot see whether yours is signed. See vercel.com/docs/security/compliance.',
     })] : [],
   })
   return { what: `Vercel project ${name}${teamId ? ` of the team ${teamId}` : ''}${api ? ', with the REST API' : ''}`, runs, notes }

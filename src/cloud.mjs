@@ -1,7 +1,7 @@
-// "kestrel cloud-check <aws|vercel|github>": read-only compliance checks of a cloud account, run
+// "widal cloud-check <aws|vercel|github>": read-only compliance checks of a cloud account, run
 // only when the person asks, never on a timer.
 //
-// Kestrel uses the sign-ins the person already has, through the providers' own command line tools
+// Widal.Code uses the sign-ins the person already has, through the providers' own command line tools
 // (aws, prowler, vercel, gh). It never reads a credentials file and never keeps a key. The one
 // secret it may use is a Vercel token that the person puts in the environment variable
 // VERCEL_TOKEN, for the checks that only Vercel's REST API answers. It sends that token to Vercel
@@ -27,13 +27,13 @@ import { securityConfig } from './settings.mjs'
 /** The longest a call of a provider's command line tool may take, in milliseconds. Prowler has its own limit. */
 export const CALL_LIMIT = 60e3
 // The most findings one run keeps. A large account can have thousands; the most severe are kept,
-// and the run says how many it left out, so that Kestrel's small file of findings stays small.
+// and the run says how many it left out, so that Widal.Code's small file of findings stays small.
 export const MOST = 500
 
 const SEVERITY_RANK = { high: 0, medium: 1, low: 2, info: 3 }
 
 /**
- * The full path of a program on the PATH of `env`, or undefined when it is not there. Kestrel
+ * The full path of a program on the PATH of `env`, or undefined when it is not there. Widal.Code
  * starts a provider's tool by this full path, so the PATH it was given is the only place it looks.
  */
 export function findProgram(name, env = process.env) {
@@ -131,7 +131,7 @@ export function control(catalog, framework, id, label) {
   return { framework, id, confirmed: known?.confirmed === true, label: known?.label ?? label }
 }
 
-// The controls of Kestrel's own cloud checks of Vercel and GitHub, which no provider's tool maps:
+// The controls of Widal.Code's own cloud checks of Vercel and GitHub, which no provider's tool maps:
 // [framework, id, label]. An id counts as confirmed only when the catalog of controls says so;
 // every other one shows with "(id to check)". HITRUST shows through HIPAA and ISO 27001.
 const ACCESS = [['hipaa', '164.312(a)', 'Access control'], ['soc2', 'CC6.1', 'Logical access security'], ['iso27001', 'A.8.3', 'Information access restriction']]
@@ -153,7 +153,7 @@ export const OWN_CONTROLS = {
   'cloud.github.code-scanning-off': [['soc2', 'CC7.1', 'Detection of vulnerabilities'], ['iso27001', 'A.8.28', 'Secure coding']],
   'cloud.github.org-2fa-off': [['hipaa', '164.312(d)', 'Person or entity authentication'], ['soc2', 'CC6.1', 'Logical access security'], ['iso27001', 'A.8.5', 'Secure authentication'], ['pci', '8.4.2', 'Multi-factor authentication for all access']],
 }
-/** The controls of one of Kestrel's own cloud checks, by its rule. */
+/** The controls of one of Widal.Code's own cloud checks, by its rule. */
 export const ownControls = (catalog, rule) => (OWN_CONTROLS[rule] ?? []).map(([framework, id, label]) => control(catalog, framework, id, label))
 
 const PROVIDER_CHECKS = {
@@ -176,11 +176,11 @@ const PROVIDER_CHECKS = {
  */
 export async function cloudCheck(provider, options = {}, { env = process.env, frameworks = securityConfig().frameworks, now = Date.now(), fetch = globalThis.fetch, catalog } = {}) {
   const load = Object.hasOwn(PROVIDER_CHECKS, provider ?? '') ? PROVIDER_CHECKS[provider] : undefined
-  if (!load) throw new Error(`"${provider ?? ''}" is not a provider Kestrel checks. Use one of: kestrel cloud-check aws, kestrel cloud-check vercel, kestrel cloud-check github.`)
+  if (!load) throw new Error(`"${provider ?? ''}" is not a provider Widal.Code checks. Use one of: widal cloud-check aws, widal cloud-check vercel, widal cloud-check github.`)
   const check = await load()
   const controls = catalog ?? (await loadCatalog())
   const result = await check(options, { env, frameworks, now, fetch, catalog: controls })
-  // Kestrel's own checks get their controls here, by their rule.
+  // Widal.Code's own checks get their controls here, by their rule.
   for (const run of result.runs) for (const f of run.findings) if (!f.controls.length && OWN_CONTROLS[f.rule]) f.controls = ownControls(controls, f.rule)
   const open = []
   const lines = [`Checked ${result.what}. Read only.`]
@@ -191,7 +191,7 @@ export async function cloudCheck(provider, options = {}, { env = process.env, fr
       : []
     const { kept, left } = mostSevere([...run.findings, ...carried])
     open.push(...saveFindings(kept, { scope: run.scope, kind: 'cloud', now }))
-    if (left) lines.push(`Kestrel keeps the ${MOST} most severe findings of ${run.scope}, and left out ${left} more.`)
+    if (left) lines.push(`Widal.Code keeps the ${MOST} most severe findings of ${run.scope}, and left out ${left} more.`)
   }
   lines.push(...result.notes)
   const counts = { high: 0, medium: 0, low: 0, info: 0 }
@@ -199,22 +199,22 @@ export async function cloudCheck(provider, options = {}, { env = process.env, fr
   open.sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || (a.id < b.id ? -1 : 1))
   lines.push('', `${open.length} open ${open.length === 1 ? 'finding' : 'findings'} in ${PROVIDERS[provider]} (${countsWords(counts)}).`)
   for (const f of open) lines.push('', ...findingLines(f, { on: frameworks }))
-  lines.push('', 'They are saved, so "kestrel check" shows them too. A later run resolves what was fixed.', CHECK_NOTE)
+  lines.push('', 'They are saved, so "widal check" shows them too. A later run resolves what was fixed.', CHECK_NOTE)
   return lines.join('\n')
 }
 
 /**
- * The command "kestrel cloud-check". `words` are the words after "cloud-check", `flags` the
+ * The command "widal cloud-check". `words` are the words after "cloud-check", `flags` the
  * options the command line gave: profile, region, minutes, project, team and repo.
  */
 export function cloudCommand(words, flags, context) {
   const [provider, ...rest] = words
-  if (!provider) throw new Error('Name a provider: kestrel cloud-check aws, kestrel cloud-check vercel or kestrel cloud-check github.')
-  if (rest.length) throw new Error(`"kestrel cloud-check ${provider}" takes options only, and "${rest[0]}" was given.`)
+  if (!provider) throw new Error('Name a provider: widal cloud-check aws, widal cloud-check vercel or widal cloud-check github.')
+  if (rest.length) throw new Error(`"widal cloud-check ${provider}" takes options only, and "${rest[0]}" was given.`)
   const allowed = { aws: ['profile', 'region', 'minutes'], vercel: ['project', 'team'], github: ['repo'] }[provider] ?? []
   for (const [name, value] of Object.entries(flags)) {
     if (value === undefined) continue
-    if (!allowed.includes(name)) throw new Error(`--${name} is not an option of "kestrel cloud-check ${provider}".${allowed.length ? ` Its options are: ${allowed.map((a) => `--${a}`).join(', ')}.` : ''}`)
+    if (!allowed.includes(name)) throw new Error(`--${name} is not an option of "widal cloud-check ${provider}".${allowed.length ? ` Its options are: ${allowed.map((a) => `--${a}`).join(', ')}.` : ''}`)
     if (value === true || value === '') throw new Error(`--${name} needs a value.`)
   }
   return cloudCheck(provider, flags, context)

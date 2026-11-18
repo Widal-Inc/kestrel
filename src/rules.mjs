@@ -1,9 +1,9 @@
-// The rules of Kestrel's own security checks: what each one looks for, how severe it is, which
-// controls it touches in each framework, and the fix when Kestrel has one.
+// The rules of Widal.Code's own security checks: what each one looks for, how severe it is, which
+// controls it touches in each framework, and the fix when Widal.Code has one.
 //
 // A rule is { id, kind, severity, title, controls, fix, only, raise }:
 //   - `controls` maps a framework id to control ids of the catalog in controls.mjs;
-//   - `fix` names an action of actions.mjs, applied with "kestrel apply <fix>";
+//   - `fix` names an action of actions.mjs, applied with "widal apply <fix>";
 //   - `only` lists frameworks of which one has to be on for the rule to run at all;
 //   - `raise` makes the rule more severe while one of its frameworks is on.
 //
@@ -135,6 +135,8 @@ export const severityOf = (r, frameworks) => (r.raise && r.raise.when.some((f) =
  * the rule id, then the key (where it was found). `fix` replaces the rule's fix, and null means none.
  * `severity`, `title` and `source` replace the rule's.
  */
+// The source "kestrel" names this tool's own checks. The board reads it as that, so it stays as it
+// was before the change of name.
 export function makeFinding(ruleId, { key, scope, where = {}, detail, frameworks = [], severity, title, source = 'kestrel', fix }) {
   const r = RULES[ruleId]
   const action = fix === undefined ? r.fix : fix
@@ -147,7 +149,7 @@ export function makeFinding(ruleId, { key, scope, where = {}, detail, frameworks
     where,
     scope,
     controls: controlsFor(r.controls, frameworks),
-    fix: action ? { action, words: `kestrel apply ${action}` } : null,
+    fix: action ? { action, words: `widal apply ${action}` } : null,
     source,
   }
   if (detail) finding.detail = detail

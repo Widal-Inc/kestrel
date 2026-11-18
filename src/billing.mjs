@@ -194,5 +194,5 @@ export function billing(input, { env = process.env, cfg = config(), now = Date.n
   return { mode: 'usage', sure: false, why: 'no sign of a plan, so figures are list prices' }
 }
 
-/** The answer of `billing` as words, for "kestrel plan" and "kestrel status". */
+/** The answer of `billing` as words, for "widal plan" and "widal doctor". */
 export const billingText = (b) => `${b.mode === 'subscription' ? 'subscription' : 'usage, paid by the token'}${b.sure ? '' : ', not sure'} (${b.why})`

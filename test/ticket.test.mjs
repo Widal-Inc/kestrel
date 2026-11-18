@@ -6,14 +6,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
-const dir = mkdtempSync(join(tmpdir(), 'kestrel-ticket-test-'))
-// Kestrel also reads the config folders of Claude Code in the home folder, so the home folder is a
+const dir = mkdtempSync(join(tmpdir(), 'widal-code-ticket-test-'))
+// Widal.Code also reads the config folders of Claude Code in the home folder, so the home folder is a
 // made-up one too.
 process.env.HOME = join(dir, 'person')
-process.env.KESTREL_HOME = join(dir, 'home')
+process.env.WIDAL_HOME = join(dir, 'home')
 process.env.CLAUDE_CONFIG_DIR = join(dir, 'claude')
 process.env.CODEX_HOME = join(dir, 'codex')
-process.env.KESTREL_COWORK_DIR = join(dir, 'cowork')
+process.env.WIDAL_COWORK_DIR = join(dir, 'cowork')
 
 const { branchOf, ticketOf } = await import('../src/ticket.mjs')
 const { REFRESH_EVERY, localDay, readToday, todayDue, writeToday } = await import('../src/today-file.mjs')
@@ -77,6 +77,6 @@ test('today\'s numbers: written and read back for the same day, not for another 
   // The next day the file says nothing.
   assert.equal(readToday(now + 86400e3), undefined)
   // A broken file says nothing either.
-  writeFileSync(join(process.env.KESTREL_HOME, 'today.json'), '{ not json')
+  writeFileSync(join(process.env.WIDAL_HOME, 'today.json'), '{ not json')
   assert.equal(readToday(now), undefined)
 })

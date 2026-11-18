@@ -19,7 +19,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { plain } from './format.mjs'
 import { repoOf } from './git.mjs'
-import { claudeDir, claudeJsonOf, codexDir, realPath, shortPath } from './paths.mjs'
+import { claudeDir, claudeJsonOf, codexDir, envSetting, realPath, shortPath } from './paths.mjs'
 import { makeFinding, ruleOn, RULES } from './rules.mjs'
 
 const isObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -35,11 +35,13 @@ function readObject(file) {
 }
 
 /**
- * The file of the organization's managed settings on this system. KESTREL_MANAGED_SETTINGS names
- * another file instead: the tests use it, so that they never depend on the computer they run on.
+ * The file of the organization's managed settings on this system. WIDAL_MANAGED_SETTINGS (or
+ * KESTREL_MANAGED_SETTINGS, for one release) names another file instead: the tests use it, so
+ * that they never depend on the computer they run on.
  */
 export function managedSettingsFile(env = process.env, platform = process.platform) {
-  if (env.KESTREL_MANAGED_SETTINGS) return env.KESTREL_MANAGED_SETTINGS
+  const named = envSetting('MANAGED_SETTINGS', env)
+  if (named) return named
   if (platform === 'darwin') return '/Library/Application Support/ClaudeCode/managed-settings.json'
   if (platform === 'win32') return 'C:\\Program Files\\ClaudeCode\\managed-settings.json'
   return '/etc/claude-code/managed-settings.json'
@@ -68,7 +70,7 @@ function readManaged(file) {
 /**
  * The settings files that count for all of a person's projects, the highest first: managed, then
  * user. Each is `{ level, file, data }`. The place of the managed file comes from the real
- * environment, like KESTREL_HOME: it is no setting of an agent.
+ * environment, like WIDAL_HOME: it is no setting of an agent.
  */
 export function personFiles() {
   const out = []

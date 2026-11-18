@@ -151,7 +151,7 @@ export function proposals(records, { ownFile = agentFile, analyzed } = {}) {
       how: file
         ? `One line in the file of that subagent (${file}): "model: ${CHEAPER}". The other subagents keep their model.`
         : `${kind ? `"${kind}" has no file of its own, so it cannot be changed alone` : 'A subagent without a logged kind cannot be changed alone'}. The setting for all subagents does it: "CLAUDE_CODE_SUBAGENT_MODEL": "${CHEAPER}" in the "env" of Claude Code's settings.`,
-      risk: `${modelRisk} Compare before and after with: kestrel measure subagent-model`,
+      risk: `${modelRisk} Compare before and after with: widal measure subagent-model`,
       apply: !byHand,
       byHand: byHand ? 'The name of this kind has other characters than letters, digits, ".", "_" and "-", so no command is printed for it.' : undefined,
       action: 'subagent-model',
@@ -213,7 +213,7 @@ export function proposals(records, { ownFile = agentFile, analyzed } = {}) {
       })
     } else if (outputCost > 0 && outputCost >= 0.01 * t.total) {
       // No amount can be given. The proposal is still shown when the output it is about is 1% of the total or more.
-      list.push({ ...proposal, saving: null, evidence: `${found} No data of your own at a lower effort yet. Try it for a week, then run: kestrel measure effort-default` })
+      list.push({ ...proposal, saving: null, evidence: `${found} No data of your own at a lower effort yet. Try it for a week, then run: widal measure effort-default` })
     }
   }
 
@@ -259,10 +259,10 @@ export function proposals(records, { ownFile = agentFile, analyzed } = {}) {
     saving: atPoint,
     evidence: `${count(long.length)} calls of Claude Code carried more than ${tok(COMPACT_POINT)} tokens. The part above that cost ${money(atPoint)}: ${money(above(carrying.filter((e) => e.r.agent), COMPACT_POINT))} in subagents and ${money(above(carrying.filter((e) => !e.r.agent), COMPACT_POINT))} in main sessions. The same count for three points: ${COMPACT_POINTS.map((point) => `${money(above(carrying, point))} less at ${tok(point)} tokens`).join(', ')}.`,
     how: `One setting in Claude Code: "autoCompactWindow": ${COMPACT_POINT}. Claude Code then compacts a context on its own when it reaches that many tokens. Without the setting it does so only at the limit of the model.`,
-    risk: 'The amount assumes that the work goes on the same with a smaller context. Nobody has measured that. A summary loses detail, and work that misses the detail can take more calls. So measure the change after it is applied: kestrel measure autocompact-window',
+    risk: 'The amount assumes that the work goes on the same with a smaller context. Nobody has measured that. A summary loses detail, and work that misses the detail can take more calls. So measure the change after it is applied: widal measure autocompact-window',
     apply: true,
     args: `--tokens ${COMPACT_POINT}`,
-    // The same count for each of the three points, for "kestrel findings".
+    // The same count for each of the three points, for "widal findings".
     points: COMPACT_POINTS.map((point) => ({ tokens: point, saving: above(carrying, point) })),
   })
 
@@ -336,8 +336,8 @@ export function adviseReport(records, { days, applied = {}, ownFile }) {
       `   Why:  ${x.evidence}`,
       `   How:  ${x.how}`,
       `   Risk: ${x.risk}`,
-      isApplied(x, applied[action]) ? `   Applied on ${day(applied[action].at)}. See: kestrel measure ${action}. Take it back: kestrel undo ${action}`
-        : x.apply ? `   Apply: kestrel apply ${action}${x.args ? ` ${x.args}` : ''}${x.applyNote ? `. ${x.applyNote}` : ''}` : `   Apply: by hand. ${x.byHand ?? 'This tool does not change it.'}`,
+      isApplied(x, applied[action]) ? `   Applied on ${day(applied[action].at)}. See: widal measure ${action}. Take it back: widal undo ${action}`
+        : x.apply ? `   Apply: widal apply ${action}${x.args ? ` ${x.args}` : ''}${x.applyNote ? `. ${x.applyNote}` : ''}` : `   Apply: by hand. ${x.byHand ?? 'This tool does not change it.'}`,
     ]
     // A proposal names a kind of subagent, a model or a folder. Those names come from a log or a
     // meta file. Each of these is one line, so it is printed without control characters: a name
@@ -348,7 +348,7 @@ export function adviseReport(records, { days, applied = {}, ownFile }) {
 }
 
 /**
- * The proposals as data ("kestrel advise --json"), for the pane in Claude Code, the largest saving
+ * The proposals as data ("widal advise --json"), for the pane in Claude Code, the largest saving
  * first. Each has the change that applies it, with its arguments as a list, or null when it is
  * made by hand, and whether that change is applied. Names that come from a log or a meta file are
  * without control characters. `applied` and `ownFile` are as for `adviseReport`.

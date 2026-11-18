@@ -54,7 +54,7 @@ export function compactKeepText() {
   }
   if (!isObject(cfg)) throw new Error(`${file} does not hold a JSON object, so the text is not known.`)
   if (cfg.compactKeep === undefined) return DEFAULT_KEEP
-  if (!isKeepText(cfg.compactKeep?.text)) throw new Error(`"compactKeep" in ${file} does not hold a text of 1 to ${count(KEEP_MAX)} characters. Set one with: kestrel compact-keep "<text>"`)
+  if (!isKeepText(cfg.compactKeep?.text)) throw new Error(`"compactKeep" in ${file} does not hold a text of 1 to ${count(KEEP_MAX)} characters. Set one with: widal compact-keep "<text>"`)
   return cfg.compactKeep.text
 }
 
@@ -91,7 +91,7 @@ export function compactHintConfig(cfg = config()) {
   return c
 }
 
-/** The settings in words, for "kestrel hint" and the row of "kestrel status". */
+/** The settings in words, for "widal hint" and the row of "widal doctor". */
 export function compactHintSettingsText(c) {
   const when = `at a break in the work: when ${count(c.near)} tokens or less are left before Claude Code compacts on its own, when a task just ended and the context has ${count(c.growth)} tokens or more, or when the context grew by ${count(c.growth)} tokens`
   return c.on ? `on, ${when}` : `off (when on: ${when})`
