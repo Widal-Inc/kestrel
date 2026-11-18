@@ -155,15 +155,15 @@ const run = (args, input = '') => new Promise((resolve) => {
 })
 
 test('the board address: https:// is added, a slash at the end goes, and plain http:// only for this computer', () => {
-  assert.equal(boardAddress('kestrel.widal.com'), 'https://kestrel.widal.com')
-  assert.equal(boardAddress('https://kestrel.widal.com/'), 'https://kestrel.widal.com')
+  assert.equal(boardAddress('code.widal.com'), 'https://code.widal.com')
+  assert.equal(boardAddress('https://code.widal.com/'), 'https://code.widal.com')
   assert.equal(boardAddress('http://localhost:8787/'), 'http://localhost:8787')
   assert.equal(boardAddress('http://127.0.0.1:9000'), 'http://127.0.0.1:9000')
-  assert.throws(() => boardAddress('http://kestrel.widal.com'), /https:\/\//)
+  assert.throws(() => boardAddress('http://code.widal.com'), /https:\/\//)
   assert.throws(() => boardAddress('http://192.168.1.5:8787'), /https:\/\//)
-  assert.throws(() => boardAddress('https://me:secret@kestrel.widal.com'), /name or a password/)
-  assert.throws(() => boardAddress('ftp://kestrel.widal.com'), /https:\/\//)
-  assert.throws(() => boardAddress(''), /widal board login https:\/\/kestrel\.widal\.com/)
+  assert.throws(() => boardAddress('https://me:secret@code.widal.com'), /name or a password/)
+  assert.throws(() => boardAddress('ftp://code.widal.com'), /https:\/\//)
+  assert.throws(() => boardAddress(''), /widal board login https:\/\/code\.widal\.com/)
 })
 
 test('the GitHub name of a remote, in its usual forms, and none for another host', () => {
@@ -547,9 +547,9 @@ test('the background start: at most every 10 minutes, never while a sync holds t
     return { unref() {} }
   }
   assert.equal(startBoardSync(now, spawner), false) // Not linked.
-  link('https://kestrel.widal.com', { lastSyncAt: now - 5 * MIN })
+  link('https://code.widal.com', { lastSyncAt: now - 5 * MIN })
   assert.equal(startBoardSync(now, spawner), false) // The last sync is 5 minutes old.
-  link('https://kestrel.widal.com', { lastSyncAt: now - 11 * MIN })
+  link('https://code.widal.com', { lastSyncAt: now - 11 * MIN })
   assert.equal(startBoardSync(now, spawner), true)
   assert.deepEqual(spawned[0][1].slice(1), ['board', 'sync', '--quiet'])
   assert.equal(spawned[0][1][0], BIN)
@@ -560,7 +560,7 @@ test('the background start: at most every 10 minutes, never while a sync holds t
 
   // A lock held by a running sync stops a start. A lock older than 10 minutes does not.
   computer()
-  link('https://kestrel.widal.com', { lastSyncAt: now - HOUR })
+  link('https://code.widal.com', { lastSyncAt: now - HOUR })
   const lock = join(process.env.WIDAL_HOME, 'board.lock')
   writeFileSync(lock, JSON.stringify({ pid: 1, at: now - 2 * MIN }))
   assert.equal(startBoardSync(now, spawner), false)
@@ -569,7 +569,7 @@ test('the background start: at most every 10 minutes, never while a sync holds t
 
   // The status line starts it, in both layouts, and never waits for it.
   computer()
-  link('https://kestrel.widal.com', { lastSyncAt: now - HOUR })
+  link('https://code.widal.com', { lastSyncAt: now - HOUR })
   spawned.length = 0
   statusLine({ session_id: 'one', cwd: '/work/app', model: { id: 'claude-opus-5-5' } }, now, { env: {}, color: false, layout: 'one', notify: () => {}, spawn: spawner })
   assert.deepEqual(spawned.map((args) => args[1].slice(1)), [['board', 'sync', '--quiet']])
@@ -643,6 +643,6 @@ test('the commands: login, status and logout through widal, and the board in the
   assert.equal(plain.code, 1)
   assert.match(plain.stderr, /must use https:\/\//)
   const help = await run(['--help'])
-  assert.match(help.stdout, /widal board login https:\/\/kestrel\.widal\.com/)
+  assert.match(help.stdout, /widal board login https:\/\/code\.widal\.com/)
   assert.match((await run(['board'])).stdout, /widal board logout/)
 })

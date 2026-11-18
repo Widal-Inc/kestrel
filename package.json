@@ -4,8 +4,8 @@
   "private": true,
   "description": "Shows what your AI coding agents spend, and helps to spend less.",
   "license": "MIT",
-  "author": "Widal, Inc. <hello@widal.com> (https://kestrel.widal.com)",
-  "homepage": "https://kestrel.widal.com",
+  "author": "Widal, Inc. <hello@widal.com> (https://code.widal.com)",
+  "homepage": "https://code.widal.com",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Widal-Inc/widal-code.git"

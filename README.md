@@ -317,7 +317,7 @@ The Widal.Code board is a web app for a team. Each person links their computer t
 **Link this computer.** Run this in a terminal, with your board's address:
 
 ```
-widal board login https://kestrel.widal.com
+widal board login https://code.widal.com
 ```
 
 1. Widal.Code prints an address and a code, such as `BCDF-GHJK`, and opens the address in your browser (`open` on macOS, `xdg-open` on Linux).
@@ -893,7 +893,7 @@ The limit uses the cost figure that the status line saves, so the status line ha
 | `widal --version` | The version of the tool |
 | `widal hooks` | The hooks that the plugin carries: whether each one runs, and from where |
 | `widal check` | The open security findings, the most severe first (see "Security and compliance") |
-| `widal board login https://kestrel.widal.com` | Links this computer to your team's Widal.Code board. `widal board status`, `widal board sync` and `widal board logout` go with it (see "The Widal.Code board"). |
+| `widal board login https://code.widal.com` | Links this computer to your team's Widal.Code board. `widal board status`, `widal board sync` and `widal board logout` go with it (see "The Widal.Code board"). |
 
 The reports take `--days` and a number of days, for example `widal findings --days 30`.
 
@@ -1136,4 +1136,4 @@ Not built:
 
 Widal.Code is free and open source under the MIT licence. See [LICENSE](LICENSE).
 
-Widal.Code is made by Widal, Inc. in San Francisco. The team board, which shows what a whole team's agents spend, is a paid service at [kestrel.widal.com](https://kestrel.widal.com). Widal.Code on your computer works without it. Questions: hello@widal.com.
+Widal.Code is made by Widal, Inc. in San Francisco. The team board, which shows what a whole team's agents spend, is a paid service at [code.widal.com](https://code.widal.com). Widal.Code on your computer works without it. Questions: hello@widal.com.

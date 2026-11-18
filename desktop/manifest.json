@@ -8,13 +8,13 @@
   "author": {
     "name": "Widal, Inc.",
     "email": "hello@widal.com",
-    "url": "https://kestrel.widal.com"
+    "url": "https://code.widal.com"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/Widal-Inc/widal-code"
   },
-  "homepage": "https://kestrel.widal.com",
+  "homepage": "https://code.widal.com",
   "documentation": "https://github.com/Widal-Inc/widal-code#readme",
   "support": "https://github.com/Widal-Inc/widal-code/issues",
   "license": "MIT",

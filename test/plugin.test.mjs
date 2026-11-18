@@ -178,7 +178,7 @@ test('the plugin\'s manifest and marketplace are valid, name files that exist, a
   // One place holds the version. The manifest has to say the same, or Claude Code would show another one.
   assert.equal(plugin.version, json('package.json').version)
   assert.match(plugin.description, /^[A-Z][^.]*\.$/)
-  assert.deepEqual(plugin.author, { name: 'Widal, Inc.', email: 'hello@widal.com', url: 'https://kestrel.widal.com' })
+  assert.deepEqual(plugin.author, { name: 'Widal, Inc.', email: 'hello@widal.com', url: 'https://code.widal.com' })
   assert.equal(plugin.license, 'MIT')
   assert.equal(plugin.repository, 'https://github.com/Widal-Inc/widal-code')
   assert.equal(plugin.icon, './assets/widal-code-512.png')

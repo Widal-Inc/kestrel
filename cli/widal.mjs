@@ -100,7 +100,7 @@ const USAGE = `widal: what your AI coding agents spend, and what the money pays 
   widal doctor                   what is installed, and the limits
   widal desktop-mcp              the server that the Claude desktop app starts (see docs/desktop.md)
   widal board login <address>    link this computer to your team's Widal.Code board, for example:
-                                 widal board login https://kestrel.widal.com
+                                 widal board login https://code.widal.com
   widal board status             the board, the team, the last sync, and whether the board still knows this computer
   widal board sync [--days 30]   send now what Widal.Code recorded (it also runs on its own every 10 minutes)
   widal board logout             unlink this computer: Widal.Code sends nothing more

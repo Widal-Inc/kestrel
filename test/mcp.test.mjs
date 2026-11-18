@@ -527,7 +527,7 @@ test('the manifest is valid JSON, has the version of package.json and the tools 
   assert.equal(manifest.name, 'widal-code')
   assert.equal(manifest.display_name, 'Widal.Code')
   assert.equal(manifest.version, pkg.version)
-  assert.deepEqual(manifest.author, { name: 'Widal, Inc.', email: 'hello@widal.com', url: 'https://kestrel.widal.com' })
+  assert.deepEqual(manifest.author, { name: 'Widal, Inc.', email: 'hello@widal.com', url: 'https://code.widal.com' })
   assert.equal(manifest.license, 'MIT')
   assert.deepEqual(manifest.repository, { type: 'git', url: 'https://github.com/Widal-Inc/widal-code' })
   assert.match(manifest.long_description, /reads local agent logs, returns numbers only, sends nothing anywhere/)

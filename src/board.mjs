@@ -41,7 +41,7 @@ import { cost } from './prices.mjs'
 import { ticketOf } from './ticket.mjs'
 
 /** The board's address in the examples. */
-export const EXAMPLE = 'https://kestrel.widal.com'
+export const EXAMPLE = 'https://code.widal.com'
 
 const MIN = 60e3
 const DAY = 86400e3
@@ -127,7 +127,7 @@ function updateBoard(token, fields) {
  * name (migrate.mjs) changes a saved old address to the new one.
  */
 export const OLD_ADDRESS = 'https://kestrel.widal.com'
-export const ADDRESS = 'https://code.widal.com'
+export const ADDRESS = EXAMPLE
 
 /**
  * Changes the board's address in board.json from the old address to the new one, with the same
