@@ -47,7 +47,7 @@ const stage = mkdtempSync(join(tmpdir(), 'widal-code-desktop-'))
 const bundle = join(stage, 'widal-code')
 mkdirSync(bundle)
 copyFileSync(join(ROOT, 'desktop', 'manifest.json'), join(bundle, 'manifest.json'))
-copyFileSync(join(ROOT, 'assets', 'kestrel-512.png'), join(bundle, 'icon.png'))
+copyFileSync(join(ROOT, 'assets', 'widal-code-512.png'), join(bundle, 'icon.png'))
 copyFileSync(join(ROOT, 'package.json'), join(bundle, 'package.json'))
 // Hidden files, such as .DS_Store on a Mac, stay out.
 for (const dir of ['cli', 'src']) cpSync(join(ROOT, dir), join(bundle, dir), { recursive: true, filter: (path) => !basename(path).startsWith('.') })

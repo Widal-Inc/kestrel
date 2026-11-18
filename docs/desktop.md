@@ -92,7 +92,7 @@ npm run build:desktop
 
 This runs `scripts/build-desktop.mjs`, which uses the system's `zip`. It makes two files in `dist/`, or in the folder given as its first argument:
 
-- `kestrel.mcpb`, the desktop extension. A zip with `manifest.json` (from `desktop/manifest.json`), `icon.png` (from `assets/kestrel-512.png`), `package.json`, `cli/` and `src/` at its top. Nothing else goes in.
+- `kestrel.mcpb`, the desktop extension. A zip with `manifest.json` (from `desktop/manifest.json`), `icon.png` (from `assets/widal-code-512.png`), `package.json`, `cli/` and `src/` at its top. Nothing else goes in.
 - `kestrel-skill.zip`, the skill. A zip with the folder `widal-code/` at its top and `SKILL.md` in it (from `desktop/skill/widal-code/`), as the skill upload asks.
 
 The script stops when the version in `desktop/manifest.json` is not the version in `package.json`, or when the tools in the manifest are not those of the server, with the same names and descriptions.

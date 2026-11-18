@@ -541,7 +541,7 @@ test('the manifest is valid JSON, has the version of package.json and the tools 
 
   // The files it names: in the repo, and in the built extension, where the icon has its new name.
   assert.ok(existsSync(join(ROOT, manifest.server.entry_point)))
-  assert.ok(existsSync(join(ROOT, 'assets', 'kestrel-512.png')))
+  assert.ok(existsSync(join(ROOT, 'assets', 'widal-code-512.png')))
   const { names } = zipEntries(join(build(), 'kestrel.mcpb'))
   for (const file of [manifest.icon, manifest.server.entry_point, 'manifest.json']) assert.ok(names.includes(file), file)
 
@@ -559,7 +559,7 @@ test('the build makes the extension with exactly its files, which runs once unpa
   const expected = ['manifest.json', 'icon.png', 'package.json', ...visible('cli'), ...visible('src')].sort()
   assert.deepEqual(mcpb.names, expected)
   const content = (name) => mcpb.content(mcpb.entries.find((e) => e.name === name))
-  assert.ok(content('icon.png').equals(readFileSync(join(ROOT, 'assets', 'kestrel-512.png'))))
+  assert.ok(content('icon.png').equals(readFileSync(join(ROOT, 'assets', 'widal-code-512.png'))))
   assert.ok(content('manifest.json').equals(readFileSync(join(ROOT, 'desktop', 'manifest.json'))))
 
   // Unpacked into a folder of its own, the extension's server answers from its own files.

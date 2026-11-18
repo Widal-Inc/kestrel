@@ -1,4 +1,4 @@
-<img src="assets/kestrel.svg" alt="The Widal.Code bird" width="120">
+<img src="assets/widal-code.svg" alt="The Widal W mark" width="120">
 
 # Widal.Code
 
@@ -1097,7 +1097,7 @@ Not built:
 | `src/finding-words.mjs`, `src/findings-text.mjs` | The words for a finding (where it is, its controls, the prompt of Hand to the agent), and the open findings as text |
 | `src/plugin.mjs` | The hooks that the plugin carries, and the rule that keeps a hook from acting twice |
 | `src/board.mjs` | The Widal.Code board: `widal board login`, `status`, `sync` and `logout`, what a sync sends, and its start in the background |
-| `assets/` | The bird as a drawing (`kestrel.svg`, two sizes of PNG) and as the grid for the terminal (`bird-grid.txt`). The plugin's icon is `kestrel-512.png`. |
+| `assets/` | The Widal W mark as a drawing (`widal-code.svg`, the same as the board's) and in two sizes of PNG. The plugin's icon and the desktop extension's icon are `widal-code-512.png`. |
 | `src/prices.mjs` | List prices and the cost of one call |
 | `src/parse-claude.mjs`, `src/parse-codex.mjs`, `src/parse-cowork.mjs` | Read a session log into one record per model call |
 | `src/store.mjs` | Finds the logs and keeps the parsed result in `~/.widal/cache/` |
