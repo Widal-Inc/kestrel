@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Builds the two files for the Claude desktop app, in dist/, or in the folder given as the first
 // argument:
-//   - kestrel.mcpb, the desktop extension: a zip with manifest.json, icon.png, package.json, cli/
+//   - widal-code.mcpb, the desktop extension: a zip with manifest.json, icon.png, package.json, cli/
 //     and src/ at its top, as the extension format asks. A person drags it onto Settings,
 //     Extensions in the app.
-//   - kestrel-skill.zip, the skill: a zip with the folder widal-code/ at its top and SKILL.md in it,
+//   - widal-code-skill.zip, the skill: a zip with the folder widal-code/ at its top and SKILL.md in it,
 //     for an upload under Customize, Skills.
 // It uses the system's zip command. Nothing else goes in: no tests, no research files, no .git.
 import { spawnSync } from 'node:child_process'
@@ -51,9 +51,9 @@ copyFileSync(join(ROOT, 'assets', 'widal-code-512.png'), join(bundle, 'icon.png'
 copyFileSync(join(ROOT, 'package.json'), join(bundle, 'package.json'))
 // Hidden files, such as .DS_Store on a Mac, stay out.
 for (const dir of ['cli', 'src']) cpSync(join(ROOT, dir), join(bundle, dir), { recursive: true, filter: (path) => !basename(path).startsWith('.') })
-zip(join(stage, 'kestrel.mcpb'), bundle, ['.'])
-zip(join(stage, 'kestrel-skill.zip'), join(ROOT, 'desktop', 'skill'), ['widal-code'])
-for (const name of ['kestrel.mcpb', 'kestrel-skill.zip']) {
+zip(join(stage, 'widal-code.mcpb'), bundle, ['.'])
+zip(join(stage, 'widal-code-skill.zip'), join(ROOT, 'desktop', 'skill'), ['widal-code'])
+for (const name of ['widal-code.mcpb', 'widal-code-skill.zip']) {
   copyFileSync(join(stage, name), join(out, name))
   console.log(`${join(out, name)}  ${statSync(join(out, name)).size} bytes`)
 }

@@ -8,10 +8,10 @@
   "homepage": "https://kestrel.widal.com",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Widal-Inc/kestrel.git"
+    "url": "git+https://github.com/Widal-Inc/widal-code.git"
   },
   "bugs": {
-    "url": "https://github.com/Widal-Inc/kestrel/issues"
+    "url": "https://github.com/Widal-Inc/widal-code/issues"
   },
   "type": "module",
   "bin": {

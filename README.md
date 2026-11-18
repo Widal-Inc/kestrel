@@ -37,7 +37,7 @@ The screenshots use made-up data: invented projects and two weeks of invented se
 Type these three commands in Claude Code:
 
 ```
-/plugin marketplace add Widal-Inc/kestrel
+/plugin marketplace add Widal-Inc/widal-code
 /plugin install widal@widal
 /widal:connect
 ```
@@ -64,9 +64,9 @@ The commands, the skill, the hooks and the pane work before the setup too. Only 
 
 ## Install in the Claude desktop app
 
-The desktop extension answers questions about your agents' spend in a chat in the Claude desktop app. It needs no terminal and no Claude Code. Download [`kestrel.mcpb`](https://github.com/Widal-Inc/kestrel/releases/latest/download/kestrel.mcpb) from the newest release, and drag it onto **Settings**, **Extensions** in the app. See [docs/desktop.md](docs/desktop.md).
+The desktop extension answers questions about your agents' spend in a chat in the Claude desktop app. It needs no terminal and no Claude Code. Download [`widal-code.mcpb`](https://github.com/Widal-Inc/widal-code/releases/latest/download/widal-code.mcpb) from the newest release, and drag it onto **Settings**, **Extensions** in the app. See [docs/desktop.md](docs/desktop.md).
 
-The extension is also listed in the official MCP Registry as `io.github.Widal-Inc/kestrel`.
+The extension is also listed in the official MCP Registry as `io.github.Widal-Inc/widal-code`.
 
 ## In the Claude desktop app
 
@@ -406,11 +406,13 @@ The status line and the hooks never run the move. A command typed in a checkout 
 ```
 /plugin uninstall kestrel@kestrel
 /plugin marketplace remove kestrel
-/plugin marketplace add Widal-Inc/kestrel
+/plugin marketplace add Widal-Inc/widal-code
 /plugin install widal@widal
 ```
 
 Take the old plugin out first: two plugins with the same hooks would run each hook twice.
+
+**The desktop extension.** The extension is now called Widal.Code, in the file `widal-code.mcpb`, and the skill for the web and the phone is in `widal-code-skill.zip`. An installed Kestrel extension keeps working, because it carries its own copy of the tool. To move to the new one, remove Kestrel under **Settings**, **Extensions** in the app, and install `widal-code.mcpb` (see "Install in the Claude desktop app").
 
 ## Coming from agent-spend
 

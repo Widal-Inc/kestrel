@@ -524,12 +524,12 @@ test('the manifest is valid JSON, has the version of package.json and the tools 
   const manifest = json('desktop', 'manifest.json')
   const pkg = json('package.json')
   assert.equal(manifest.manifest_version, '0.3')
-  assert.equal(manifest.name, 'kestrel')
-  assert.equal(manifest.display_name, 'Kestrel')
+  assert.equal(manifest.name, 'widal-code')
+  assert.equal(manifest.display_name, 'Widal.Code')
   assert.equal(manifest.version, pkg.version)
   assert.deepEqual(manifest.author, { name: 'Widal, Inc.', email: 'hello@widal.com', url: 'https://kestrel.widal.com' })
   assert.equal(manifest.license, 'MIT')
-  assert.deepEqual(manifest.repository, { type: 'git', url: 'https://github.com/Widal-Inc/kestrel' })
+  assert.deepEqual(manifest.repository, { type: 'git', url: 'https://github.com/Widal-Inc/widal-code' })
   assert.match(manifest.long_description, /reads local agent logs, returns numbers only, sends nothing anywhere/)
   assert.equal(manifest.icon, 'icon.png')
   assert.equal(manifest.server.type, 'node')
@@ -542,7 +542,7 @@ test('the manifest is valid JSON, has the version of package.json and the tools 
   // The files it names: in the repo, and in the built extension, where the icon has its new name.
   assert.ok(existsSync(join(ROOT, manifest.server.entry_point)))
   assert.ok(existsSync(join(ROOT, 'assets', 'widal-code-512.png')))
-  const { names } = zipEntries(join(build(), 'kestrel.mcpb'))
+  const { names } = zipEntries(join(build(), 'widal-code.mcpb'))
   for (const file of [manifest.icon, manifest.server.entry_point, 'manifest.json']) assert.ok(names.includes(file), file)
 
   const s = await opened(machine())
@@ -553,7 +553,7 @@ test('the manifest is valid JSON, has the version of package.json and the tools 
 
 test('the build makes the extension with exactly its files, which runs once unpacked, and the skill with its folder at the top', { timeout: 60e3 }, async () => {
   const out = build()
-  const mcpb = zipEntries(join(out, 'kestrel.mcpb'))
+  const mcpb = zipEntries(join(out, 'widal-code.mcpb'))
   // Hidden files, such as .DS_Store on a Mac, stay out of the extension.
   const visible = (folder) => readdirSync(join(ROOT, folder)).filter((f) => !f.startsWith('.')).map((f) => `${folder}/${f}`)
   const expected = ['manifest.json', 'icon.png', 'package.json', ...visible('cli'), ...visible('src')].sort()
@@ -574,7 +574,7 @@ test('the build makes the extension with exactly its files, which runs once unpa
   assert.match(await s.text('spend_summary'), /Total\s+\$1\.23\s+4 model calls/)
   onlyProtocol(await s.close())
 
-  const skill = zipEntries(join(out, 'kestrel-skill.zip'))
+  const skill = zipEntries(join(out, 'widal-code-skill.zip'))
   assert.deepEqual(skill.names, ['widal-code/SKILL.md'])
   assert.ok(skill.content(skill.entries[0]).equals(readFileSync(join(ROOT, 'desktop', 'skill', 'widal-code', 'SKILL.md'))))
 })

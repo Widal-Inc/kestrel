@@ -180,7 +180,7 @@ test('the plugin\'s manifest and marketplace are valid, name files that exist, a
   assert.match(plugin.description, /^[A-Z][^.]*\.$/)
   assert.deepEqual(plugin.author, { name: 'Widal, Inc.', email: 'hello@widal.com', url: 'https://kestrel.widal.com' })
   assert.equal(plugin.license, 'MIT')
-  assert.equal(plugin.repository, 'https://github.com/Widal-Inc/kestrel')
+  assert.equal(plugin.repository, 'https://github.com/Widal-Inc/widal-code')
   assert.equal(plugin.icon, './assets/widal-code-512.png')
   assert.ok(existsSync(join(ROOT, plugin.icon)))
 

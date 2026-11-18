@@ -6,9 +6,9 @@ You do not need a terminal, Node or Claude Code for this. You need the Claude de
 
 ## Install
 
-1. Download [`kestrel.mcpb`](https://github.com/Widal-Inc/kestrel/releases/latest/download/kestrel.mcpb) from the newest release on GitHub.
+1. Download [`widal-code.mcpb`](https://github.com/Widal-Inc/widal-code/releases/latest/download/widal-code.mcpb) from the newest release on GitHub.
 2. Open the Claude desktop app, and open **Settings**, then **Extensions**. (In newer versions of the app: **Settings**, then **Desktop app**, then **Manage** next to Extensions.)
-3. Drag `kestrel.mcpb` onto that page, and choose **Install**.
+3. Drag `widal-code.mcpb` onto that page, and choose **Install**.
 
 That is all. The app runs Widal.Code with the copy of Node that it brings along.
 
@@ -77,7 +77,7 @@ The skill teaches Claude how to answer questions about spend, usage and limits.
 
 To add it:
 
-1. Get the file `kestrel-skill.zip`. Do not unpack it.
+1. Get the file `widal-code-skill.zip`. Do not unpack it.
 2. In Claude, open **Customize**, then **Skills**.
 3. Choose **+**, then **Create skill**, then **Upload a skill**, and pick the file.
 4. Turn the skill on in the list.
@@ -92,8 +92,8 @@ npm run build:desktop
 
 This runs `scripts/build-desktop.mjs`, which uses the system's `zip`. It makes two files in `dist/`, or in the folder given as its first argument:
 
-- `kestrel.mcpb`, the desktop extension. A zip with `manifest.json` (from `desktop/manifest.json`), `icon.png` (from `assets/widal-code-512.png`), `package.json`, `cli/` and `src/` at its top. Nothing else goes in.
-- `kestrel-skill.zip`, the skill. A zip with the folder `widal-code/` at its top and `SKILL.md` in it (from `desktop/skill/widal-code/`), as the skill upload asks.
+- `widal-code.mcpb`, the desktop extension. A zip with `manifest.json` (from `desktop/manifest.json`), `icon.png` (from `assets/widal-code-512.png`), `package.json`, `cli/` and `src/` at its top. Nothing else goes in.
+- `widal-code-skill.zip`, the skill. A zip with the folder `widal-code/` at its top and `SKILL.md` in it (from `desktop/skill/widal-code/`), as the skill upload asks.
 
 The script stops when the version in `desktop/manifest.json` is not the version in `package.json`, or when the tools in the manifest are not those of the server, with the same names and descriptions.
 
