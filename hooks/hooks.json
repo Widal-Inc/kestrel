@@ -76,6 +76,16 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "Agent|Task|Workflow",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v node >/dev/null 2>&1 && node \"${CLAUDE_PLUGIN_ROOT}/cli/widal.mjs\" hook load-gate --plugin 2>/dev/null; exit 0",
+            "timeout": 150
+          }
+        ]
       }
     ]
   }

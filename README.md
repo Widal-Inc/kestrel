@@ -77,7 +77,7 @@ The extension is also listed in the official MCP Registry as `io.github.Widal-In
 
 ## The plugin's hooks
 
-The plugin carries six of this tool's hooks, so that they also run where Claude Code's settings are not read:
+The plugin carries seven of this tool's hooks, so that they also run where Claude Code's settings are not read:
 
 | Hook | When it runs | What it does | The same hook in the settings |
 |---|---|---|---|
@@ -87,13 +87,14 @@ The plugin carries six of this tool's hooks, so that they also run where Claude 
 | `check-settings` | When a session starts | Starts the check of the settings in the background (see "Security and compliance"). On a computer linked to a Widal.Code board, it also starts a sync with the board when the last one is 10 minutes old (see "The Widal.Code board"). | `widal connect` |
 | `check-turn` | When an agent's turn ends | Starts the checks of what the agent did and of the code it changed in the background. On a computer linked to a Widal.Code board, it also starts a sync with the board, as above. | `widal connect` |
 | `push-gate` | Before a shell command | Asks you first before a push while a high risk is open in the repository | `widal connect` |
+| `load-gate` | Before a subagent or a workflow starts | Holds the subagent in a queue while the computer's CPU or memory is busy, and refuses it if the computer stays busy (see "Too many agents at once") | none: plugin only |
 
 - **A hook never acts twice.** Claude Code runs a plugin's hook next to the same hook in the settings. So the plugin's hook first looks at `~/.claude/settings.json`. When the settings hold this tool's own hook for the same event, the plugin's hook does nothing: the one in the settings is in charge. A settings file that cannot be read counts as one without the hook.
-- **You can turn each one off.** `widal hooks` shows, for each of the six, whether it runs and from where: Claude Code's settings, the plugin, or off. `widal hooks off cold-start` turns the plugin's hook off, and `widal hooks on cold-start` turns it on again. The choice is kept in `~/.widal/config.json`. The hooks are on until you turn them off.
+- **You can turn each one off.** `widal hooks` shows, for each of the seven, whether it runs and from where: Claude Code's settings, the plugin, or off. `widal hooks off cold-start` turns the plugin's hook off, and `widal hooks on cold-start` turns it on again. The choice is kept in `~/.widal/config.json`. The hooks are on until you turn them off.
 - **Where Node is missing, they print nothing.** Each hook's command looks for `node` first, and always ends without an error. On any error a hook prints nothing. The one exception is the hook before a compaction: it then gives the default text.
 - **The keep-warm experiment is not in the plugin.** Add it with `widal apply keep-warm`.
 - **The sync with the board is not a part of the security checks.** `check-settings` and `check-turn` start it also while you turned them off with `widal hooks off`. Only a linked computer syncs: stop it with `widal board logout`.
-- **A seventh hook keeps the copy fresh.** At the start of each session it compares the version of the copy in `~/.widal/app/` with the plugin's version. When they differ, it copies the plugin's files over the copy. When they agree, it reads two small files and does nothing else. It also moves an install from before the change of name to the new name, once (see "Coming from Kestrel"). It prints nothing, because what a hook prints at the start of a session goes to Claude.
+- **An eighth hook keeps the copy fresh.** At the start of each session it compares the version of the copy in `~/.widal/app/` with the plugin's version. When they differ, it copies the plugin's files over the copy. When they agree, it reads two small files and does nothing else. It also moves an install from before the change of name to the new name, once (see "Coming from Kestrel"). It prints nothing, because what a hook prints at the start of a session goes to Claude.
 
 ## The Widal.Code pane
 
@@ -865,6 +866,26 @@ many failed rounds at low effort: /effort medium keeps the cache
 - **Nothing switches on its own.** Vendors that lowered a model or an effort level without asking took that back after complaints. So the tool proposes, and you decide: every change is one command that you run, and one command takes it back.
 - **The signs in `widal measure` are signs, not proof.** The work before and after a change is not the same work. Tool errors, rounds of fixing and interrupts are published measures of how work went. None is proven for a single switch.
 
+## Too many agents at once
+
+An agent can start many subagents at the same time. Each one is a separate process that uses CPU (the processors) and memory (RAM). Too many of them make the whole computer slow, and can make it run out of memory. The plugin's hook `load-gate` runs before each subagent and each workflow starts, and checks how busy the computer is:
+
+- **The computer has room:** the subagent starts. You see nothing.
+- **CPU or memory is at its limit:** the subagent waits in a queue. The hook measures again every 5 seconds. When there is room again, the subagent starts, and the agent is told how long it waited.
+- **Still busy after the wait:** the subagent does not start. The agent is told why, and is told to wait for its running subagents or to do the work itself, and then to try again.
+
+Subagents that an agent starts at the same time start one after another, at least 5 seconds apart. So each one measures the computer after the one before it has started, not all at once on a quiet computer. All sessions on the computer share this queue.
+
+`widal load` shows how busy the computer is now, and the limits. The defaults are 90% CPU, 90% memory, a wait of up to 120 seconds and 5 seconds between two starts. Change them with, for example, `widal load --cpu 80 --memory 85 --wait 60 --spacing 10`. The wait can be at most 140 seconds, because Claude Code ends the hook after 150 seconds. `widal load off` turns the check off, and `widal load on` turns it on again.
+
+On a Mac, memory that holds files and can be freed at once counts as free (the free, inactive, speculative and purgeable pages that `vm_stat` shows). Without that, a Mac looks almost full most of the time. CPU is the share of processor time that was busy over one second.
+
+What it does not do yet:
+
+- It counts only subagents and workflows. A heavy shell command, such as a build or a test run, starts without a check.
+- It measures the whole computer, not the agents. A busy browser or a build that a person started also makes subagents wait.
+- It has been tested with made-up measurements and on one Mac, not yet in a live session with many subagents.
+
 ## A limit in dollars
 
 `widal limit --session 50 --day 200 --action ask` sets a limit per session and a limit per day, in dollars at list prices. At a limit Claude Code asks you before the next tool call (`ask`), shows a warning (`warn`) or stops the agent (`stop`). It asks or warns once, and again each time the spend has grown by a tenth of the limit. `widal limit --off` removes the limits.
@@ -892,6 +913,7 @@ The limit uses the cost figure that the status line saves, so the status line ha
 | `widal` | The name Widal.Code with the version, and every command below it. |
 | `widal --version` | The version of the tool |
 | `widal hooks` | The hooks that the plugin carries: whether each one runs, and from where |
+| `widal load` | How busy the computer's CPU and memory are, and the limits for starting a subagent |
 | `widal check` | The open security findings, the most severe first (see "Security and compliance") |
 | `widal board login https://code.widal.com` | Links this computer to your team's Widal.Code board. `widal board status`, `widal board sync` and `widal board logout` go with it (see "The Widal.Code board"). |
 
@@ -984,7 +1006,7 @@ Claude Code's settings are in `~/.claude/settings.json`. The tool changes that f
 - **The command in the settings.** Every hook that a command adds calls `~/.widal/bin/widal`, a link in the tool's own folder. No other program can be there. A command that adds a hook makes the link when it is missing.
 - **Uninstall.** `widal disconnect` takes out the status line, every hook of this tool, the links `~/.widal/bin/widal` and `~/.widal/bin/kestrel`, and the links to the command on the PATH, also the links under the tool's old names. After a setup from the plugin it also removes the copy in `~/.widal/app/`. A link on the PATH that belongs to another program stays. The plugin itself stays installed: take it out with `/plugin uninstall widal@widal`. A setting that a change set stays: the cache of subagents, the model of subagents, the starting effort, the size for the automatic compaction and the cap on shell output. Take those back first, with `undo`.
 
-`widal plan`, `widal nudge`, `widal hint`, `widal compact-keep`, `widal hooks` and `widal settings` change nothing in Claude Code. Their settings are in `~/.widal/config.json`. `widal settings set` with `--project` writes the frameworks into the repository you name (see "Settings"). The plugin's hooks change nothing in Claude Code's settings either: Claude Code reads them from the plugin. Everything else the tool writes is in `~/.widal/` too: one small file per session, the newest reading of the limits of each account, the names and labels of the accounts, the parsed logs, the record of keep-warm, the security findings (`findings.json`), the times the checks last started (`checks/`), the backups, and on a computer linked to a Widal.Code board the link with its token (`board.json`, mode 600), the time of the last background start (`board.start`) and the lock of a running sync (`board.lock`).
+`widal plan`, `widal nudge`, `widal hint`, `widal compact-keep`, `widal hooks` and `widal settings` change nothing in Claude Code. Their settings are in `~/.widal/config.json`. `widal settings set` with `--project` writes the frameworks into the repository you name (see "Settings"). The plugin's hooks change nothing in Claude Code's settings either: Claude Code reads them from the plugin. Everything else the tool writes is in `~/.widal/` too: one small file per session, the newest reading of the limits of each account, the names and labels of the accounts, the parsed logs, the record of keep-warm, the security findings (`findings.json`), the times the checks last started (`checks/`), the backups, and on a computer linked to a Widal.Code board the link with its token (`board.json`, mode 600), the time of the last background start (`board.start`) and the lock of a running sync (`board.lock`). The check before a subagent starts keeps the time of the last start (`load-gate.json`) and the lock of its queue (`load-gate.lock`).
 
 ## How the numbers are made
 

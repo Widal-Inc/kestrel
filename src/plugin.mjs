@@ -1,9 +1,10 @@
 // The hooks that the plugin carries, and the rule that keeps a hook from acting twice.
 //
-// The plugin carries six of this tool's hooks in hooks/hooks.json, so that they also run where
+// The plugin carries seven of this tool's hooks in hooks/hooks.json, so that they also run where
 // Claude Code's settings file is not read, as in Cowork. Each one calls the tool with the hook's
-// name and the word --plugin. Three are about the cache and compaction, and three start the
-// security checks or ask before a push (see security.mjs).
+// name and the word --plugin. Three are about the cache and compaction, three start the
+// security checks or ask before a push (see security.mjs), and one holds a subagent back while
+// the computer is busy (see load-gate.mjs).
 //
 // The same hooks can be in Claude Code's settings too, put there by "widal apply" or, for the
 // three of the security checks, by "widal connect". Claude Code
@@ -29,6 +30,7 @@ export const PLUGIN_HOOKS = {
   'check-settings': { event: 'SessionStart', when: 'when a session starts', undo: 'widal disconnect' },
   'check-turn': { event: 'Stop', when: "when an agent's turn ends", undo: 'widal disconnect' },
   'push-gate': { event: 'PreToolUse', when: 'before a shell command', undo: 'widal disconnect' },
+  'load-gate': { event: 'PreToolUse', when: 'before a subagent starts', undo: 'widal load off' },
 }
 
 const isObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v)
