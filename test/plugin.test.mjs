@@ -298,9 +298,9 @@ const HOOK_CASES = {
 
 // The plugin's fourth hook: at the start of a session it keeps the stable copy at the plugin's version.
 // The other three start the security checks and ask before a push (see test/security.test.mjs).
-const ALL_HOOKS = { ...PLUGIN_HOOKS, 'refresh-copy': 'SessionStart', 'check-settings': 'SessionStart', 'check-turn': 'Stop', 'push-gate': 'PreToolUse' }
+const ALL_HOOKS = { ...PLUGIN_HOOKS, 'refresh-copy': 'SessionStart', 'check-settings': 'SessionStart', 'check-turn': 'Stop', 'push-gate': 'PreToolUse', 'load-gate': 'PreToolUse' }
 
-test('hooks/hooks.json carries the three hooks, the one for the stable copy and the three of the security checks, each calling the tool from the plugin\'s folder with its name and --plugin', () => {
+test('hooks/hooks.json carries the three hooks, the one for the stable copy, the three of the security checks and the check before a subagent starts, each calling the tool from the plugin\'s folder with its name and --plugin', () => {
   const lines = hookLines()
   // The keep-warm experiment is not in the plugin.
   assert.deepEqual(Object.keys(lines).sort(), Object.keys(ALL_HOOKS).sort())
@@ -308,11 +308,12 @@ test('hooks/hooks.json carries the three hooks, the one for the stable copy and 
     assert.equal(lines[name].event, event, name)
     assert.equal(lines[name].command, `command -v node >/dev/null 2>&1 && node "\${CLAUDE_PLUGIN_ROOT}/cli/widal.mjs" hook ${name} --plugin 2>/dev/null; exit 0`, name)
     // A copy of a few files may take longer than a check.
-    assert.equal(lines[name].timeout, name === 'refresh-copy' ? 10 : 5, name)
+    // The check before a subagent starts waits in a queue for up to 140 seconds.
+    assert.equal(lines[name].timeout, name === 'refresh-copy' ? 10 : name === 'load-gate' ? 150 : 5, name)
     // A shell runs the line, so it has no "args".
     assert.equal(lines[name].args, undefined, name)
-    // Only the gate has a matcher: it runs before shell commands only.
-    assert.equal(lines[name].matcher, name === 'push-gate' ? 'Bash' : undefined, name)
+    // Only the two gates have a matcher: one runs before shell commands, the other before a subagent or a workflow starts.
+    assert.equal(lines[name].matcher, { 'push-gate': 'Bash', 'load-gate': 'Agent|Task|Workflow' }[name], name)
   }
 })
 
@@ -394,10 +395,11 @@ test('the plugin\'s hook before a compaction prints the default text when the to
 test('"widal hooks" shows where each plugin hook runs from, and "hooks off" and "hooks on" keep the choice in the config', () => {
   const m = machine('hooks-command')
   const config = () => JSON.parse(readFileSync(join(m.home, '.widal', 'config.json'), 'utf8'))
-  const shown = () => Object.fromEntries(m.run(['hooks']).stdout.split('\n').filter((line) => line.startsWith('  ')).map((line) => [line.trim().split(' ')[0], line.replace(/^ +\S+ +(before a compaction|when you send a prompt|before a change of model|when a session starts|when an agent's turn ends|before a shell command) +/, '')]))
+  const shown = () => Object.fromEntries(m.run(['hooks']).stdout.split('\n').filter((line) => line.startsWith('  ')).map((line) => [line.trim().split(' ')[0], line.replace(/^ +\S+ +(before a compaction|when you send a prompt|before a change of model|when a session starts|when an agent's turn ends|before a shell command|before a subagent starts) +/, '')]))
   const ALL_PLUGIN = {
     'compact-keep': 'runs from the plugin', 'cold-start': 'runs from the plugin', 'model-switch': 'runs from the plugin',
     'check-settings': 'runs from the plugin', 'check-turn': 'runs from the plugin', 'push-gate': 'runs from the plugin',
+    'load-gate': 'runs from the plugin',
   }
   // On by default.
   assert.deepEqual(shown(), ALL_PLUGIN)
@@ -421,7 +423,7 @@ test('"widal hooks" shows where each plugin hook runs from, and "hooks off" and 
   assert.deepEqual(shown(), { ...ALL_PLUGIN, 'compact-keep': 'off' })
 
   // A name that is not one of the plugin's hooks, or a word that is neither on nor off, changes nothing.
-  const how = 'widal: Use "widal hooks", "widal hooks off <name>" or "widal hooks on <name>". The names are: compact-keep, cold-start, model-switch, check-settings, check-turn, push-gate.\n'
+  const how = 'widal: Use "widal hooks", "widal hooks off <name>" or "widal hooks on <name>". The names are: compact-keep, cold-start, model-switch, check-settings, check-turn, push-gate, load-gate.\n'
   for (const bad of [['off', 'keep-warm'], ['maybe', 'cold-start'], ['off'], ['off', 'cold-start', 'more']]) assert.deepEqual(result(m.run(['hooks', ...bad])), [1, '', how], bad.join(' '))
   assert.deepEqual(config().pluginHooks, { 'cold-start': true, 'compact-keep': false })
   assert.match(m.run(['help']).stdout, /^ {2}widal hooks off\|on <name> {6}turn one of them off or on$/m)

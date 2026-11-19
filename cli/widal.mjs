@@ -91,6 +91,10 @@ const USAGE = `widal: what your AI coding agents spend, and what the money pays 
   widal cloud-check github [--repo <owner/name>]
                                  read-only security checks of a cloud account, only when you run them
                                  (widal check --cloud <provider> is the same)
+  widal load                     how busy the computer is now, and the limits for starting a subagent
+  widal load [--cpu 90] [--memory 90] [--wait 120] [--spacing 5]
+                                 change the limits (percent used, and seconds)
+  widal load on|off              turn the check before a subagent starts on or off
   widal hooks                    the hooks that the plugin carries: whether each runs, and from where
   widal hooks off|on <name>      turn one of them off or on
   widal connect [--force]        put the command on your PATH and set Claude Code's status line
@@ -291,6 +295,13 @@ async function main() {
         process.stdout.write(compactKeepText())
         return
       }
+      // The check before a subagent starts waits while the computer is busy, and refuses the start
+      // when it stays busy. See src/load-gate.mjs.
+      if (argv[0] === 'load-gate') {
+        const answer = await (await import('../src/load-gate.mjs')).loadGateHook(stdin())
+        if (answer) process.stdout.write(JSON.stringify(answer))
+        return
+      }
       const answer = argv[0] === 'model-switch' ? modelSwitchHook(stdin()) : argv[0] === 'cold-start' ? coldStartHook(stdin()) : limitHook(stdin())
       if (answer) process.stdout.write(JSON.stringify(answer))
     } catch {
@@ -435,6 +446,7 @@ async function main() {
   if (cmd === 'hint') return hint()
   if (cmd === 'hud') return console.log(hudCommand(argv, { tty: process.stdout.isTTY }))
   if (cmd === 'hooks') return hooks()
+  if (cmd === 'load') return loadCommand()
   if (cmd === 'connect') return connect()
   if (cmd === 'migrate') {
     // Each thing the move does is printed as it is done, so that a later step that fails hides nothing.
@@ -679,6 +691,33 @@ function hooks() {
   console.log(`The plugin's hook ${name} is ${to}.`)
   // The same hook in the settings runs whatever the plugin's hook does.
   if (inSettings(name)) console.log(`Claude Code's settings hold this hook too, and it runs from there. Take it out of the settings with: ${PLUGIN_HOOKS[name].undo ?? `widal undo ${PLUGIN_HOOKS[name].change}`}`)
+}
+
+/** "widal load": how busy the computer is, and the limits of the check before a subagent starts. Or a change of them. */
+async function loadCommand() {
+  const gate = await import('../src/load-gate.mjs')
+  const [word] = argv
+  const change = {}
+  if (word === 'on' || word === 'off') change.on = word === 'on'
+  else if (word !== undefined && !word.startsWith('--')) throw new Error('Use "widal load", "widal load on|off" or "widal load --cpu 90 --memory 90 --wait 120 --spacing 5".')
+  const ranges = { cpu: [1, 100], memory: [1, 100], wait: [0, gate.MAX_WAIT], spacing: [0, 600] }
+  for (const [key, [lo, hi]] of Object.entries(ranges)) {
+    const v = flag(`--${key}`)
+    if (v === undefined) continue
+    const n = Number(v)
+    if (v === true || !Number.isFinite(n) || n < lo || n > hi) throw new Error(`--${key} takes a number from ${lo} to ${hi}.`)
+    change[key] = n
+  }
+  if (Object.keys(change).length) gate.saveGateSettings(change)
+  const s = gate.gateSettings()
+  const now = await gate.measure()
+  console.log(`Now: CPU ${now.cpu}% busy, memory ${now.memory}% used.`)
+  if (!s.on) return console.log('The check before a subagent starts is off. Turn it on with: widal load on')
+  console.log(`A subagent starts while CPU is below ${s.cpu}% and memory below ${s.memory}%. Otherwise it waits in a queue for up to ${s.wait}s, and is refused if the computer is still busy then.`)
+  console.log(`Two subagents start at least ${s.spacing}s apart, so that each one measures the computer after the one before it.`)
+  if (hookPlace('load-gate') === 'off') console.log('The plugin\'s hook for this is off. Turn it on with: widal hooks on load-gate')
+  const over = gate.overWords(now, s)
+  if (over) console.log(`A subagent would wait now: ${over}.`)
 }
 
 /** "widal doctor": what is set up, how the person pays, the limits, and the changes that are applied. */
