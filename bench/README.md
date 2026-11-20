@@ -7,8 +7,8 @@ Widal.Code on.
 
 It starts real sessions with your own sign-in. A full run with the commands below is 78 sessions.
 The first full run, with Sonnet and Haiku three times each (`--reps 3`), was 130 sessions and $64
-at list prices in about 2 hours (on a subscription that is API value: it counts against the plan's
-limits).
+at list prices (on a subscription that is API value: it counts against the plan's limits). With
+the arms side by side it took about 1 hour. The sessions together ran for 3.9 hours.
 
 ## What it measures
 
