@@ -21,6 +21,9 @@ process.env.WIDAL_COWORK_DIR = join(dir, 'cowork')
 // The managed settings of the organization: a file that is not there, so that no test reads the real one.
 process.env.WIDAL_MANAGED_SETTINGS = join(dir, 'managed', 'managed-settings.json')
 for (const key of ['CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 'ANTHROPIC_BASE_URL', 'OTEL_LOG_USER_PROMPTS', 'OTEL_LOG_TOOL_DETAILS']) delete process.env[key]
+// git's global config, where "widal connect" sets core.hooksPath: a file of this test, never the person's own.
+process.env.GIT_CONFIG_GLOBAL = join(dir, 'gitconfig')
+process.env.GIT_CONFIG_NOSYSTEM = '1'
 mkdirSync(process.env.HOME, { recursive: true })
 
 const { CONTROLS, AI_GROUP, controlsFor, controlWords, storedControlsFor } = await import('../src/controls.mjs')

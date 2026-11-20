@@ -311,6 +311,34 @@ const insecureCurl = (line) => shellCommands(line).some((words) => {
 })
 
 /**
+ * Widal.Code's own rules for lines of one file, each line on its own: `lines` is a list of [line
+ * number, text]. `keys` is false when gitleaks already checked the file for keys. `add(rule, line,
+ * extra, opts)` makes each finding. The check of the changed code uses it for whole files, and the
+ * check before a push (pre-push.mjs) for the lines that the pushed commits add.
+ */
+export function ownLineRules(path, lines, { frameworks = [], keys = true, add }) {
+  const phi = ruleOn(RULES['code.phi-log'], frameworks)
+  const pci = ruleOn(RULES['code.card-number'], frameworks)
+  const script = SCRIPT.test(path)
+  const config = CONFIG(path)
+  const fixture = TEST_FIXTURE.test(path)
+  for (const [line, text] of lines) {
+    if (keys) for (const kind of keysIn(text).keys()) add('code.secret', line, kind, { detail: `The kind of key: ${kind}. Found by Widal.Code's own patterns.` })
+    for (const [words, re] of TLS_OFF) if (re.test(text)) add('code.tls-off', line, words, { detail: `${words}.` })
+    if (script && /\bcurl\b/.test(text) && insecureCurl(text)) add('code.tls-off', line, 'curl -k', { detail: 'curl with -k or --insecure.' })
+    if (phi && LOG_CALL.test(text) && PERSON_FIELD.test(text)) add('code.phi-log', line, '', { detail: 'A log or print call in the same line as a field named like an identifier of a person.' })
+    if (pci && !fixture && cardNumbers(text)) add('code.card-number', line, '', { detail: 'A number that passes the check of card numbers.' })
+    if (config) {
+      for (const m of text.matchAll(/http:\/\/([^\s"'<>/:]+)/g)) {
+        const host = m[1]
+        if (isLocalHost(host) || NAMESPACE_HOST.test(host)) continue
+        add('code.http', line, host.slice(0, 100), { detail: `An address on ${host.slice(0, 100)} without TLS.` })
+      }
+    }
+  }
+}
+
+/**
  * The findings of the code an agent changed in a repository. `frameworks` are those that count for
  * the repository. `env` stands in for the environment (its PATH finds the scanners), and `limits`
  * for the limits, so that a test can use a short time limit. Returns `{ findings, scanners, files,
@@ -362,30 +390,11 @@ export function checkCode({ root, frameworks = [], env = process.env, limits = L
     for (const it of r.items) add('code.secret', it.file, it.line, it.kind, { source: 'gitleaks', detail: `The kind of key: ${it.kind}. Found by gitleaks.` })
   }
 
-  const phi = ruleOn(RULES['code.phi-log'], frameworks)
-  const pci = ruleOn(RULES['code.card-number'], frameworks)
   for (const f of files) {
-    const lines = f.text.split('\n')
     const ownKeys = !checked.has(f.path)
     if (ownKeys) used.add('own')
-    const script = SCRIPT.test(f.path)
-    const config = CONFIG(f.path)
-    const fixture = TEST_FIXTURE.test(f.path)
-    lines.forEach((text, i) => {
-      const line = i + 1
-      if (ownKeys) for (const kind of keysIn(text).keys()) add('code.secret', f.path, line, kind, { detail: `The kind of key: ${kind}. Found by Widal.Code's own patterns.` })
-      for (const [words, re] of TLS_OFF) if (re.test(text)) add('code.tls-off', f.path, line, words, { detail: `${words}.` })
-      if (script && /\bcurl\b/.test(text) && insecureCurl(text)) add('code.tls-off', f.path, line, 'curl -k', { detail: 'curl with -k or --insecure.' })
-      if (phi && LOG_CALL.test(text) && PERSON_FIELD.test(text)) add('code.phi-log', f.path, line, '', { detail: 'A log or print call in the same line as a field named like an identifier of a person.' })
-      if (pci && !fixture && cardNumbers(text)) add('code.card-number', f.path, line, '', { detail: 'A number that passes the check of card numbers.' })
-      if (config) {
-        for (const m of text.matchAll(/http:\/\/([^\s"'<>/:]+)/g)) {
-          const host = m[1]
-          if (isLocalHost(host) || NAMESPACE_HOST.test(host)) continue
-          add('code.http', f.path, line, host.slice(0, 100), { detail: `An address on ${host.slice(0, 100)} without TLS.` })
-        }
-      }
-    })
+    const lines = f.text.split('\n').map((text, i) => [i + 1, text])
+    ownLineRules(f.path, lines, { frameworks, keys: ownKeys, add: (rule, line, extra, opts) => add(rule, f.path, line, extra, opts) })
   }
   // A rule can match a line twice (two keys of one kind): one finding is enough.
   const unique = [...new Map(findings.map((x) => [x.id, x])).values()]

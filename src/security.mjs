@@ -12,7 +12,8 @@
 //
 // The gate (the hook "push-gate", before a shell command): a "git push", "gh pr create" or "gh pr
 // merge" while a high finding of the code or the actions is open in that repository makes Claude
-// Code ask the person first. It never refuses.
+// Code ask the person first. It never refuses. The check before a push that git runs, for every agent
+// and for people, is in pre-push.mjs.
 //
 // Widal.Code checks technical controls and flags risks. It does not make a company compliant or
 // certify it. That sentence goes with every list of findings.
@@ -30,6 +31,7 @@ import { KINDS, SEVERITIES, openFindings, readFindings, saveFindings } from './f
 import { day, plain } from './format.mjs'
 import { repoOf } from './git.mjs'
 import { claudeDir, home, realPath, shortPath } from './paths.mjs'
+import { highRisks, noteAsked } from './pre-push.mjs'
 import { RULES } from './rules.mjs'
 import { CHECKS_NOTE, frameworksFor, securityConfig } from './settings.mjs'
 
@@ -200,15 +202,23 @@ export function pushFolders(command, cwd) {
  * The gate before a shell command. Returns the JSON to print, or undefined to say nothing. It asks
  * only for "git push", "gh pr create" and "gh pr merge", only while a high finding of the code or the
  * actions is open in the command's repository, and only while the gate is on. It never refuses.
+ *
+ * When it asks, it notes the question for the check before a push that git runs (pre-push.mjs): once
+ * the person says yes here, that check lets the push go without a second question.
  */
-export function gateHook(input, { cfg = config() } = {}) {
+export function gateHook(input, { cfg = config(), now = Date.now() } = {}) {
   if (!securityConfig(cfg).checks.push) return undefined
   const command = input?.tool_input?.command
   if (input?.tool_name !== 'Bash' || typeof command !== 'string' || typeof input.cwd !== 'string' || !isAbsolute(input.cwd)) return undefined
   const repos = new Set(pushFolders(command, input.cwd).map(repoOf).filter(Boolean))
   if (!repos.size) return undefined
-  const high = openFindings({ least: 'high' }).filter((f) => (f.kind === 'code' || f.kind === 'actions') && repos.has(f.where?.repo))
+  const high = highRisks(repos)
   if (!high.length) return undefined
+  try {
+    noteAsked({ repos: [...repos], toolUseId: input.tool_use_id, transcript: input.transcript_path, now })
+  } catch {
+    // Not noted: the check before the push then asks once more, or stops the push.
+  }
   const titles = [...new Set(high.map((f) => plain(f.title)))]
   const shown = titles.length > 3 ? `${titles.slice(0, 3).join('; ')}; and ${titles.length - 3} more` : titles.join('; ')
   const reason = `Widal.Code: ${high.length === 1 ? '1 high risk is' : `${high.length} high risks are`} open in this repository: ${shown}. See them with widal check.`

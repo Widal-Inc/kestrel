@@ -2,7 +2,7 @@
 
 # Widal.Code
 
-Widal.Code shows what the AI coding agents on your machine spend, and what the spend pays for. It reads the session logs of Claude Code, Codex and Cowork. Nothing leaves the machine, unless you link it to your team's Widal.Code board (see "The Widal.Code board"). In Claude Code it also shows your plan's limits in the status line, warns you before a cache ends, says when to compact the context, proposes a cheaper model or effort level, and can hold a limit. It checks the agents' settings, what they did and the code they changed for security risks (see "Security and compliance").
+Widal.Code shows what the AI coding agents on your machine spend, and what the spend pays for. It reads the session logs of Claude Code, Codex and Cowork. Nothing leaves the machine, unless you link it to your team's Widal.Code board (see "The Widal.Code board"). In Claude Code it also shows your plan's limits in the status line, warns you before a cache ends, says when to compact the context, proposes a cheaper model or effort level, and can hold a limit. It checks the agents' settings, what they did and the code they changed for security risks, and before a git push from this computer it asks, or stops the push, while a high risk is open (see "Security and compliance").
 
 The project is called Widal.Code. Its command is `widal`, and its folder on your machine is `~/.widal`. It was called Kestrel until 17 Nov 2026: see "Coming from Kestrel".
 
@@ -42,13 +42,14 @@ Type these three commands in Claude Code:
 /widal:connect
 ```
 
-The first two add the plugin from this repo. The third one sets the tool up. It does five things, and says each one:
+The first two add the plugin from this repo. The third one sets the tool up. It does six things, and says each one:
 
 - It copies the tool to `~/.widal/app/`. Claude Code keeps a plugin's files in a folder that changes with every update, so Claude Code's settings must not point there.
 - It makes the link `~/.widal/bin/widal` to that copy. Claude Code's settings call the tool through this link.
 - It links the command to `~/.local/bin/widal`, so that you can type `widal`. That folder has to be on your PATH. Another program at that path stays as it is (see "Another program named widal" below).
 - It sets Claude Code's status line in `~/.claude/settings.json`, with a refresh every 30 seconds. A copy of the file is saved in `~/.widal/backup/` first. Another tool's status line is kept.
 - It adds the three hooks of the security checks to the same file: at the start of a session, at the end of a turn, and before a shell command (see "Security and compliance").
+- It sets git's global `core.hooksPath` to `~/.widal/git-hooks/`, so that git runs the check before every push from this computer, by any agent or by you. Each repository's own hooks still run (see "The check before a push, in git").
 
 Widal.Code needs Node 22 or newer. The setup says so when your Node is older.
 
@@ -150,7 +151,7 @@ The security frameworks, in their groups, with the id of each:
 
 - OWASP Top 10 for Agentic Applications is on until you turn it off. The other frameworks are off.
 - **Sets** switch several frameworks on at once, and switch none off. `widal settings set security.set healthcare` switches on HIPAA, SOC 2 and HITRUST CSF. `life-sciences` switches on 21 CFR Part 11, EU GMP Annex 11 and SOC 2. `fintech` switches on SOC 2, PCI DSS and GLBA Safeguards Rule.
-- **The checks:** settings, actions, code and the gate before a push are on. Data is off, because it reads the text of sessions. Cloud is off: it runs only on request. What each check does is in "Security and compliance".
+- **The checks:** settings, actions, code and the gate before a push are on. `push` is both the question in Claude Code and the check that git runs before a push. Data is off, because it reads the text of sessions. Cloud is off: it runs only on request. What each check does is in "Security and compliance".
 - **The checks run now:** settings, actions and code on their own, data only when you turn it on, and the cloud only when you ask, with `widal cloud-check` (see "Cloud checks"). Widal.Code checks technical controls and flags risks. It does not make a company compliant or certify it.
 
 | Command | What it does |
@@ -179,6 +180,7 @@ Widal.Code checks what your agents may do, what they did, and the code they chan
 | Actions | The whole session's log, read a piece at a time: the names of tools, the paths of files, and the words of shell commands | When an agent's turn ends, and with `widal check --run` | Yes |
 | Code | The files the agent changed in the session's repository: those that differ from the last commit, and new files git does not know yet. At most 200 files and 2 MB per file. Binary files and `node_modules` are skipped. | When an agent's turn ends, and with `widal check --run` | Yes |
 | Data | The user messages and tool results in the whole session's log | When an agent's turn ends, and with `widal check --run`, only after `widal settings set security.checks.data on` | No |
+| Push | The lines that the commits of a push add, in the repository it pushes from | Before every git push from this computer, after `widal connect` (see "The check before a push, in git") | Yes |
 
 - The hooks start the checks in the background and return at once. A session never waits for a check. A second start for the same repository within 60 seconds is skipped.
 - Each check can be turned off with `widal settings set security.checks.<name> off`: `settings`, `actions`, `code`, `data`.
@@ -237,6 +239,44 @@ Widal.Code: 2 high risks are open in this repository: A secret key is in the cod
 It never refuses: you answer the question. It also sees `git -C <folder> push` and `cd <folder> && git push`, and then looks at that folder's repository. Turn it off with `widal settings set security.checks.push off`.
 
 - **A hook that answers for you.** The question is a normal permission question of Claude Code. If you have a hook of your own that answers every permission question with "allow" (a `PermissionRequest` hook), that hook answers this question too, and the push goes ahead. The live test on 14 Nov 2026 showed exactly that: Claude Code said "Allowed by PermissionRequest hook". To keep the gate, let such a hook leave out `git push`, `gh pr create` and `gh pr merge`.
+
+**The check before a push, in git.** The gate asks in Claude Code only. So `widal connect` also sets git's global `core.hooksPath` to `~/.widal/git-hooks/`, and git runs Widal.Code's check before every push from this computer: a push by Claude Code, by an agent without hooks (Aider), by an agent whose own hook crashed or ran out of time and let the push through, by a script, and from your own terminal.
+
+- **What it checks.** The commits that the push sends: those that the remote does not have yet, as far as the repository knows. For a new branch, those are the commits since it left a branch of the remote. Every line that they add goes through Widal.Code's own rules (see "The rules"), and each Terraform file they change is read as a whole. A key that one commit adds and a later one takes out again is found too, because the push still sends it in the history. At most 200 files, and 2 MB of added lines per file. Files below `node_modules` are skipped. No scanner runs: Checkov, Trivy, KICS and gitleaks can call the network, and can take a minute. The findings go to `~/.widal/findings.json` with all the others, and their detail ends with "In a commit of a push.". A later push that no longer sends them resolves them.
+- **Then it looks at the open high findings** of the code and the actions of the repository, as the gate does. Those include what the checks of an agent's sessions found before.
+- **With no high risk open,** the push goes ahead, and Widal.Code prints nothing.
+- **With a high risk open, in your terminal,** it asks. `y` lets the push go, anything else stops it:
+
+  ```
+  Widal.Code: 1 high risk is open in this repository:
+    A secret key is in the code: config.js:1
+  See them with: widal check
+  Push anyway? [y/N]
+  ```
+
+- **Without a terminal** (the shell of an agent, a script), it stops the push with exit code 1. The message does not say how to skip the check:
+
+  ```
+  Widal.Code stopped this push. 1 high risk is open in this repository:
+    A secret key is in the code: config.js:1
+  See them with: widal check
+  ```
+
+  An agent's shell counts as no terminal even when the agent runs its commands in a terminal of its own, as long as the agent marks its shell with a variable: Claude Code (`CLAUDECODE`), Gemini CLI (`GEMINI_CLI`) and Codex in its sandbox (`CODEX_SANDBOX`, `CODEX_SANDBOX_NETWORK_DISABLED`). Otherwise the agent, not you, would get the question.
+- **One question per push.** When the gate asked in Claude Code and you said yes, git's check lets that push go without a second question. A hook only asks, and never learns your answer. So the gate notes each question in `~/.widal/push-asked.json`: the repository, the time, the session's log and the id of the tool call. The check counts a note while that tool call still runs, which is while the session's log holds no result for it. When you say no, Claude Code writes that answer to the log as the call's result: the note no longer counts, and a push from another command after a "no" is checked like any other. A note counts for 15 minutes at most. Two things follow. A push that Claude Code runs in the background can be stopped after the question, because the call gets its result as soon as the command starts. And while the call runs, a push from the same repository by another program goes ahead too. Only the gate in Claude Code notes its questions so far.
+- **A check that does not finish** lets the push go. The check has 10 seconds. When it runs out of time, or git cannot read the commits, it prints one line that says so, such as `Widal.Code: the check of this push's commits did not finish in 10 seconds. Only the risks found before count.`, and goes on with the findings that were open before: one of those still stops the push. When the check itself cannot run (no `node`, or an error), it says so in one line and the push goes ahead. A broken check should not stop your work.
+- **What it adds to a push.** A push of one commit that changes 50 files, to a bare repository on the same disk, took 24 ms without the check and 109 ms with it: about 85 ms more (medians of 31 rounds). The check alone took 66 ms, most of it the start of Node. Measured with `node scripts/measure-pre-push.mjs` on 20 Nov 2026, on a Linux VM with 2 cores of an Intel Xeon, Node 24.11.0 and git 2.43.0. A push over the network takes longer on its own, so the share is smaller there.
+- **It makes no network call and writes nothing but the findings file.** The only program it starts is git, to read the repository.
+- **The repository's own hooks still run.** A global `core.hooksPath` makes git stop reading each repository's `.git/hooks/`, for every hook and not only before a push. So `~/.widal/git-hooks/` holds a script for every hook that git knows, and each one runs the hook that git would have run without Widal.Code, with the same arguments and input: the repository's own `.git/hooks/<name>`, or the hook of that name in the folder that `core.hooksPath` named before `widal connect`. A hook that is not executable is not run, as git does. Before a push, the repository's own `pre-push` runs first, and when it stops the push, the check does not run. A push to a checked-out branch with `receive.denyCurrentBranch=updateInstead` still updates that working tree as git does.
+- **A repository with a `core.hooksPath` of its own** (husky sets one) wins over the global value: git does not run the check there. `widal connect` names each such repository that it knows: this folder's, those with findings, and the folders where Claude Code ran. It also gives a line for the repository's own pre-push hook (with husky, `.husky/pre-push`). The line runs the check there too, and does nothing on a computer without Widal.Code:
+
+  ```
+  if [ -x "$HOME/.widal/git-hooks/widal-push-check" ]; then "$HOME/.widal/git-hooks/widal-push-check" "$@" || exit $?; fi
+  ```
+
+- **It can be skipped.** `git push --no-verify` skips it, and a merge on GitHub (`gh pr merge`) never runs it, because the merge happens on GitHub. An agent with hooks is still asked by its own hook, with or without `--no-verify`: the gate sees `gh pr merge` too, and the rule `act.no-verify` flags a `--no-verify` afterwards. An agent without hooks can skip the check. An agent could also fake a terminal (for example with `script`) and answer yes itself. Widal.Code accepts that, as a typed reason would not stop such an agent either. The check is a backstop against mistakes, not a wall against an agent that works around it.
+- **Turn it off** with `widal settings set security.checks.push off`, which turns off the gate in Claude Code too. `widal disconnect` puts back the global `core.hooksPath` from before `widal connect`, or takes it out when there was none. A value that you set yourself after `widal connect` stays. `widal doctor` shows whether the check is set.
+- **On Windows,** git runs hooks through its own bash. This was not tested.
 
 **Where findings show.**
 
@@ -357,12 +397,13 @@ The code works for 15 minutes. Ctrl-C stops the waiting. The address has to star
 node cli/widal.mjs connect
 ```
 
-Run it in this folder. This is the way to use a checkout of the repo instead of the plugin. It links to this folder and copies nothing. It does four things:
+Run it in this folder. This is the way to use a checkout of the repo instead of the plugin. It links to this folder and copies nothing. It does five things:
 
 - It makes the link `~/.widal/bin/widal` to the command in this folder. Claude Code's settings call the tool through this link.
 - It links the command to `~/.local/bin/widal`, so that you can type `widal`. That folder has to be on your PATH.
 - It sets Claude Code's status line in `~/.claude/settings.json`, with a refresh every 30 seconds. A copy of the file is saved in `~/.widal/backup/` first. Another tool's status line is kept, unless you run `widal connect --force`.
 - It adds the three hooks of the security checks to the same file (see "Security and compliance"). Hooks of other tools stay.
+- It sets git's global `core.hooksPath` to `~/.widal/git-hooks/`, for the check before every push. Each repository's own hooks still run (see "The check before a push, in git").
 
 **Another program named widal.** Widal.Factory, another tool of Widal, also has a command named `widal`, and its folder can be on your PATH. So two programs named `widal` can be on one computer:
 
@@ -981,7 +1022,7 @@ Claude Code's settings are in `~/.claude/settings.json`. The tool changes that f
 
 | Command | What it changes | How to undo it |
 |---|---|---|
-| `widal connect` | Sets `statusLine` to this tool's command, `~/.widal/bin/widal statusline`, with `refreshInterval` 30. With `--refresh` and a number it sets other seconds. Another tool's status line is kept unless you add `--force`. Adds the three hooks of the security checks: `hooks.SessionStart`, `hooks.Stop` and `hooks.PreToolUse` with the matcher `Bash`. | `widal disconnect` |
+| `widal connect` | Sets `statusLine` to this tool's command, `~/.widal/bin/widal statusline`, with `refreshInterval` 30. With `--refresh` and a number it sets other seconds. Another tool's status line is kept unless you add `--force`. Adds the three hooks of the security checks: `hooks.SessionStart`, `hooks.Stop` and `hooks.PreToolUse` with the matcher `Bash`. Outside this file it sets git's global `core.hooksPath` (see below). | `widal disconnect` |
 | `widal migrate` | For an install made under one of the tool's old names, or one whose entries call a link on the PATH. Changes the command of the status line and of this tool's hooks to `~/.widal/bin/widal`. The first command you type runs the same move on its own. See "Coming from Kestrel". | No command. The copy of the file is in `~/.widal/backup/`. |
 | `widal limit --session 50 --day 200 --action ask` | Adds one hook before tool calls (`hooks.PreToolUse`). The limit itself is kept in this tool's own settings. | `widal limit --off` |
 | `widal apply subagent-cache-1h` | Sets `"subagentPromptCacheTtl": "1h"` | `widal undo subagent-cache-1h` |
@@ -1004,9 +1045,10 @@ Claude Code's settings are in `~/.claude/settings.json`. The tool changes that f
 - **A file is replaced as a whole.** The new text is written to a new file, which then takes the place of the old one. A crash in the middle leaves the old file. A settings file that is not a JSON object, or whose `env` or `hooks` is not in the shape Claude Code writes, is not changed: the command fails and says why.
 - **One thing is left behind.** After the last hook is taken out, an empty `"hooks": {}` can stay in the file. It does nothing.
 - **The command in the settings.** Every hook that a command adds calls `~/.widal/bin/widal`, a link in the tool's own folder. No other program can be there. A command that adds a hook makes the link when it is missing.
-- **Uninstall.** `widal disconnect` takes out the status line, every hook of this tool, the links `~/.widal/bin/widal` and `~/.widal/bin/kestrel`, and the links to the command on the PATH, also the links under the tool's old names. After a setup from the plugin it also removes the copy in `~/.widal/app/`. A link on the PATH that belongs to another program stays. The plugin itself stays installed: take it out with `/plugin uninstall widal@widal`. A setting that a change set stays: the cache of subagents, the model of subagents, the starting effort, the size for the automatic compaction and the cap on shell output. Take those back first, with `undo`.
+- **One setting of git.** `widal connect` sets git's global `core.hooksPath` (in your global git config, usually `~/.gitconfig`) to `~/.widal/git-hooks/`, and keeps the value from before in `~/.widal/git-hooks.json`. `widal disconnect` puts that value back, or takes the setting out when there was none. A value that you set after `widal connect` stays. See "The check before a push, in git".
+- **Uninstall.** `widal disconnect` takes out the status line, every hook of this tool, git's global `core.hooksPath` and the folder `~/.widal/git-hooks/`, the links `~/.widal/bin/widal` and `~/.widal/bin/kestrel`, and the links to the command on the PATH, also the links under the tool's old names. After a setup from the plugin it also removes the copy in `~/.widal/app/`. A link on the PATH that belongs to another program stays. The plugin itself stays installed: take it out with `/plugin uninstall widal@widal`. A setting that a change set stays: the cache of subagents, the model of subagents, the starting effort, the size for the automatic compaction and the cap on shell output. Take those back first, with `undo`.
 
-`widal plan`, `widal nudge`, `widal hint`, `widal compact-keep`, `widal hooks` and `widal settings` change nothing in Claude Code. Their settings are in `~/.widal/config.json`. `widal settings set` with `--project` writes the frameworks into the repository you name (see "Settings"). The plugin's hooks change nothing in Claude Code's settings either: Claude Code reads them from the plugin. Everything else the tool writes is in `~/.widal/` too: one small file per session, the newest reading of the limits of each account, the names and labels of the accounts, the parsed logs, the record of keep-warm, the security findings (`findings.json`), the times the checks last started (`checks/`), the backups, and on a computer linked to a Widal.Code board the link with its token (`board.json`, mode 600), the time of the last background start (`board.start`) and the lock of a running sync (`board.lock`). The check before a subagent starts keeps the time of the last start (`load-gate.json`) and the lock of its queue (`load-gate.lock`).
+`widal plan`, `widal nudge`, `widal hint`, `widal compact-keep`, `widal hooks` and `widal settings` change nothing in Claude Code. Their settings are in `~/.widal/config.json`. `widal settings set` with `--project` writes the frameworks into the repository you name (see "Settings"). The plugin's hooks change nothing in Claude Code's settings either: Claude Code reads them from the plugin. Everything else the tool writes is in `~/.widal/` too: one small file per session, the newest reading of the limits of each account, the names and labels of the accounts, the parsed logs, the record of keep-warm, the security findings (`findings.json`), the times the checks last started (`checks/`), the scripts of the check before a push (`git-hooks/`) and the value of git's global `core.hooksPath` from before `widal connect` (`git-hooks.json`), the questions of the gate before a push (`push-asked.json`), the backups, and on a computer linked to a Widal.Code board the link with its token (`board.json`, mode 600), the time of the last background start (`board.start`) and the lock of a running sync (`board.lock`). The check before a subagent starts keeps the time of the last start (`load-gate.json`) and the lock of its queue (`load-gate.lock`).
 
 ## How the numbers are made
 
@@ -1057,6 +1099,7 @@ Not tested:
 - **The cap on shell output was not checked live.** `widal apply bash-output-cap` sets `bashOutputMaxChars` as Claude Code's documentation names it (settings reference and tools reference, read on 16 Nov 2026). No live session has shown that Claude Code then cuts the output.
 - **The Widal.Code board link was tested with a stand-in board only,** a small web server in the tests that answers as the board's design says. It has not sent to a real board yet. The background start from the status line and the hooks was tested with made-up input.
 - **The security checks were tested with made-up settings, logs and repositories only.** The gate's question before a push was seen in Claude Code on 14 Nov 2026, in a throwaway repository. The scanners Checkov, Trivy and KICS were tested with stand-ins that print the JSON of their documentation. gitleaks was run once on a made-up file in a temp folder, to see its JSON.
+- **The check before a push in git was tested on Linux only (git 2.43), with made-up repositories and real pushes to repositories on the same disk:** the repository's own hooks, a global `core.hooksPath` from before, husky's way, the question in a terminal (through the program `script`), the stop without one, and a note of the gate. It has not run with a live agent: not with Aider, and not after a real question of Claude Code. Of the variables that mark an agent's shell, only Claude Code's `CLAUDECODE` was seen; those of Gemini CLI and Codex were not checked. A note of the gate relies on two things that were not seen live: that the hook gets the id of the tool call and the path of the session's log (`tool_use_id` and `transcript_path`, as Claude Code's documentation names them), and that Claude Code writes the result of a refused call to that log before the agent's next command. For a subagent, Claude Code may keep the results in another log than the one the hook names: then a "no" there is not seen, and the note counts for its 15 minutes.
 
 Not counted:
 
@@ -1079,6 +1122,8 @@ Not built:
 - **Single tasks are counted, not told apart.** Of `TaskCreate` and `TaskUpdate` only the status is read. A task from before the last 256 KB of the log is seen only once an update names its status.
 - **Nothing acts in Codex, Cowork or chat.** See "What works where".
 - **The security checks of actions and data read Claude Code's logs only.** Codex's settings are checked, but not what a Codex agent did.
+- **In git, only a question of Claude Code counts.** A push by another agent while a high risk is open is stopped by git's check, also once that agent gets a hook of Widal.Code, until that hook notes its questions too.
+- **The check before a push uses Widal.Code's own rules only,** never a scanner. A line that only a merge commit adds (a change made while resolving a conflict) is not checked.
 - **The findings file has no lock.** Two checks that save at the very same moment can lose the findings of one run. The next run of that check finds them again.
 - **A project's own settings files are checked for the folder a session starts in,** and for the top of its repository. A finding about another project's files stays open until a session there checks it again.
 - **A Vercel check covers one project.** It is the project of the folder or of `--project`, not every project of a team.
@@ -1089,7 +1134,7 @@ Not built:
 
 ## Privacy
 
-- **Everything stays on the machine,** except what you ask for with `widal cloud-check`, and what a computer that you linked to a Widal.Code board sends to that board. The programs the tool starts are `git`, for local questions about branches, remotes and commits, the program that shows a notification (`osascript` on macOS, `notify-send` on Linux), the program that opens the browser at `widal board login` (`open` or `xdg-open`), and its own command: `widal settings` asks `widal accounts` for the accounts, the pane runs Widal.Code's commands, and the status line and the hooks start `widal refresh-today`, the security checks and the board's sync in the background.
+- **Everything stays on the machine,** except what you ask for with `widal cloud-check`, and what a computer that you linked to a Widal.Code board sends to that board. The programs the tool starts are `git`, for local questions about branches, remotes and commits (before a push, to read the commits that the push sends), the program that shows a notification (`osascript` on macOS, `notify-send` on Linux), the program that opens the browser at `widal board login` (`open` or `xdg-open`), and its own command: `widal settings` asks `widal accounts` for the accounts, the pane runs Widal.Code's commands, and the status line and the hooks start `widal refresh-today`, the security checks and the board's sync in the background.
 - **Two parts of Widal.Code use the network, and only these two.** The cloud checks, only when you run them: `widal cloud-check` starts `aws`, `prowler`, `vercel` or `gh`, which talk to their providers with your sign-in. With `VERCEL_TOKEN` set, Widal.Code itself calls api.vercel.com with that token. What a cloud check saves holds no secret, no value of a variable and no text about a resource (see "Cloud checks"). And the Widal.Code board, only after you linked the computer with `widal board login`: Widal.Code then sends what it records to that board's address, on its own, and to no other address. It never sends the text of prompts, answers, tool results or files. See "The Widal.Code board" for the full list, and `widal board logout` to stop it.
 - **From a log the tool takes counts, sizes, flags and names:** the tokens of each call, the length of each piece of text, the flags for an error and an interrupt, the names of tools and models, the folder and the git branch. The text of a prompt, an answer or a tool result is never kept, stored or printed. Of the input of a tool call only a short code is kept (8 characters of a hash), to find the same call again.
 - **Of a shell command Widal.Code keeps the name of its program.** It is the first word of the command, reduced to its base name (`npm`, `git`, `pytest`), with letters, digits, dot, dash and underscore only, and at most 24 characters. A change of folder in front (`cd <folder> &&`) and words that set a variable are skipped, so neither the folder nor a value is kept. When a quote, a backslash, `$(` or a backquote comes before the program's word, the command counts as `(other)`, because a value in quotes can hold spaces. So does a word that looks like a key or a token (such as one that starts with `AKIA`, `ghp_` or `sk-`, or a long mix of capitals and digits), and a home folder such as `/Users/<name>` or `/home/<name>`. No argument and no other part of the command is kept. The name is in Widal.Code's cache of parsed logs (`~/.widal/cache/`), and `widal findings` prints it. It is not sent to a Widal.Code board.
@@ -1097,6 +1142,7 @@ Not built:
 - **A notification holds the short name of a folder, a time, and a number of tokens or dollars.**
 - **The hooks use nothing of your prompt or of the model's answer.** Claude Code hands a hook more than it needs. The hooks take the id of the session. The hook before a change of model also takes the two model names, the size of the context and Claude Code's cost estimate. The hook before a compaction reads nothing of what it is handed.
 - **The security checks keep no matched text.** A finding says which rule matched, where (a file and line, a path inside the repository, a session), when, and which controls it touches. It never holds a key, a number, a command or text of a session. See "Security and compliance".
+- **The check before a push in git reads what the push sends,** in memory, and keeps only its findings. A note of the gate's question holds the repository, the time, the path of the session's log and the id of the tool call. Of the log, the check reads only whether a result for that call is there. `widal connect` reads the list of projects in Claude Code's `.claude.json`, only the names of the folders, to name the repositories that set their own `core.hooksPath`.
 - **No sign-in token and no cookie is read.** For an API key the tool only looks whether `ANTHROPIC_API_KEY` is set. It never keeps or prints the key. No credentials file is ever read: not `~/.aws/credentials`, not a sign-in file of Vercel or GitHub. Widal.Code uses two tokens: the one you put in `VERCEL_TOKEN` for a Vercel check, which it never writes anywhere, and the token of a Widal.Code board. That one is the only secret Widal.Code keeps: in `~/.widal/board.json` with mode 600, never printed in full, and sent only to the board that gave it.
 - **Accounts: no email address and no person's name.** For the name of the account signed in now, the tool reads Claude Code's file `.claude.json`. That file also holds your email address, your full name and your display name. They are never stored, printed or sent, and neither is an organisation's name that holds one of them. The organisation's name, the ids and your own labels are kept in `~/.widal/accounts.json`. Codex's sign-in file is never read.
 - **The plugin's skill tells Claude never to open, read or quote a session log.** Claude runs a report, and the report prints only numbers.
@@ -1114,6 +1160,9 @@ Not built:
 | `hooks/pane.mjs` | The mod that draws the Widal.Code pane in Claude Code |
 | `src/settings.mjs` | Every setting in one place, and `widal settings` |
 | `src/security.mjs` | The security checks as a whole: their hooks, the gate before a push, and `widal check` |
+| `src/pre-push.mjs` | The check before a push that git runs: the commits a push sends, the question in a terminal, the stop without one, and the notes of the gate's questions |
+| `src/git-hooks.mjs` | The folder of git hooks that `widal connect` sets as git's global `core.hooksPath`, its scripts, and the repositories that set their own |
+| `scripts/measure-pre-push.mjs` | Measures the time that the check before a push adds to a push of 50 changed files |
 | `src/controls.mjs`, `src/rules.mjs` | The catalog of controls per framework, and the rules of the checks |
 | `src/check-settings.mjs`, `src/check-log.mjs`, `src/check-code.mjs` | The checks of the settings, of a session's log (actions and data), and of the changed code with the scanners |
 | `src/findings.mjs`, `src/risk.mjs` | The store of findings, `~/.widal/findings.json`, and the part of the status line about them |

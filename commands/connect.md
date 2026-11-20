@@ -1,5 +1,5 @@
 ---
-description: Set up Widal.Code in Claude Code, with its status line and the widal command on your PATH
+description: Set up Widal.Code in Claude Code, with its status line, the widal command on your PATH, and the check before every git push
 allowed-tools: 'Bash(node "${CLAUDE_PLUGIN_ROOT}/cli/widal.mjs" connect)'
 disable-model-invocation: true
 ---

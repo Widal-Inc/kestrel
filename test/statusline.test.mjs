@@ -12,6 +12,9 @@ const dir = mkdtempSync(join(tmpdir(), 'widal-code-test-'))
 // Widal.Code also reads the config folders of Claude Code in the home folder, so the home folder is a
 // made-up one too.
 process.env.HOME = join(dir, 'person')
+// git's global config, where "widal connect" sets core.hooksPath: a file of this test, never the person's own.
+process.env.GIT_CONFIG_GLOBAL = join(dir, 'gitconfig')
+process.env.GIT_CONFIG_NOSYSTEM = '1'
 // The link that Claude Code's settings call, in the tool's folder of the test. Each test has a folder of its own (freshHome).
 const own = () => join(process.env.WIDAL_HOME, 'bin', 'widal')
 process.env.WIDAL_HOME = join(dir, 'home')

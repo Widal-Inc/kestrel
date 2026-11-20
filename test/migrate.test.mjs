@@ -42,7 +42,8 @@ const VERSION = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).ver
 function machine(name, more = {}) {
   const home = join(dir, name)
   const path = [join(home, '.local', 'bin'), dirname(process.execPath), '/usr/bin', '/bin'].join(delimiter)
-  const env = { PATH: path, HOME: home, USERPROFILE: home, CLAUDE_CONFIG_DIR: join(home, '.claude'), CODEX_HOME: join(home, '.codex'), WIDAL_COWORK_DIR: join(home, 'cowork'), NO_COLOR: '1', ...more }
+  // git's global config is in the made-up home folder too, and the computer's own config is not read.
+  const env = { PATH: path, HOME: home, USERPROFILE: home, CLAUDE_CONFIG_DIR: join(home, '.claude'), CODEX_HOME: join(home, '.codex'), WIDAL_COWORK_DIR: join(home, 'cowork'), GIT_CONFIG_NOSYSTEM: '1', NO_COLOR: '1', ...more }
   mkdirSync(env.CLAUDE_CONFIG_DIR, { recursive: true })
   // The command reaches into the home folder. A test must only ever reach the made-up one.
   assert.equal(spawnSync(process.execPath, ['-e', 'process.stdout.write(require("node:os").homedir())'], { encoding: 'utf8', env }).stdout, home)
@@ -61,6 +62,9 @@ function machine(name, more = {}) {
 
 /** The exit code of a run, and what it printed. */
 const result = (r) => [r.status, r.stdout, r.stderr]
+
+/** What "disconnect" says first about git, after a "connect" in a made-up home folder without a global core.hooksPath. */
+const GIT_OUT = 'Took git\'s global core.hooksPath out again: git runs each repository\'s own hooks.\nRemoved the check before a push.\n'
 
 /** The lines that a run printed. */
 const lines = (r) => r.stdout.split('\n')
@@ -646,7 +650,7 @@ test('the entries of another program named widal are never taken: not the bare w
   })
   // "disconnect" takes out only its own hooks, and leaves the other program on the PATH.
   const disconnect = m.run(['disconnect'])
-  assert.deepEqual(result(disconnect), [0, `${leftAlone('widal', linkIn(m.home, 'widal'), WIDAL)}\nRemoved the status line and the hook from Claude Code.\n`, ''])
+  assert.deepEqual(result(disconnect), [0, `${GIT_OUT}${leftAlone('widal', linkIn(m.home, 'widal'), WIDAL)}\nRemoved the status line and the hook from Claude Code.\n`, ''])
   assert.equal(m.text(), was)
   assert.equal(readlinkSync(linkIn(m.home, 'widal')), join(factory, 'bin', 'widal'))
 })
@@ -686,7 +690,7 @@ test('a file or a link of another program at the places on the PATH stays untouc
     assert.equal(row(m.run(['doctor']), 'Command for Claude Code'), own)
 
     const gone = m.run(['disconnect'])
-    assert.deepEqual(result(gone), [0, [leftAlone('widal', now, WIDAL), leftAlone('kestrel', old, WIDAL), 'Removed the status line and the hook from Claude Code.', ''].join('\n'), ''], first)
+    assert.deepEqual(result(gone), [0, GIT_OUT + [leftAlone('widal', now, WIDAL), leftAlone('kestrel', old, WIDAL), 'Removed the status line and the hook from Claude Code.', ''].join('\n'), ''], first)
     assert.deepEqual([thing(now), thing(old)], before, first)
     assert.equal(lstatSync(own, { throwIfNoEntry: false }), undefined)
   }

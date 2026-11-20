@@ -17,6 +17,7 @@ import { coldStartHook, config, keepWarmHook, limitHook, limitParts, modelSwitch
 import { DEFAULT_KEEP, compactHintConfig, compactHintSettingsText, compactKeepText, saveCompactKeep } from '../src/compact.mjs'
 import { money, table, when } from '../src/format.mjs'
 import { branchInRepo, currentBranch } from '../src/git.mjs'
+import { connectGitHooks, disconnectGitHooks, gitHooksRow } from '../src/git-hooks.mjs'
 import { hintConfig, hintSettingsText } from '../src/hint.mjs'
 import { hudCommand } from '../src/hud.mjs'
 import { installStatusLine, installed, refreshText, setHook, setSecurityHooks, uninstall } from '../src/install.mjs'
@@ -97,9 +98,10 @@ const USAGE = `widal: what your AI coding agents spend, and what the money pays 
   widal load on|off              turn the check before a subagent starts on or off
   widal hooks                    the hooks that the plugin carries: whether each runs, and from where
   widal hooks off|on <name>      turn one of them off or on
-  widal connect [--force]        put the command on your PATH and set Claude Code's status line
+  widal connect [--force]        put the command on your PATH, set Claude Code's status line, and set
+                                 the check before every git push (git's global core.hooksPath)
   widal connect --refresh 30     the seconds between two runs of the status line (0: only after an answer)
-  widal disconnect               take both out of Claude Code again
+  widal disconnect               take all of that out again
   widal migrate                  bring an install made under an old name (kestrel, agent-spend) to the name widal
   widal doctor                   what is installed, and the limits
   widal desktop-mcp              the server that the Claude desktop app starts (see docs/desktop.md)
@@ -275,6 +277,21 @@ async function main() {
           const answer = security.gateHook(input)
           if (answer) process.stdout.write(JSON.stringify(answer))
         }
+        return
+      }
+      // The check before a push, which git runs through the folder that "widal connect" set as its
+      // global core.hooksPath (see src/git-hooks.mjs and src/pre-push.mjs). Its arguments are the
+      // remote's name and address, and its input the refs of the push. It prints on stderr, and its
+      // exit code 10 stops the push. When the check fails, it says so in one line and lets the push go.
+      if (argv[0] === 'pre-push') {
+        let r
+        try {
+          r = (await import('../src/pre-push.mjs')).prePush({ remote: argv[1], input: readFileSync(0, 'utf8') })
+        } catch {
+          r = { code: 0, say: ['Widal.Code: the check before this push did not finish. The push goes ahead.'] }
+        }
+        for (const line of r.say) process.stderr.write(`${line}\n`)
+        process.exitCode = r.code
         return
       }
       // The keep-warm hook waits in the background. To wake the idle session it writes its words
@@ -491,6 +508,12 @@ function connect() {
   console.log(setSecurityHooks(ownLink(), true)
     ? 'Added the hooks of the security checks to Claude Code: at the start of a session, at the end of a turn, and before a push. See the findings with: widal check'
     : 'The hooks of the security checks were already set. See the findings with: widal check')
+  // The check before a push for every agent and for people: git's global core.hooksPath.
+  try {
+    for (const line of connectGitHooks({ command: ownLink(), node: process.execPath, cwd: process.cwd() })) console.log(line)
+  } catch (e) {
+    console.log(`The check before a push is not set up: ${e.message}`)
+  }
   console.log('Codex needs no setup: its session logs are read as they are.')
   const name = onPath && !other ? NAME : ownLink()
   console.log(`Try: ${name} summary, ${name} session, ${name} findings, ${name} live`)
@@ -505,6 +528,12 @@ function connect() {
  */
 function disconnect() {
   const changed = uninstall()
+  // git's global core.hooksPath goes back to the value from before "widal connect".
+  try {
+    for (const line of disconnectGitHooks()) console.log(line)
+  } catch (e) {
+    console.log(`git's global core.hooksPath was not changed: ${e.message}`)
+  }
   // The links are looked at before the copy goes: a link to the copy is this tool's own only while the copy is there.
   const others = removeLinks()
   const copy = removeApp()
@@ -740,6 +769,7 @@ function doctor() {
     ['Command for Claude Code', existsSync(ownLink()) ? ownLink() : 'not made yet (run: widal connect)'],
     ['Claude Code status line', i.statusLine ? `set, with ${refreshText(i.refresh)}` : i.otherStatusLine ? `another tool's: ${i.otherStatusLine}` : 'not set'],
     ['Claude Code limit hook', i.hook ? 'set' : 'not set (it is only added while a limit is set)'],
+    ['Check before a git push', gitHooksRow()],
     ['Limits', l ? `${l.session ? `${money(l.session)} per session ` : ''}${l.day ? `${money(l.day)} per day ` : ''}then ${l.action}` : 'none'],
     ['Billing', billingText(billing({}))],
     ...limitRows(Date.now()),

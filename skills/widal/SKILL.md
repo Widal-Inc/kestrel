@@ -56,4 +56,4 @@ A finding says what kind of thing was found and where, never the secret or the d
 
 ## Changes are the person's choice
 
-Do not run `connect`, `disconnect`, `apply`, `undo`, `limit`, `migrate`, `hooks` or `settings set`, unless the person asks for that change. They change Claude Code's settings or Widal.Code's. Name the command that `advise` proposes, and let the person decide.
+Do not run `connect`, `disconnect`, `apply`, `undo`, `limit`, `migrate`, `hooks` or `settings set`, unless the person asks for that change. They change Claude Code's settings, git's global config (`connect` and `disconnect`) or Widal.Code's. Name the command that `advise` proposes, and let the person decide.

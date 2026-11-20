@@ -39,7 +39,8 @@ const json = (...path) => JSON.parse(readFileSync(join(ROOT, ...path), 'utf8'))
  */
 function machine(name, more = {}) {
   const home = join(dir, name)
-  const env = { PATH: process.env.PATH, HOME: home, USERPROFILE: home, CLAUDE_CONFIG_DIR: join(home, '.claude'), CODEX_HOME: join(home, '.codex'), WIDAL_COWORK_DIR: join(home, 'cowork'), NO_COLOR: '1', ...more }
+  // git's global config is in the made-up home folder too, and the computer's own config is not read.
+  const env = { PATH: process.env.PATH, HOME: home, USERPROFILE: home, CLAUDE_CONFIG_DIR: join(home, '.claude'), CODEX_HOME: join(home, '.codex'), WIDAL_COWORK_DIR: join(home, 'cowork'), GIT_CONFIG_NOSYSTEM: '1', NO_COLOR: '1', ...more }
   mkdirSync(env.CLAUDE_CONFIG_DIR, { recursive: true })
   // The command reaches into the home folder. A test must only ever reach the made-up one.
   assert.equal(spawnSync(process.execPath, ['-e', 'process.stdout.write(require("node:os").homedir())'], { encoding: 'utf8', env }).stdout, home)
@@ -538,7 +539,8 @@ test('"disconnect" removes the stable copy with the links, and a connect from a 
   const [app, own, path] = [join(m.home, '.widal', 'app'), join(m.home, '.widal', 'bin', 'widal'), linkIn(m.home, 'widal')]
   assert.equal(m.run(['connect'], { bin: join(cache, 'cli', 'widal.mjs') }).status, 0)
   // The person types "widal disconnect": that runs the copy itself.
-  assert.deepEqual(result(m.run(['disconnect'], { bin: path })), [0, `Removed the copy of the tool in ${app}.\nRemoved the status line and the hook from Claude Code, and the command from your PATH.\n`, ''])
+  const git = 'Took git\'s global core.hooksPath out again: git runs each repository\'s own hooks.\nRemoved the check before a push.\n'
+  assert.deepEqual(result(m.run(['disconnect'], { bin: path })), [0, `${git}Removed the copy of the tool in ${app}.\nRemoved the status line and the hook from Claude Code, and the command from your PATH.\n`, ''])
   for (const gone of [app, own, path]) assert.equal(existsSync(gone), false, gone)
   assert.equal(JSON.parse(readFileSync(join(m.env.CLAUDE_CONFIG_DIR, 'settings.json'), 'utf8')).statusLine, undefined)
   // The tool's folder stays, with what it keeps.
