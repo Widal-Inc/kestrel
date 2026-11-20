@@ -1153,6 +1153,7 @@ Not built:
 | `src/format.mjs` | How numbers, tables and colours are printed |
 | `src/git.mjs` | Local git checks for the branch reports, and the top folder of a repository |
 | `test/` | `node --test` |
+| `bench/` | The outcome benchmark: real Claude Code sessions on 13 tasks with hidden checks, with and without Widal.Code. It costs money to run, so the tests only check its tasks. See [bench/README.md](bench/README.md) |
 
 ## Licence
 

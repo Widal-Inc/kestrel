@@ -3,3 +3,5 @@ dist/
 .DS_Store
 # Claude Code writes these when it loads the plugin from this folder (types for mods).
 /tsconfig.json
+# A cache that a plugin of the person's own agent can leave in any folder.
+.impeccable/

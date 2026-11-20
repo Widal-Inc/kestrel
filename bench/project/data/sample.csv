@@ -1,0 +1,40 @@
+date,category,amount,note
+2026-01-01,software,94.77,mobile plan
+2026-01-03,phone,206.65,mobile plan
+2026-01-09,phone,279.59,lunch
+2026-01-15,phone,67.89,train
+2026-01-22,phone,22.71,license
+2026-01-28,food,26.59,"dinner, team"
+2026-01-31,phone,247.87,taxi
+2026-02-01,food,190.43,monthly rent
+2026-02-03,travel,272.69,lunch
+2026-02-09,rent,48.90,lunch
+2026-02-15,rent,226.63,coffee
+2026-02-22,rent,255.75,taxi
+2026-02-28,food,106.70,train
+2026-03-01,software,119.92,paper
+2026-03-03,rent,98.86,coffee
+2026-03-09,software,65.16,monthly rent
+2026-03-15,software,129.53,paper
+2026-03-22,phone,185.23,license
+2026-03-28,rent,181.06,license
+2026-03-31,software,76.20,lunch
+2026-04-01,software,162.52,monthly rent
+2026-04-03,travel,140.57,lunch
+2026-04-09,rent,65.70,train
+2026-04-15,phone,186.16,"dinner, team"
+2026-04-22,phone,79.60,monthly rent
+2026-04-28,office,194.47,"dinner, team"
+2026-05-01,travel,62.61,"dinner, team"
+2026-05-03,food,89.94,taxi
+2026-05-09,rent,134.62,license
+2026-05-15,software,81.17,paper
+2026-05-22,phone,89.82,mobile plan
+2026-05-28,food,267.69,"dinner, team"
+2026-05-31,office,57.24,coffee
+2026-06-01,travel,71.42,monthly rent
+2026-06-03,rent,114.21,lunch
+2026-06-09,office,37.50,"desk, second hand"
+2026-06-15,travel,177.81,mobile plan
+2026-06-22,phone,221.32,"desk, second hand"
+2026-06-28,travel,73.02,monthly rent
