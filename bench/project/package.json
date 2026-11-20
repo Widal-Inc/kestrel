@@ -1,0 +1,9 @@
+{
+  "name": "ledger",
+  "version": "0.4.0",
+  "private": true,
+  "description": "Reports on a CSV file of expenses.",
+  "type": "module",
+  "bin": { "ledger": "src/cli.mjs" },
+  "scripts": { "test": "node --test test/*.test.mjs" }
+}
