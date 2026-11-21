@@ -151,7 +151,19 @@ Each record has a `taskHash`: 16 characters of a hash of the issue text, the pro
 starts with it, and the hidden checks. Two records with the same hash are the same test, also when
 they come from different computers. A record holds only for the versions it names.
 
-The command sends nothing. Nothing in this benchmark sends a record anywhere.
+Without `--send` the command sends nothing.
+
+```
+node bench/export.mjs --out <folder> --send            # also sends the records to your board
+```
+
+With `--send`, the same records go to the Widal.Code board that this computer is linked to
+(`widal board login`), with that link's token and to no other address. The board keeps them, and
+Widal reads the records of all teams together, per task and setting, without the name of a team or
+a computer: the same test on many computers shows whether a result holds outside one setup. The
+board refuses a record that holds anything but the fields above, and a record it has already is not
+stored again. No page of the board shows the records. An admin who deletes the team's data on the
+board deletes the team's records too. Nothing in this benchmark sends a record on its own.
 
 A run that must not count (for example because the task was wrong when it ran) stays in the
 folder with a `"void"` reason in its record. The report leaves it out of the outcomes, and still

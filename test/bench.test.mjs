@@ -2,17 +2,23 @@
 // closes it. So a task that an agent does not close is the agent's miss, not a broken check.
 import assert from 'node:assert/strict'
 import { cpSync, existsSync, mkdtempSync } from 'node:fs'
+import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { gunzipSync } from 'node:zlib'
 import { ARMS } from '../bench/arms.mjs'
 import { publicRecord, taskHash } from '../bench/record.mjs'
+import { sendRecords } from '../bench/send.mjs'
 import { score, startState } from '../bench/score.mjs'
 import { TASKS, taskOf } from '../bench/tasks.mjs'
 
 const BENCH = fileURLToPath(new URL('../bench/', import.meta.url))
 const dir = mkdtempSync(join(tmpdir(), 'widal-code-bench-test-'))
+// Widal.Code's home for these tests is an empty folder, so that nothing here can read the
+// person's own link to a board.
+process.env.WIDAL_HOME = join(dir, 'widal-home')
 
 for (const task of TASKS) {
   test(`task ${task.id} (${task.slug}): open at the start, closed by its reference solution`, () => {
@@ -107,4 +113,80 @@ test('the hash of a task changes with its issue text, and is the same when asked
   assert.equal(taskHash(task), taskHash(task))
   assert.notEqual(taskHash({ ...task, id: 't1-other-text', checksOf: 't1', prompt: `${task.prompt} More.` }), taskHash(task))
   assert.notEqual(taskHash(taskOf('t2')), taskHash(taskOf('s2')), 'a task with another start of the project is another test')
+})
+
+/** A stand-in for the board on this computer. `answer(request)` gives `[status, body, headers]`. */
+async function standIn(answer) {
+  const requests = []
+  const server = createServer((req, res) => {
+    const chunks = []
+    req.on('data', (chunk) => chunks.push(chunk))
+    req.on('end', () => {
+      const request = { method: req.method, path: req.url, headers: req.headers, body: Buffer.concat(chunks) }
+      requests.push(request)
+      const [status, body, headers = {}] = answer(request, requests.length)
+      res.writeHead(status, { 'content-type': 'application/json', ...headers })
+      res.end(JSON.stringify(body))
+    })
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  return { url: `http://127.0.0.1:${server.address().port}`, requests, close: () => new Promise((resolve) => server.close(resolve)) }
+}
+const TOKEN = `kbm_${'t'.repeat(40)}`
+
+test('the records go to the linked board only, with its token, and only as the record that may be shared', async () => {
+  const board = await standIn(() => [200, { ok: true, stored: { records: 2 } }])
+  try {
+    const records = [publicRecord(runRecord()), publicRecord({ ...runRecord(), task: 't2' })]
+    const result = await sendRecords(records, { url: board.url, token: TOKEN })
+    assert.deepEqual({ ok: result.ok, sent: result.sent }, { ok: true, sent: 2 })
+    assert.equal(board.requests.length, 1)
+    const [request] = board.requests
+    assert.deepEqual({ method: request.method, path: request.path, token: request.headers.authorization, encoding: request.headers['content-encoding'] }, { method: 'POST', path: '/api/v1/bench', token: `Bearer ${TOKEN}`, encoding: 'gzip' })
+    const body = gunzipSync(request.body).toString()
+    assert.deepEqual(JSON.parse(body), { v: 1, records })
+    assert.ok(!body.includes(SECRET))
+  } finally {
+    await board.close()
+  }
+})
+
+test('nothing is sent from a computer that is not linked, and a move to another address is not followed', async () => {
+  const none = await sendRecords([publicRecord(runRecord())], undefined)
+  assert.deepEqual({ ok: none.ok, sent: none.sent }, { ok: false, sent: 0 })
+  assert.match(none.text, /not linked/)
+
+  const other = await standIn(() => [200, { ok: true }])
+  const moved = await standIn(() => [307, {}, { location: `${other.url}/api/v1/bench` }])
+  try {
+    const result = await sendRecords([publicRecord(runRecord())], { url: moved.url, token: TOKEN })
+    assert.equal(result.ok, false)
+    assert.match(result.text, /move to another address/)
+    assert.equal(other.requests.length, 0, 'the token did not go to the other address')
+  } finally {
+    await moved.close()
+    await other.close()
+  }
+})
+
+test('a board that refuses the records, or that is older, is named in plain words', async () => {
+  const cases = [
+    [[404, { error: 'Not found.' }], /does not take benchmark records/],
+    [[401, { error: 'This machine token is not known to the board.' }], /widal board login/],
+    [[400, { error: 'records[0].task: does not have the form of a id', field: 'records[0].task' }], /answered 400: records\[0\]\.task/],
+  ]
+  for (const [answer, text] of cases) {
+    const board = await standIn(() => answer)
+    try {
+      const result = await sendRecords([publicRecord(runRecord())], { url: board.url, token: TOKEN })
+      assert.equal(result.ok, false)
+      assert.equal(result.sent, 0)
+      assert.match(result.text, text)
+    } finally {
+      await board.close()
+    }
+  }
+  const gone = await sendRecords([publicRecord(runRecord())], { url: 'http://127.0.0.1:9', token: TOKEN })
+  assert.equal(gone.ok, false)
+  assert.match(gone.text, /Could not reach the board/)
 })
