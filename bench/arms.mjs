@@ -15,6 +15,13 @@ export const ARMS = [
   // The baseline with Widal.Code on: its hooks run, and its settings are the baseline's after
   // "widal apply" for every proposal of "widal advise" that the tool can apply itself.
   { id: 'widal-on', number: 6, name: 'Fable 5.2 xhigh, Widal.Code on', from: 'fable-xhigh', plugin: true },
+  // The arms below are `extra`: bench/run.mjs runs them only when --arms names them.
+  // The steps between the baseline's effort and the lowest one, so that the cost of each effort level can be read.
+  { id: 'fable-high', number: 7, name: 'Fable 5.2, effort high', extra: true, settings: { model: 'claude-fable-5-2', effortLevel: 'high' } },
+  { id: 'fable-medium', number: 8, name: 'Fable 5.2, effort medium', extra: true, settings: { model: 'claude-fable-5-2', effortLevel: 'medium' } },
+  // One change of Widal.Code alone on the baseline, on the tasks that the change acts on (`only`).
+  { id: 'fable-sub-sonnet', number: 9, name: 'Fable 5.2 xhigh, subagents on Sonnet 5.5', extra: true, only: ['s1'], settings: { model: 'claude-fable-5-2', effortLevel: 'xhigh', env: { CLAUDE_CODE_SUBAGENT_MODEL: 'claude-sonnet-5-5' } } },
+  { id: 'fable-cap', number: 10, name: 'Fable 5.2 xhigh, command output capped', extra: true, only: ['t2', 's2'], settings: { model: 'claude-fable-5-2', effortLevel: 'xhigh', bashOutputMaxChars: 10000 } },
 ]
 
 /** The arm that the others are compared with. */

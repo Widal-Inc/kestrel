@@ -1,6 +1,6 @@
 // Runs tasks through Claude Code, one real session per task, and scores what each session left.
 //
-//   node bench/run.mjs --out <folder> [--arms a,b] [--tasks t1,t2] [--reps 1] [--budget 6] [--minutes 30] [--lane b]
+//   node bench/run.mjs --out <folder> [--arms a,b] [--tasks t1,t2] [--reps 1] [--round 2] [--paired] [--budget 6] [--minutes 30] [--lane b]
 //
 // Each run:
 // - starts from the sample project in a new git repository, on a branch that names a ticket;
@@ -13,21 +13,31 @@
 // that an arm is one project in Claude Code's logs. A run that has a record already is skipped.
 // --lane names a second work folder, so that a second command can run other tasks of the same
 // arm at the same time.
+//
+// --paired starts a task in all arms at the same moment, and starts the next task when all of
+// them have ended. Every arm then works next to the same number of other sessions, so that the
+// times of the arms can be compared. Without it an arm that ends early leaves the others alone.
+// --round runs one round only (the number in the name of the record), in place of --reps.
 import { spawn, spawnSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ARMS, TOOLS, armOf, settingsOf } from './arms.mjs'
 import { linkLogs } from './collect.mjs'
-import { flags, outDir, paths, readJson, writeJson } from './lib.mjs'
+import { ROOT, flags, outDir, paths, readJson, writeJson } from './lib.mjs'
+import { taskHash } from './record.mjs'
 import { score, startState } from './score.mjs'
 import { TASKS, taskOf } from './tasks.mjs'
 
 const f = flags()
 const out = outDir(f)
 const P = paths(out)
-const arms = (typeof f.arms === 'string' ? f.arms.split(',') : ARMS.filter((a) => !a.from).map((a) => a.id)).map(armOf)
+const arms = (typeof f.arms === 'string' ? f.arms.split(',') : ARMS.filter((a) => !a.from && !a.extra).map((a) => a.id)).map(armOf)
 const tasks = (typeof f.tasks === 'string' ? f.tasks.split(',') : TASKS.map((t) => t.id)).map(taskOf)
 const reps = Number(f.reps ?? 1)
+/** The rounds to run: one round with --round, otherwise 1 to --reps. */
+const rounds = f.round !== undefined ? [Number(f.round)] : Array.from({ length: reps }, (_, i) => i + 1)
+if (rounds.some((n) => !Number.isInteger(n) || n < 1 || n > 9)) throw new Error('--round and --reps take a whole number from 1 to 9')
+const paired = f.paired === true
 const budget = Number(f.budget ?? 6)
 const minutes = Number(f.minutes ?? 30)
 /** A second work folder for the arms, so that this command can run next to another one for the same arm. */
@@ -82,6 +92,20 @@ function claude(args, { cwd, env, timeoutMs }) {
   })
 }
 
+/** What the runs of this command have in common, kept in every record: the versions, the computer, and how the runs were started. */
+const version = (command, args) => {
+  const r = spawnSync(command, args, { encoding: 'utf8' })
+  return r.status === 0 ? r.stdout.trim().split('\n')[0] : undefined
+}
+const setup = {
+  claudeCode: version('claude', ['--version'])?.split(' ')[0],
+  widalCode: readJson(join(ROOT, 'package.json')).version,
+  node: process.version,
+  platform: `${process.platform} ${process.arch}`,
+  paired,
+  armsSideBySide: arms.length,
+}
+
 async function runOne(arm, task, rep) {
   const file = P.result(arm.id, task.id, rep)
   if (existsSync(file)) return readJson(file)
@@ -118,7 +142,7 @@ async function runOne(arm, task, rep) {
   rmSync(kept, { recursive: true, force: true })
   cpSync(work, kept, { recursive: true, filter: (path) => !path.endsWith('/.git') })
   const record = {
-    arm: arm.id, task: task.id, taskNumber: task.number, rep, ticket, branch, cwd: work,
+    arm: arm.id, task: task.id, taskNumber: task.number, taskHash: taskHash(task), rep, ticket, branch, cwd: work, setup, settings: readJson(settingsFile(arm)),
     started: new Date(started).toISOString(), wallMs: ended - started, exit: r.status, timedOut: r.timedOut,
     claude: reported && {
       cost: reported.total_cost_usd, durationMs: reported.duration_ms, apiMs: reported.duration_api_ms, turns: reported.num_turns,
@@ -138,16 +162,23 @@ const line = (r) =>
 // Fails before any agent starts when the arm's settings are missing.
 for (const arm of arms) settingsFile(arm)
 writeFileSync(join(out, 'README.txt'), 'A run of the Widal.Code benchmark (bench/ in the Widal.Code repository). The folders: w = where the agents work, kept = what they left, runs = the records, widal = a home of its own for Widal.Code per arm.\n')
-await Promise.all(
-  arms.map(async (arm) => {
-    for (const task of tasks) {
-      for (let rep = 1; rep <= reps; rep++) {
-        try {
-          console.log(line(await runOne(arm, task, rep)))
-        } catch (e) {
-          console.log(`${arm.id} ${task.id} r${rep}: the run failed: ${e.message}`)
-        }
-      }
-    }
-  }),
-)
+/** One run, with its line printed. A failure of the run itself ends neither the arm nor the command. */
+async function attempt(arm, task, rep) {
+  // An arm can name the only tasks it runs: a change that acts on one kind of work is tried there.
+  if (arm.only && !arm.only.includes(task.id)) return
+  try {
+    console.log(line(await runOne(arm, task, rep)))
+  } catch (e) {
+    console.log(`${arm.id} ${task.id} r${rep}: the run failed: ${e.message}`)
+  }
+}
+
+if (paired) {
+  for (const rep of rounds) for (const task of tasks) await Promise.all(arms.map((arm) => attempt(arm, task, rep)))
+} else {
+  await Promise.all(
+    arms.map(async (arm) => {
+      for (const task of tasks) for (const rep of rounds) await attempt(arm, task, rep)
+    }),
+  )
+}
