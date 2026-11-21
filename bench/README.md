@@ -92,6 +92,17 @@ An arm is one way to run the tasks (`arms.mjs`): Fable 5.2 at effort xhigh (the 
 "Widal.Code on" means: `widal advise` reads the baseline's sessions, `widal apply` runs for every
 proposal that the tool can apply itself, and Widal.Code's hooks run in the sessions.
 
+Four more arms run only when `--arms` names them:
+
+| arm | what it is | tasks |
+|---|---|---|
+| `fable-high`, `fable-medium` | The baseline at effort high and at effort medium, so that the cost of each effort level can be read. | all |
+| `fable-sub-sonnet` | The baseline with one change alone: subagents run on Sonnet 5.5. | s1 |
+| `fable-cap` | The baseline with one change alone: command output is cut at 10,000 characters. | t2, s2 |
+
+The last two run only the tasks that their change acts on (`only` in `arms.mjs`). They show what
+one of Widal.Code's changes does without the others.
+
 ## Run it
 
 Give a folder outside any git repository. The steps can be stopped and started again: a run that
@@ -109,6 +120,38 @@ Useful flags of `run.mjs`: `--arms a,b`, `--tasks t1,t2`, `--reps 3` (each task 
 `--budget 6` (dollars per session), `--minutes 30` (time limit per session), and `--lane b` (a
 second work folder, so that a second command can run other tasks of the same arm at the same
 time).
+
+**Compare the time of two arms only in a paired round.** Without `--paired`, an arm that ends
+early leaves the others alone, so the arms do not run under the same load, and a session takes
+longer when more sessions run next to it. With `--paired`, a task starts in all arms at the same
+moment, and the next task starts when all of them have ended. `--round 2` runs one more round of
+the tasks, with records of their own, in place of `--reps`:
+
+```
+node bench/run.mjs --out <folder> --arms fable-xhigh,widal-on,fable-high,fable-medium --round 2 --paired
+```
+
+The report sets each arm of a paired round against the baseline of the same round, for cost and
+for time, and adds a sign test: how likely such a split of the tasks is when the arm makes no
+difference. Cost can be compared in any round, because it comes from the token counts.
+
+## Keep and share the records
+
+```
+node bench/export.mjs --out <folder>                   # writes <folder>/records.jsonl
+```
+
+This writes one line per run, in a form that may leave the computer (`record.mjs`): the task, the
+arm and its settings, the versions of Claude Code, Widal.Code and Node, the outcome, the cost, the
+time and the token counts per model. It holds no folder, no branch, no session id and no text of a
+session, of a check or of an error. Every text in a record must have a strict form (an id, a model
+name, a version, a day), and a run with any other text gives an error and no record.
+
+Each record has a `taskHash`: 16 characters of a hash of the issue text, the project as the task
+starts with it, and the hidden checks. Two records with the same hash are the same test, also when
+they come from different computers. A record holds only for the versions it names.
+
+The command sends nothing. Nothing in this benchmark sends a record anywhere.
 
 A run that must not count (for example because the task was wrong when it ran) stays in the
 folder with a `"void"` reason in its record. The report leaves it out of the outcomes, and still
@@ -138,6 +181,10 @@ checks its cost and ticket.
   change breaks something. It does not yet show where a cheaper model stops being good enough.
   That needs tasks from a larger codebase, with issues that leave things open.
 - Most arms run each task once. The same arm can close a task in one run and miss it in the next,
-  so small differences between arms mean nothing. Use `--reps` to see the spread.
+  and the cost of one task differs from run to run (the report's section on run to run difference
+  gives the spread). So a small difference between two arms on one task means nothing. Use `--reps`
+  or `--round` to see the spread.
+- The times of the first full run were not measured under the same load: the baseline ran next to
+  four other arms, and the arm with Widal.Code on ran alone. Only a paired round compares time.
 - The hidden checks test what the issue asks for. They do not judge style or design.
 - The dollar value of a closed task rests on the estimates above.
